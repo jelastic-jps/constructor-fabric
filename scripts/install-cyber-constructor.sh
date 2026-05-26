@@ -222,7 +222,7 @@ if ! command -v electron >/dev/null 2>&1; then
     /opt/node-current/bin/npm install -g electron@latest >>"$LOG" 2>&1 || true
   fi
 fi
-if command -v electron >/dev/null 2>&1 && electron --version >>"$LOG" 2>&1; then
+if command -v electron >/dev/null 2>&1 && electron --no-sandbox --version >>"$LOG" 2>&1; then
   exec electron --no-sandbox /root/constructor-fabric/trainer
 fi
 echo "Electron is required for the Constructor Fabric Trainer but is not available or failed to start." >&2
