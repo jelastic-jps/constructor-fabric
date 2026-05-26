@@ -154,10 +154,21 @@
             cp "/usr/share/themes/ConstructorFabric/openbox-3/$n.xbm" "/usr/share/themes/ConstructorFabric/openbox-3/${n}_hover.xbm"
             cp "/usr/share/themes/ConstructorFabric/openbox-3/$n.xbm" "/usr/share/themes/ConstructorFabric/openbox-3/${n}_disabled.xbm"
           done
-          cp /etc/xdg/openbox/LXDE/rc.xml /root/.config/openbox/lxde-rc.xml
           python3 - <<'PYOB'
         from pathlib import Path
+        candidates = [
+          Path('/etc/xdg/openbox/LXDE/rc.xml'),
+          Path('/etc/xdg/openbox/rc.xml'),
+          Path('/usr/share/openbox/rc.xml'),
+          Path('/usr/share/lxde/openbox/rc.xml'),
+        ]
         p=Path('/root/.config/openbox/lxde-rc.xml')
+        for src in candidates:
+          if src.exists():
+            p.write_text(src.read_text())
+            break
+        else:
+          p.write_text('<?xml version="1.0" encoding="UTF-8"?>\n<openbox_config xmlns="http://openbox.org/3.4/rc"><theme><name>Onyx</name></theme><font><name>Sans</name><size>11</size></font></openbox_config>\n')
         s=p.read_text().replace('<name>Onyx</name>', '<name>ConstructorFabric</name>').replace('<size>11</size>', '<size>12</size>')
         p.write_text(s)
         PYOB
