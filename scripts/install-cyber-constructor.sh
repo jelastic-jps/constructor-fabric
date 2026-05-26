@@ -217,15 +217,18 @@ export HOME=/root
 export DISPLAY=:1
 export PATH=/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin:$PATH
 LOG=/root/constructor-fabric/electron-trainer.log
-if ! command -v electron >/dev/null 2>&1; then
-  if [ -x /opt/node-current/bin/npm ]; then
-    /opt/node-current/bin/npm install -g electron >>"$LOG" 2>&1 || true
-  fi
-fi
-if command -v electron >/dev/null 2>&1; then
+if command -v electron >/dev/null 2>&1 && electron --version >>"$LOG" 2>&1; then
   exec electron --no-sandbox /root/constructor-fabric/trainer
 fi
-exec xdg-open http://127.0.0.1:80/
+# The desktop base can have an old Node.js where current Electron installs but cannot run.
+# Fall back to opening the trainer HTML in the desktop browser instead of leaving no trainer window.
+trainer_url="file:///root/constructor-fabric/trainer/index.html"
+for browser in google-chrome chromium-browser chromium firefox x-www-browser; do
+  if command -v "$browser" >/dev/null 2>&1; then
+    exec "$browser" --no-sandbox "$trainer_url"
+  fi
+done
+exec xdg-open "$trainer_url"
 RUNTRAINER
 chmod +x /root/cyber-constructor/auto-bootstrap.sh
 chmod +x /root/cyber-constructor/run-cfc.sh
