@@ -1,0 +1,1233 @@
+type: install
+version: 0.1.0
+id: constructor-fabric
+baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
+name: Constructor Fabric
+logo: https://files.catbox.moe/3fnged.png
+categories:
+  - apps/dev-and-admin-tools
+  - apps/collaboration
+  - apps/productivity
+
+description:
+  text: Constructor Fabric environment with a local PRD -> features -> tasks pipeline and OpenAI/Claude LLM configuration.
+  short: Constructor Fabric
+
+targetRegions:
+  type: vz7
+
+ssl: true
+skipNodeEmails: true
+
+globals:
+  VNC_PASSWORD: ${fn.password(16)}
+  CF_PORT: 8081
+  APP_PORT: 8081
+  LLM_PROVIDER: openai
+  OPENAI_MODEL: gpt-5.5
+  CLAUDE_MODEL: claude-3-5-sonnet-latest
+  RESOLUTION: 2560x1440
+
+settings:
+  fields:
+    - caption: LLM provider
+      type: list
+      inputType: string
+      name: llm-provider
+      default: openai
+      values:
+        openai: OpenAI
+        claude: Claude
+      tooltip: Select which LLM provider the Constructor Fabric workflow should use.
+      showIf:
+        openai:
+          - caption: OpenAI model
+            type: list
+            inputType: string
+            name: openai-model
+            default: gpt-5.5
+            values:
+              gpt-5.5: OpenAI GPT-5.5
+              gpt-5.4: OpenAI GPT-5.4
+              gpt-5.4-mini: OpenAI GPT-5.4 mini
+              gpt-5.4-nano: OpenAI GPT-5.4 nano
+            tooltip: Select the OpenAI model used by the Constructor Fabric workflow.
+        claude:
+          - caption: Anthropic model
+            type: list
+            inputType: string
+            name: claude-model
+            default: claude-3-5-sonnet-latest
+            values:
+              claude-3-5-sonnet-latest: Claude 3.5 Sonnet latest
+              claude-3-7-sonnet-latest: Claude 3.7 Sonnet latest
+              claude-sonnet-4-20250514: Claude Sonnet 4
+              claude-opus-4-20250514: Claude Opus 4
+            tooltip: Select the Anthropic Claude model used by the Constructor Fabric workflow.
+    - caption: API Token
+      type: string
+      inputType: password
+      name: api-token
+      value: ""
+      required: false
+      tooltip: API token for the selected provider. Use an OpenAI key for openai or an Anthropic/Claude key for claude.
+    - caption: IDE automation
+      type: list
+      inputType: string
+      name: ide-profile
+      default: cli
+      values:
+        cli: CLI only
+        vscode: VS Code
+        cursor: Cursor
+        windsurf: Windsurf
+        codex: OpenAI Codex
+        claude: Claude Code
+        copilot: GitHub Copilot in VS Code
+        all: All supported editors and agent CLIs
+      tooltip: Choose the preferred desktop shortcut for the showcase. Constructor Fabric prepares the workspace and agent integrations automatically.
+
+nodes:
+  - image: ttl.sh/constructor-fabric-20260525162014:24h
+    nodeType: docker
+    displayName: Constructor Fabric
+    cloudlets: 16
+    nodeGroup: cp
+    ports:
+      - 80
+    env:
+      TZ: Europe/Kyiv
+      USER: root
+      PASSWORD: ${globals.VNC_PASSWORD}
+      VNC_PASSWORD: ${globals.VNC_PASSWORD}
+      HTTP_PASSWORD: ${globals.VNC_PASSWORD}
+      LLM_PROVIDER: ${settings.llm-provider}
+      API_TOKEN: ${settings.api-token}
+      OPENAI_API_KEY: ${settings.api-token}
+      ANTHROPIC_API_KEY: ${settings.api-token}
+      OPENAI_MODEL: ${settings.openai-model:gpt-5.5}
+      CLAUDE_MODEL: ${settings.claude-model:claude-3-5-sonnet-latest}
+      CF_IDE_PROFILE: ${settings.ide-profile}
+      CF_PREINSTALLED_IDES: 1
+      CF_HOME: /root/constructor-fabric
+      CF_PORT: ${globals.CF_PORT}
+      NO_PROXY: localhost,127.0.0.1,::1
+      no_proxy: localhost,127.0.0.1,::1
+      JELASTIC_EXPOSE: 80
+      JELASTIC_PORTS: 80
+      RESOLUTION: 2560x1440
+
+onInstall:
+  - bootstrap
+  - verify
+
+actions:
+  bootstrap:
+    - cmd[cp]: |-
+        set -euo pipefail
+        export DEBIAN_FRONTEND=noninteractive
+
+        mkdir -p /root/constructor-fabric/app
+        mkdir -p /root/constructor-fabric/data
+        curl --noproxy '*' -fsSL https://files.catbox.moe/3fnged.png -o /root/constructor-fabric/app/icon.png || true
+        curl --noproxy '*' -fsSL https://files.catbox.moe/dvhfoo.png -o /root/constructor-fabric/app/wallpaper.png || true
+        mkdir -p /root/.config/autostart
+        mkdir -p /root/Desktop
+
+        # The focal desktop base can carry a stale Google Chrome apt source whose
+        # rotated signing key breaks every apt-get update before our packages install.
+        # Chrome is not required for the JPS bootstrap/noVNC path, so disable only
+        # that third-party source and keep Ubuntu/Virtuozzo repositories intact.
+        if [ -f /etc/apt/sources.list.d/google-chrome.list ]; then
+          mv /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google-chrome.list.disabled || true
+        fi
+        if [ -f /etc/apt/sources.list.d/google.list ]; then
+          mv /etc/apt/sources.list.d/google.list /etc/apt/sources.list.d/google.list.disabled || true
+        fi
+        apt-get update
+        apt-get install -y --no-install-recommends python3 python3-pip python3-venv curl wget ca-certificates git xdg-utils x11vnc x11-utils net-tools xkb-data openbox lxpanel pcmanfm lxterminal dbus-x11 libnss3 libxss1 libasound2 libgbm1 libgtk-3-0 libsecret-1-0 jq pulseaudio pulseaudio-utils
+        apt-get install -y --reinstall xkb-data
+
+        cat > /root/install-cyber-constructor.sh <<'CFCINSTALL'
+        #!/bin/sh
+        set -eu
+        export HOME=/root
+        export PATH=/root/.local/bin:/usr/local/bin:$PATH
+        mkdir -p /root/cyber-constructor /root/.cf-constructor/cache /root/cfc-install
+        cd /root/cfc-install
+        echo "Fetching Cyber Constructor local source archive"
+        curl --noproxy '*' -fsSL "https://files.catbox.moe/qb6e6d.gz" -o cyber-constructor.tar.gz
+        echo "8ca1c8005097cb3bdca521888a61cc3f0c508601a199722d2585e3130703a626  cyber-constructor.tar.gz" | sha256sum -c -
+        rm -rf /root/cyber-constructor
+        mkdir -p /root/cyber-constructor
+        tar -xzf cyber-constructor.tar.gz -C /root/cyber-constructor
+        find /root/cyber-constructor \( -name '._*' -o -name '.DS_Store' \) -delete
+        if [ ! -x /root/.local/bin/uv ]; then
+          wget -q https://astral.sh/uv/install.sh -O /root/install-uv.sh
+          sh /root/install-uv.sh >/root/cfc-install/uv-install.log 2>&1
+        fi
+        /root/.local/bin/uv python install 3.11 >/root/cfc-install/uv-python311.log 2>&1
+        cd /root/cyber-constructor
+        /root/.local/bin/uv venv --python 3.11 /root/cyber-constructor/.venv >/root/cfc-install/venv.log 2>&1
+        /root/.local/bin/uv pip install --python /root/cyber-constructor/.venv/bin/python -e /root/cyber-constructor >/root/cfc-install/pip-install.log 2>&1
+        ln -sf /root/cyber-constructor/.venv/bin/cfc /usr/local/bin/cfc
+        ln -sf /root/cyber-constructor/.venv/bin/cf-constructor /usr/local/bin/cf-constructor
+        rm -rf /root/.cf-constructor/cache
+        mkdir -p /root/.cf-constructor/cache
+        cp -a /root/cyber-constructor/skills /root/.cf-constructor/cache/
+        if [ -d /root/cyber-constructor/config ]; then cp -a /root/cyber-constructor/config /root/.cf-constructor/cache/; fi
+        echo v4.0.0 > /root/.cf-constructor/cache/.version
+        printf 'd\n' | cfc init --no-cache --project-root /root/cyber-constructor --install-dir .cf-constructor --project-name cyber-constructor --force >/root/cfc-install/init.log 2>&1
+        cfc generate-agents --root /root/cyber-constructor -y >/root/cfc-install/generate-agents.log 2>&1
+        cat > /root/cyber-constructor/auto-bootstrap.sh <<'CFCAUTO'
+        #!/bin/bash
+        set -euo pipefail
+        export HOME=/root
+        export PATH=/root/cyber-constructor/.venv/bin:/root/.local/bin:/usr/local/bin:/opt/node-current/bin:$PATH
+        LOG=/root/cyber-constructor/auto-bootstrap.log
+        exec >>"$LOG" 2>&1
+        echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Constructor Fabric auto-bootstrap started"
+
+        provider="$(printenv LLM_PROVIDER || true)"
+        if [ -z "$provider" ]; then provider=openai; fi
+        case "$provider" in openai|claude) ;; *) provider=openai ;; esac
+        if [ "$provider" = "claude" ]; then
+          model="$(printenv CLAUDE_MODEL || true)"
+          if [ -z "$model" ]; then model=claude-3-5-sonnet-latest; fi
+        else
+          model="$(printenv OPENAI_MODEL || true)"
+          if [ -z "$model" ]; then model=gpt-5.5; fi
+        fi
+        token="$(printenv API_TOKEN || true)"
+        if [ -z "$token" ] && [ "$provider" = "claude" ]; then token="$(printenv ANTHROPIC_API_KEY || true)"; fi
+        if [ -z "$token" ] && [ "$provider" = "openai" ]; then token="$(printenv OPENAI_API_KEY || true)"; fi
+
+        project_name="Constructor Fabric Workspace"
+        slug="constructor-fabric-workspace"
+        root="/root/workspaces/$slug"
+        mkdir -p "$root"
+        cat > "$root/.constructor-fabric.json" <<JSON
+        {
+          "provider": "$provider",
+          "model": "$model",
+          "api_token_set": $(if [ -n "$token" ]; then echo true; else echo false; fi),
+          "source": "Virtuozzo install form",
+          "trainer": "Electron"
+        }
+        JSON
+        {
+          echo "LLM_PROVIDER=$provider"
+          echo "OPENAI_MODEL=$model"
+          echo "CLAUDE_MODEL=$model"
+          if [ -n "$token" ]; then
+            echo "API_TOKEN=$token"
+            if [ "$provider" = "claude" ]; then echo "ANTHROPIC_API_KEY=$token"; else echo "OPENAI_API_KEY=$token"; fi
+          fi
+        } > "$root/.env.constructor-fabric"
+        cat > "$root/CONSTRUCTOR_FABRIC_PROMPTS.md" <<'PROMPTS'
+        # Constructor Fabric copy/paste prompts
+        
+        Use these prompts in any generated integration: VS Code/Copilot, Cursor, Windsurf, Codex, or Claude Code.
+        
+        ```text
+        /cf-constructor Create a PRD for a lightweight team task manager with projects, tasks, comments, notifications, and a REST API. Include target users, product goals, core user journeys, non-goals, constraints, success metrics, and acceptance criteria.
+        ```
+        
+        ```text
+        /cf-constructor Decompose the PRD into feature artifacts. For each feature include user value, acceptance criteria, dependencies, risks, and traceability back to the PRD goals.
+        ```
+        
+        ```text
+        /cf-constructor Create an implementation task backlog for these features. Each task must include intent, expected files or modules, test requirements, completion criteria, dependencies, and traceability to the PRD and feature acceptance criteria.
+        ```
+        
+        ```text
+        /cf-constructor Produce implementation plans for the task backlog. Include sequencing, milestones, tests, risks, rollback notes, review checkpoints, and validation commands.
+        ```
+        
+        ```text
+        /cf-constructor Review the generated Constructor Fabric artifacts as a PRD -> features -> tasks -> plans tree. Identify any missing links, weak acceptance criteria, duplicate tasks, or gaps that should be fixed before validation.
+        ```
+        
+        ```text
+        /cf-constructor Fix any validation or traceability issues reported by cfc validate, then summarize the final PRD -> features -> tasks -> plans structure and the remaining implementation risks.
+        ```
+        PROMPTS
+        if [ ! -f "$root/README.md" ]; then
+          cat > "$root/README.md" <<README
+        # Constructor Fabric Workspace
+
+        This workspace was initialized automatically from the marketplace installation form.
+
+        - Provider: $provider
+        - Model: $model
+        - API token configured: $(if [ -n "$token" ]; then echo yes; else echo no; fi)
+
+        Open the Electron Trainer popup for the step-by-step guide, then use the generated
+        /cf-constructor workflow in your selected IDE or agent chat.
+        README
+        fi
+
+        if [ ! -d "$root/.cf-constructor" ]; then
+          printf 'd\n' | cfc init --no-cache --project-root "$root" --install-dir .cf-constructor --project-name "$slug" --force
+        else
+          printf 'd\n' | cfc init --no-cache --project-root "$root" --install-dir .cf-constructor --project-name "$slug" --force
+        fi
+        cfc generate-agents --root "$root" -y
+        (cd "$root" && cfc agents --json > /root/cyber-constructor/workspace-agents.json && python3 - <<'PYAGENTS'
+        import json, sys
+        text=json.dumps(json.load(open('/root/cyber-constructor/workspace-agents.json'))).lower()
+        required=['windsurf','cursor','claude','copilot','openai']
+        missing=[name for name in required if name not in text]
+        if missing:
+            raise SystemExit('Missing generated IDE/agent integrations: '+', '.join(missing))
+        print('Generated Constructor Fabric integrations for: '+', '.join(required))
+        PYAGENTS
+        )
+        (cd "$root" && cfc validate --json) || true
+        echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Constructor Fabric auto-bootstrap finished for $root"
+        CFCAUTO
+
+        cat > /root/cyber-constructor/run-cfc.sh <<'CFCRUN'
+        #!/bin/bash
+        export HOME=/root
+        export PATH=/root/cyber-constructor/.venv/bin:/root/.local/bin:/usr/local/bin:/opt/node-current/bin:$PATH
+        exec /root/cyber-constructor/auto-bootstrap.sh
+        CFCRUN
+
+        mkdir -p /root/constructor-fabric/trainer
+        cat > /root/constructor-fabric/trainer/package.json <<'PKG'
+        {"name":"constructor-fabric-trainer","version":"1.0.0","main":"main.js","private":true,"description":"Constructor Fabric Electron Trainer"}
+        PKG
+        cat > /root/constructor-fabric/trainer/main.js <<'MAINJS'
+        const { app, BrowserWindow, shell } = require('electron');
+        const path = require('path');
+        app.commandLine.appendSwitch('no-sandbox');
+        function createWindow() {
+          const win = new BrowserWindow({
+            width: 1000,
+            height: 700,
+            minWidth: 860,
+            minHeight: 600,
+            x: 260,
+            y: 120,
+            title: 'Constructor Fabric Trainer',
+            backgroundColor: '#07111f',
+            webPreferences: { nodeIntegration: false, contextIsolation: true }
+          });
+          win.removeMenu();
+          win.loadFile(path.join(__dirname, 'index.html'));
+          win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
+        }
+        app.whenReady().then(createWindow);
+        app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+        app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+        MAINJS
+        cat > /root/constructor-fabric/trainer/index.html <<'HTMLTRAINER'
+        <!doctype html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Constructor Fabric Showcase Guideline</title>
+          <style>
+            :root{color-scheme:dark;--bg:#07111f;--panel:#0d1b2f;--panel2:#101f36;--text:#eef6ff;--muted:#9fb3c8;--accent:#2dd4bf;--accent2:#60a5fa;--ok:#34d399;--gold:#f7c873}
+            *{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at 18% 0%,#173b6c 0,#07111f 42%,#040914 100%);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+            .app{display:grid;grid-template-columns:310px 1fr;min-height:100vh}.side{padding:28px 22px;background:rgba(4,10,20,.76);border-right:1px solid rgba(255,255,255,.08)}
+            .brand{display:flex;gap:14px;align-items:center;margin-bottom:24px}.logo{width:50px;height:50px;border-radius:16px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-weight:900;color:#04111f;box-shadow:0 14px 36px rgba(45,212,191,.18)}.brand h1{font-size:19px;margin:0}.brand p{margin:3px 0 0;color:var(--muted);font-size:13px}
+            .step{display:flex;gap:12px;padding:12px 11px;margin:7px 0;border-radius:14px;color:var(--muted);cursor:pointer;border:1px solid transparent}.step.active{background:rgba(45,212,191,.12);border-color:rgba(45,212,191,.35);color:var(--text)}.num{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:#14243c;color:#cce4ff;font-weight:800}.step.active .num{background:var(--accent);color:#05201d}.step b{display:block;font-size:14px}.step span{font-size:12px}
+            .main{padding:32px 38px}.card{background:linear-gradient(180deg,rgba(16,31,54,.94),rgba(8,18,34,.94));border:1px solid rgba(255,255,255,.10);border-radius:26px;padding:30px;box-shadow:0 24px 70px rgba(0,0,0,.38);min-height:610px}.pill{display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(45,212,191,.35);color:#9ff5e9;background:rgba(45,212,191,.09);border-radius:999px;padding:8px 12px;font-size:13px}.status-dot{width:8px;height:8px;background:var(--ok);border-radius:99px;box-shadow:0 0 14px var(--ok)}
+            h2{font-size:34px;line-height:1.1;margin:20px 0 12px}.lead{font-size:17px;color:#c9d8e8;line-height:1.62;max-width:850px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:22px 0}.box{background:rgba(255,255,255,.048);border:1px solid rgba(255,255,255,.09);border-radius:17px;padding:16px}.box b{display:block;margin-bottom:8px;color:#fff}.box p,.box li{color:var(--muted);line-height:1.55;margin:0}.quote{border-left:3px solid var(--accent);background:rgba(45,212,191,.075);padding:14px 16px;border-radius:12px;color:#dffdf8;line-height:1.55;margin-top:18px}.code,.prompt-text{font-family:"SFMono-Regular",Consolas,monospace;background:#07111f;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px;color:#d7ecff;white-space:pre-wrap}.prompt{margin-top:18px}.prompt-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}.prompt-head b{color:#fff}.prompt-head span{color:var(--muted);font-size:12px}.prompt-text{width:100%;min-height:108px;resize:vertical;outline:0}.copy-ok{color:#9ff5e9;font-size:12px;margin-left:10px}.buttons{display:flex;gap:12px;align-items:center;margin-top:24px}.btn{border:0;border-radius:13px;padding:12px 16px;font-weight:800;cursor:pointer}.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#02111f}.secondary{background:#172944;color:#d8e9ff;border:1px solid rgba(255,255,255,.10)}.foot{margin-top:18px;color:var(--muted);font-size:13px}.accent{color:var(--gold)}
+          </style>
+        </head>
+        <body>
+          <div class="app"><aside class="side"><div class="brand"><div class="logo">CF</div><div><h1>Constructor Fabric</h1><p>Showcase Guideline</p></div></div><div id="nav"></div></aside><main class="main"><section class="card"><div class="pill"><span class="status-dot"></span><span id="configPill">Ready for the guided showcase</span></div><div id="content"></div><div class="buttons"><button class="btn secondary" id="prev">Back</button><button class="btn primary" id="next">Next step</button></div><div class="foot" id="foot"></div></section></main></div>
+          <script>
+          const steps = [
+            {t:'Welcome',s:'Showcase path',h:'Welcome to Constructor Fabric Showcase Guideline',body:'We will go through the basic Constructor Fabric flow: turn a product idea into a structured product brief, decompose it into features and tasks, create implementation-ready artifacts, validate traceability, and finish with a reviewable project workspace.',boxes:[['What you will build','A small, realistic product plan with PRD, feature decomposition, task backlog, implementation plan, and validation report.'],['Where to paste prompts','Open any generated integration: VS Code/Copilot, Cursor, Windsurf, Codex, or Claude Code. Copy the prompt from this guide and paste it into the IDE or agent chat.']],quote:'Suggested showcase idea: “Build a lightweight team task manager with projects, tasks, comments, status workflow, notifications, and a simple REST API.”'},
+            {t:'Product brief',s:'Idea → PRD',h:'Start with a clear product story',body:'Ask the agent to create a concise PRD from the idea. The goal is to capture users, goals, core scenarios, constraints, and success criteria before jumping into implementation.',boxes:[['Expected artifact','A PRD or product brief that explains who the product is for, what problem it solves, and what “done” looks like.'],['Works in every IDE','Paste the same prompt into Cursor, Windsurf, VS Code/Copilot, Codex, or Claude Code. The generated Constructor Fabric agents are prepared for all of them.']],prompt:'/cf-constructor Create a PRD for a lightweight team task manager with projects, tasks, comments, notifications, and a REST API. Include target users, product goals, core user journeys, non-goals, constraints, success metrics, and acceptance criteria.'},
+            {t:'Features',s:'PRD → scope',h:'Decompose the product into features',body:'Next, split the PRD into a small set of features. Each feature should have clear value, acceptance criteria, dependencies, and a traceable link back to the product goals.',boxes:[['Feature examples','Authentication, project workspace, task workflow, comments, notifications, API surface, and audit/history.'],['Copy/paste flow','Use the Copy prompt button, switch to your selected IDE or agent chat, paste, and send.']],prompt:'/cf-constructor Decompose the PRD into feature artifacts. For each feature include user value, acceptance criteria, dependencies, risks, and traceability back to the PRD goals.'},
+            {t:'Tasks',s:'Features → backlog',h:'Turn features into implementation tasks',body:'For each feature, ask Constructor Fabric to produce engineering tasks that are small enough to execute and review. Tasks should include intent, expected files or modules, tests, and completion criteria.',boxes:[['Task examples','Create project data model, implement task status transitions, add comments endpoint, add notification event contract, write validation tests.'],['Quality bar','Each task should be independently reviewable and traceable to a feature and PRD goal.']],prompt:'/cf-constructor Create an implementation task backlog for these features. Each task must include intent, expected files or modules, test requirements, completion criteria, dependencies, and traceability to the PRD and feature acceptance criteria.'},
+            {t:'Plans',s:'Backlog → execution',h:'Create implementation-ready plans',body:'Now convert the backlog into an execution plan. A good plan explains sequencing, risks, test strategy, and review checkpoints so another agent or engineer can implement safely.',boxes:[['Expected artifact','A sequenced implementation plan with milestones, quality gates, and validation steps.'],['Ready for handoff','The output should be specific enough that another IDE agent can implement from it without guessing.']],prompt:'/cf-constructor Produce implementation plans for the task backlog. Include sequencing, milestones, tests, risks, rollback notes, review checkpoints, and validation commands.'},
+            {t:'Artifacts',s:'Generate outputs',h:'Generate and inspect the artifacts',body:'Use the selected AI agent to create the actual Constructor Fabric artifacts in the workspace. Review the result as a product tree: PRD → features → tasks → plans. The showcase should demonstrate that every lower-level item traces back to a higher-level decision.',boxes:[['What to inspect','Open the generated artifacts, check naming, traceability IDs, acceptance criteria, and task completeness.'],['Quality signal','The workspace should read like a complete product decomposition, not a random collection of notes.']],prompt:'/cf-constructor Review the generated Constructor Fabric artifacts as a PRD → features → tasks → plans tree. Identify any missing links, weak acceptance criteria, duplicate tasks, or gaps that should be fixed before validation.'},
+            {t:'Validate',s:'Traceability',h:'Validate the complete flow',body:'Finish by running the deterministic checks from the workspace root. Validation proves that the artifacts are discoverable, linked, and ready for the next implementation stage.',code:'cd /root/workspaces/constructor-fabric-workspace\ncfc validate\ncfc list-ids\ncfc toc',boxes:[['Success criteria','Validation passes, IDs are listed, and the table of contents shows a coherent PRD → features → tasks → plans flow.'],['Optional final step','Create a local commit only after the artifacts are validated and reviewed.']],prompt:'/cf-constructor Fix any validation or traceability issues reported by cfc validate, then summarize the final PRD → features → tasks → plans structure and the remaining implementation risks.'}
+          ];
+          let idx=0;
+          function renderNav(){document.getElementById('nav').innerHTML=steps.map((x,i)=>'<div class="step '+(i===idx?'active':'')+'" data-i="'+i+'"><div class="num">'+(i+1)+'</div><div><b>'+x.t+'</b><span>'+x.s+'</span></div></div>').join('');document.querySelectorAll('.step').forEach(e=>e.onclick=()=>{idx=Number(e.dataset.i);render();});}
+          function esc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+          function render(){renderNav();const x=steps[idx];let html='<h2>'+esc(x.h)+'</h2><p class="lead">'+esc(x.body)+'</p>';if(x.quote){html+='<div class="quote">'+esc(x.quote)+'</div>';}if(x.boxes){html+='<div class="grid">'+x.boxes.map(b=>'<div class="box"><b>'+esc(b[0])+'</b><p>'+esc(b[1])+'</p></div>').join('')+'</div>';}if(x.prompt){html+='<div class="prompt"><div class="prompt-head"><div><b>Prompt to copy into IDE</b><br><span>Copy this text, paste it into Cursor, Windsurf, VS Code/Copilot, Codex, or Claude Code, then send.</span></div><button class="btn secondary" id="copyPrompt">Copy prompt</button></div><textarea class="prompt-text" id="promptText" readonly>'+esc(x.prompt)+'</textarea><span class="copy-ok" id="copyStatus"></span></div>';}if(x.code){html+='<div class="code">'+esc(x.code)+'</div>';}document.getElementById('content').innerHTML=html;const copy=document.getElementById('copyPrompt');if(copy){copy.onclick=async()=>{const ta=document.getElementById('promptText');ta.focus();ta.select();let ok=false;try{if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(ta.value);ok=true;}}catch(e){}if(!ok){try{ok=document.execCommand('copy');}catch(e){ok=false;}}document.getElementById('copyStatus').textContent=ok?'Copied to clipboard.':'Selected — press Ctrl+C, then paste into your IDE.';};}document.getElementById('prev').disabled=idx===0;document.getElementById('next').textContent=idx===steps.length-1?'Finish showcase':'Next step';document.getElementById('foot').textContent='Step '+(idx+1)+' of '+steps.length+' — Constructor Fabric basic flow showcase';document.getElementById('configPill').textContent='All IDE/agent integrations are generated: VS Code/Copilot, Cursor, Windsurf, Codex, Claude';}
+          document.getElementById('prev').onclick=()=>{if(idx>0){idx--;render();}};document.getElementById('next').onclick=()=>{if(idx<steps.length-1){idx++;render();}else{window.close();}};render();
+          </script>
+        </body>
+        </html>
+        HTMLTRAINER
+        cat > /root/constructor-fabric/run-trainer.sh <<'RUNTRAINER'
+        #!/bin/sh
+        set -u
+        export HOME=/root
+        export DISPLAY=:1
+        export PATH=/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin:$PATH
+        LOG=/root/constructor-fabric/electron-trainer.log
+        if ! command -v electron >/dev/null 2>&1; then
+          if [ -x /opt/node-current/bin/npm ]; then
+            /opt/node-current/bin/npm install -g electron >>"$LOG" 2>&1 || true
+          fi
+        fi
+        if command -v electron >/dev/null 2>&1; then
+          exec electron --no-sandbox /root/constructor-fabric/trainer
+        fi
+        exec xdg-open http://127.0.0.1:8081/
+        RUNTRAINER
+        chmod +x /root/cyber-constructor/auto-bootstrap.sh
+        chmod +x /root/cyber-constructor/run-cfc.sh
+        chmod +x /root/constructor-fabric/run-trainer.sh
+        mkdir -p /root/Desktop
+        cat > /root/Desktop/Cyber-Constructor.desktop <<'CFCDESK'
+        [Desktop Entry]
+        Version=1.0
+        Type=Application
+        Name=Constructor Fabric Workspace
+        Comment=Open the prepared showcase workspace
+        Exec=lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace
+        Icon=/root/constructor-fabric/app/icon.png
+        Terminal=false
+        Categories=Development;
+        CFCDESK
+        chmod +x /root/Desktop/Cyber-Constructor.desktop
+        mkdir -p /root/constructor-fabric
+        cat > /root/constructor-fabric/open-agent.sh <<'OPENAGENT'
+        #!/bin/bash
+        agent="${1:-codex}"
+        export HOME=/root
+        export PATH=/root/cyber-constructor/.venv/bin:/root/.local/bin:/usr/local/bin:/opt/node-current/bin:$PATH
+        workspace=/root/workspaces/constructor-fabric-workspace
+        mkdir -p "$workspace"
+        cd "$workspace"
+        if [ -f .env.constructor-fabric ]; then
+          set -a
+          . ./.env.constructor-fabric 2>/dev/null || true
+          set +a
+        fi
+        provider="$(python3 - <<'PYCFG' 2>/dev/null || true
+        import json, pathlib
+        p=pathlib.Path('.constructor-fabric.json')
+        if p.exists():
+            print(json.loads(p.read_text()).get('provider',''))
+        PYCFG
+        )"
+        existing_openai_key="$(printenv OPENAI_API_KEY || true)"
+        existing_anthropic_key="$(printenv ANTHROPIC_API_KEY || true)"
+        install_api_token="$(printenv API_TOKEN || true)"
+        if [ -z "$existing_openai_key" ] && [ -n "$install_api_token" ]; then export OPENAI_API_KEY="$install_api_token"; fi
+        if [ -z "$existing_anthropic_key" ] && [ -n "$install_api_token" ]; then export ANTHROPIC_API_KEY="$install_api_token"; fi
+        clear
+        cat <<'WELCOME'
+        Constructor Fabric Showcase
+        
+        Use this agent to drive the product flow with the generated /cf-constructor workflow.
+        
+        The Electron Trainer has a Copy prompt button on every step.
+        The same copy/paste prompts are also saved here:
+          CONSTRUCTOR_FABRIC_PROMPTS.md
+        
+        Open that file, copy a prompt, paste it into this agent chat, and send.
+        The generated integrations are prepared for VS Code/Copilot, Cursor, Windsurf, Codex, and Claude Code.
+        
+        After the agent finishes, validate from this workspace with:
+        cfc validate && cfc list-ids && cfc toc
+        WELCOME
+        echo
+        echo "Workspace: $workspace"
+        echo
+        case "$agent" in
+          claude)
+            if command -v claude >/dev/null 2>&1; then
+              echo "Starting Claude Code..."
+              exec claude
+            fi
+            echo "Claude Code is not ready yet. Please retry this desktop shortcut in a minute."
+            ;;
+          codex|*)
+            if command -v codex >/dev/null 2>&1; then
+              echo "Starting OpenAI Codex..."
+              exec codex
+            fi
+            echo "OpenAI Codex is not ready yet. Please retry this desktop shortcut in a minute."
+            ;;
+        esac
+        echo
+        read -r -p "Press Enter to close."
+        OPENAGENT
+        chmod +x /root/constructor-fabric/open-agent.sh
+        cfc --version
+        cfc validate --json
+        CFCINSTALL
+        chmod +x /root/install-cyber-constructor.sh
+        /root/install-cyber-constructor.sh
+
+        cat > /root/constructor-fabric/install-ides.sh <<'IDEINSTALL'
+        #!/bin/sh
+        set -u
+        export DEBIAN_FRONTEND=noninteractive
+        export HOME=/root
+        export DISPLAY=:1
+        export PATH=/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin:$PATH
+        PROFILE="$(printenv CF_IDE_PROFILE || true)"
+        if [ -z "$PROFILE" ]; then PROFILE=cli; fi
+        LOG=/root/constructor-fabric/ide-install.log
+        mkdir -p /root/constructor-fabric /root/Desktop /root/Downloads /opt
+        echo "Constructor Fabric IDE automation profile: $PROFILE" > "$LOG"
+        log(){ echo "[$(date -u +%H:%M:%S)] $*" >> "$LOG"; }
+        mkdir -p /root/constructor-fabric/app/icons
+        create_svg_icon(){
+          file="$1"; bg="$2"; fg="$3"; label="$4"
+          cat > "/root/constructor-fabric/app/icons/$file" <<EOF
+        <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+          <rect width="256" height="256" rx="56" fill="$bg"/>
+          <circle cx="196" cy="60" r="28" fill="$fg" opacity="0.22"/>
+          <path d="M54 128c0-46 28-76 74-76 36 0 64 20 74 52h-42c-7-10-18-16-32-16-25 0-40 16-40 40s15 40 40 40c15 0 27-6 34-18h42c-10 34-38 54-76 54-46 0-74-30-74-76z" fill="$fg" opacity="0.92"/>
+          <text x="128" y="150" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="700" fill="$fg">$label</text>
+        </svg>
+        EOF
+        }
+        create_svg_icon vscode.svg '#0078d4' '#ffffff' 'VS'
+        create_svg_icon cursor.svg '#111827' '#ffffff' 'Cu'
+        create_svg_icon windsurf.svg '#00b3a4' '#ffffff' 'Ws'
+        create_svg_icon codex.svg '#10a37f' '#ffffff' 'Cx'
+        create_svg_icon claude.svg '#d97706' '#ffffff' 'Cl'
+        create_svg_icon copilot.svg '#24292f' '#ffffff' 'Gh'
+        desktop_link(){
+          name="$1"; exec_cmd="$2"; icon_name="$3"; file="$4"
+          cat > "/root/Desktop/$file" <<EOF
+        [Desktop Entry]
+        Version=1.0
+        Type=Application
+        Name=$name
+        Exec=$exec_cmd
+        Icon=$icon_name
+        Terminal=false
+        Categories=Development;
+        EOF
+          chmod +x "/root/Desktop/$file" || true
+        }
+        PREINSTALLED="$(printenv CF_PREINSTALLED_IDES || true)"
+        preinstalled_finish(){
+          log "Preinstalled IDE image detected; keeping selected profile '$PROFILE' without downloads"
+          desktop_link "VS Code - Constructor Fabric" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && code --no-sandbox --user-data-dir=/root/.config/Code . || lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace'" "/root/constructor-fabric/app/icons/vscode.svg" "VS-Code-Constructor-Fabric.desktop"
+          desktop_link "Cursor - Constructor Fabric" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && (cursor --no-sandbox . || lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace)'" "/root/constructor-fabric/app/icons/cursor.svg" "Cursor-Constructor-Fabric.desktop"
+          desktop_link "Windsurf - Constructor Fabric" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && (windsurf --no-sandbox . || lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace)'" "/root/constructor-fabric/app/icons/windsurf.svg" "Windsurf-Constructor-Fabric.desktop"
+          desktop_link "Codex - Constructor Fabric" "lxterminal --title=\"Constructor Fabric - Codex\" --geometry=132x42 -e /root/constructor-fabric/open-agent.sh codex" "/root/constructor-fabric/app/icons/codex.svg" "Codex-Constructor-Fabric.desktop"
+          desktop_link "Claude Code - Constructor Fabric" "lxterminal --title=\"Constructor Fabric - Claude Code\" --geometry=132x42 -e /root/constructor-fabric/open-agent.sh claude" "/root/constructor-fabric/app/icons/claude.svg" "Claude-Code-Constructor-Fabric.desktop"
+          desktop_link "GitHub Copilot - Constructor Fabric" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && (code --no-sandbox --user-data-dir=/root/.config/Code . || lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace)'" "/root/constructor-fabric/app/icons/copilot.svg" "GitHub-Copilot-Constructor-Fabric.desktop"
+          log "IDE automation finished"
+          exit 0
+        }
+        if [ "$PREINSTALLED" = "1" ]; then preinstalled_finish; fi
+        apt_refresh(){ apt-get update >> "$LOG" 2>&1 || true; }
+        ensure_ide_prereqs(){
+          apt-get install -y --no-install-recommends curl wget ca-certificates gnupg apt-transport-https jq xz-utils libnss3 libxss1 libasound2 libgbm1 libgtk-3-0 libsecret-1-0 >> "$LOG" 2>&1 || true
+        }
+        install_node22(){
+          if [ -x /opt/node-current/bin/node ]; then return 0; fi
+          ensure_ide_prereqs
+          log "Installing Node.js 22 for agent CLIs"
+          arch="linux-x64"
+          url="https://nodejs.org/dist/v22.16.0/node-v22.16.0-$arch.tar.xz"
+          curl --noproxy '*' -fL "$url" -o /root/Downloads/node.tar.xz >> "$LOG" 2>&1 \
+            && rm -rf /opt/node-v22.16.0-linux-x64 /opt/node-current \
+            && tar -xJf /root/Downloads/node.tar.xz -C /opt \
+            && ln -s /opt/node-v22.16.0-linux-x64 /opt/node-current \
+            && ln -sf /opt/node-current/bin/node /usr/local/bin/node \
+            && ln -sf /opt/node-current/bin/npm /usr/local/bin/npm \
+            && ln -sf /opt/node-current/bin/npx /usr/local/bin/npx \
+            || log "Node.js install failed; agent CLI installers may be skipped"
+        }
+        install_vscode(){
+          ensure_ide_prereqs
+          log "Installing VS Code"
+          if ! command -v code >/dev/null 2>&1; then
+            wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/packages.microsoft.gpg 2>>"$LOG" || true
+            echo "deb [arch=amd64 signed-by=/usr/share/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list
+            apt_refresh
+            apt-get install -y --no-install-recommends code >> "$LOG" 2>&1 || log "VS Code install failed; Constructor Fabric CLI remains available"
+          fi
+          desktop_link "VS Code - Constructor Fabric" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && code --no-sandbox --user-data-dir=/root/.config/Code . || lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace'" "/root/constructor-fabric/app/icons/vscode.svg" "VS-Code-Constructor-Fabric.desktop"
+        }
+        install_cursor(){
+          ensure_ide_prereqs
+          log "Installing Cursor"
+          if ! command -v cursor >/dev/null 2>&1; then
+            api=/root/Downloads/cursor-download.json
+            curl --noproxy '*' -fsSL 'https://cursor.com/api/download?platform=linux-x64&releaseTrack=stable' -o "$api" >> "$LOG" 2>&1 || true
+            url=$(python3 - <<'PYCURSOR' 2>>"$LOG"
+        import json
+        from pathlib import Path
+        p=Path('/root/Downloads/cursor-download.json')
+        data=json.loads(p.read_text()) if p.exists() else {}
+        print(data.get('downloadUrl') or data.get('url') or '')
+        PYCURSOR
+        )
+            if [ -n "$url" ]; then
+              curl --noproxy '*' -fL "$url" -o /root/Downloads/cursor.AppImage >> "$LOG" 2>&1 \
+                && chmod +x /root/Downloads/cursor.AppImage \
+                && rm -rf /opt/cursor \
+                && mkdir -p /opt/cursor \
+                && cd /opt/cursor \
+                && /root/Downloads/cursor.AppImage --appimage-extract >> "$LOG" 2>&1 \
+                && ln -sf /opt/cursor/squashfs-root/AppRun /usr/local/bin/cursor \
+                || log "Cursor AppImage install failed; generated Cursor integration files remain available"
+            else
+              log "Cursor download API did not return a URL"
+            fi
+          fi
+          desktop_link "Cursor - Constructor Fabric" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && (cursor --no-sandbox . || lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace)'" "/root/constructor-fabric/app/icons/cursor.svg" "Cursor-Constructor-Fabric.desktop"
+        }
+        install_windsurf(){
+          ensure_ide_prereqs
+          log "Installing Windsurf"
+          if ! command -v windsurf >/dev/null 2>&1; then
+            curl --noproxy '*' -fsSL 'https://windsurf.com/api/windsurf/download-redirect?build=linux-x64&isNext=false' -o /root/Downloads/windsurf.tar.gz >> "$LOG" 2>&1 \
+              && rm -rf /opt/windsurf \
+              && mkdir -p /opt/windsurf \
+              && tar -xzf /root/Downloads/windsurf.tar.gz -C /opt/windsurf --strip-components=1 \
+              && ln -sf /opt/windsurf/windsurf /usr/local/bin/windsurf \
+              || log "Windsurf tarball install failed; trying apt repository"
+            if ! command -v windsurf >/dev/null 2>&1; then
+              curl --noproxy '*' -fsSL https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/windsurf.gpg | gpg --dearmor > /usr/share/keyrings/windsurf.gpg 2>>"$LOG" || true
+              echo "deb [signed-by=/usr/share/keyrings/windsurf.gpg arch=amd64] https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/apt stable main" > /etc/apt/sources.list.d/windsurf.list
+              apt_refresh
+              apt-get install -y --no-install-recommends windsurf >> "$LOG" 2>&1 || log "Windsurf install failed; generated Windsurf integration files remain available"
+            fi
+          fi
+          desktop_link "Windsurf - Constructor Fabric" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && (windsurf --no-sandbox . || lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace)'" "/root/constructor-fabric/app/icons/windsurf.svg" "Windsurf-Constructor-Fabric.desktop"
+        }
+        install_codex(){
+          install_node22
+          log "Installing OpenAI Codex CLI"
+          if ! command -v codex >/dev/null 2>&1 && [ -x /opt/node-current/bin/npm ]; then
+            /opt/node-current/bin/npm install -g @openai/codex >> "$LOG" 2>&1 || log "Codex CLI install failed"
+            ln -sf /opt/node-current/bin/codex /usr/local/bin/codex || true
+          fi
+          desktop_link "Codex - Constructor Fabric" "lxterminal --title=\"Constructor Fabric - Codex\" --geometry=132x42 -e /root/constructor-fabric/open-agent.sh codex" "/root/constructor-fabric/app/icons/codex.svg" "Codex-Constructor-Fabric.desktop"
+        }
+        install_claude(){
+          install_node22
+          log "Installing Claude Code CLI"
+          if ! command -v claude >/dev/null 2>&1 && [ -x /opt/node-current/bin/npm ]; then
+            /opt/node-current/bin/npm install -g @anthropic-ai/claude-code >> "$LOG" 2>&1 || log "Claude Code CLI install failed"
+            ln -sf /opt/node-current/bin/claude /usr/local/bin/claude || true
+          fi
+          desktop_link "Claude Code - Constructor Fabric" "lxterminal --title=\"Constructor Fabric - Claude Code\" --geometry=132x42 -e /root/constructor-fabric/open-agent.sh claude" "/root/constructor-fabric/app/icons/claude.svg" "Claude-Code-Constructor-Fabric.desktop"
+        }
+        install_copilot(){
+          install_vscode
+          log "Preparing GitHub Copilot in VS Code"
+          if command -v code >/dev/null 2>&1; then
+            code --no-sandbox --user-data-dir=/root/.config/Code --install-extension GitHub.copilot >> "$LOG" 2>&1 || log "GitHub Copilot extension install failed; generated copilot integration files remain available"
+            code --no-sandbox --user-data-dir=/root/.config/Code --install-extension GitHub.copilot-chat >> "$LOG" 2>&1 || true
+          fi
+          desktop_link "GitHub Copilot - Constructor Fabric" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && (code --no-sandbox --user-data-dir=/root/.config/Code . || lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace)'" "/root/constructor-fabric/app/icons/copilot.svg" "GitHub-Copilot-Constructor-Fabric.desktop"
+        }
+        case "$PROFILE" in
+          cli|"" ) log "CLI only selected; skipping IDE installers" ;;
+          vscode ) install_vscode ;;
+          cursor ) install_cursor ;;
+          windsurf ) install_windsurf ;;
+          codex ) install_codex ;;
+          claude ) install_claude ;;
+          copilot ) install_copilot ;;
+          all ) install_vscode; install_cursor; install_windsurf; install_codex; install_claude; install_copilot ;;
+          * ) log "Unknown profile '$PROFILE'; leaving CLI-only" ;;
+        esac
+        log "IDE automation finished"
+        IDEINSTALL
+        chmod +x /root/constructor-fabric/install-ides.sh
+        selected_ide_profile="$(printenv CF_IDE_PROFILE || true)"
+        if [ "$selected_ide_profile" != "cli" ] && [ -n "$selected_ide_profile" ]; then
+          # Delay optional heavy IDE package installs until after JPS verify is done.
+          # This prevents marketplace cmd[cp] from being killed by signal 9 on small nodes.
+          setsid sh -c 'sleep 180; /root/constructor-fabric/install-ides.sh' </dev/null >/root/constructor-fabric/ide-install-wrapper.log 2>&1 &
+        else
+          /root/constructor-fabric/install-ides.sh >/root/constructor-fabric/ide-install-wrapper.log 2>&1 || true
+        fi
+
+        cat > /root/constructor-fabric/app/server.py <<'PY'
+        #!/usr/bin/env python3
+        import json
+        import os
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+
+        PORT = int(os.getenv("CF_PORT", "8081"))
+        PROVIDER = os.getenv("LLM_PROVIDER", "openai").strip() or "openai"
+        TOKEN = (os.getenv("API_TOKEN") or os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY") or "").strip()
+        MODEL = (os.getenv("CLAUDE_MODEL") if PROVIDER == "claude" else os.getenv("OPENAI_MODEL")) or "gpt-5.5"
+        IDE_PROFILE = os.getenv("CF_IDE_PROFILE", "cli").strip() or "cli"
+
+        def mask_secret(value: str) -> str:
+            if not value:
+                return ""
+            if len(value) <= 8:
+                return "***"
+            return value[:4] + "..." + value[-4:]
+
+        def public_config() -> dict:
+            return {
+                "service": "Constructor Fabric",
+                "provider": PROVIDER,
+                "model": MODEL,
+                "ide_profile": IDE_PROFILE,
+                "api_token_set": bool(TOKEN),
+                "api_token_masked": mask_secret(TOKEN),
+            }
+
+        class Handler(BaseHTTPRequestHandler):
+            def send_json(self, status: int, payload: dict):
+                body = json.dumps(payload, indent=2).encode("utf-8")
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_GET(self):
+                if self.path in ("/", "/health", "/api/config"):
+                    self.send_json(200, {"ok": True, "config": public_config()})
+                else:
+                    self.send_json(404, {"ok": False, "error": "not found"})
+
+            def log_message(self, fmt, *args):
+                return
+
+        if __name__ == "__main__":
+            print(f"Constructor Fabric service listening on 0.0.0.0:{PORT}", flush=True)
+            HTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+        PY
+
+        chmod +x /root/constructor-fabric/app/server.py
+
+        cat > /root/.config/autostart/constructor-fabric.desktop <<'DESK'
+        [Desktop Entry]
+        Type=Application
+        Name=Constructor Fabric Trainer
+        Exec=sh -lc 'sleep 12; /root/constructor-fabric/run-trainer.sh || true'
+        X-GNOME-Autostart-enabled=true
+        DESK
+
+        cat > /root/Desktop/Constructor-Fabric.desktop <<'DESK'
+        [Desktop Entry]
+        Type=Application
+        Name=Constructor Fabric Health
+        Exec=xdg-open http://127.0.0.1:8081/
+        Icon=/root/constructor-fabric/app/icon.png
+        Terminal=false
+        DESK
+
+        cat > /root/Desktop/Constructor-Fabric-Trainer.desktop <<'DESK'
+        [Desktop Entry]
+        Type=Application
+        Name=Constructor Fabric Trainer
+        Exec=/root/constructor-fabric/run-trainer.sh
+        Icon=/root/constructor-fabric/app/icon.png
+        Terminal=false
+        DESK
+
+        chmod +x /root/.config/autostart/constructor-fabric.desktop /root/Desktop/Constructor-Fabric.desktop /root/Desktop/Constructor-Fabric-Trainer.desktop
+
+        cat > /root/constructor-fabric/start-services.sh <<'STARTSERVICES'
+        #!/bin/sh
+        set -eu
+        export DISPLAY=:1
+        export HOME=/root
+        export USER=root
+        export XDG_CURRENT_DESKTOP=LXDE
+        export DESKTOP_SESSION=LXDE
+        mkdir -p /tmp/.X11-unix /root/constructor-fabric /root/.config/pcmanfm/LXDE /root/.config/lxpanel/LXDE/panels /root/.config/libfm
+        chmod 1777 /tmp/.X11-unix || true
+        if command -v pulseaudio >/dev/null 2>&1; then
+          mkdir -p /root/.config/pulse
+          pulseaudio --start --exit-idle-time=-1 --log-target=file:/root/constructor-fabric/pulseaudio.log || true
+          if command -v pactl >/dev/null 2>&1; then
+            pactl load-module module-null-sink sink_name=virt_audio sink_properties=device.description=VirtualAudio >/dev/null 2>&1 || true
+          fi
+          export PULSE_SERVER=unix:/root/.config/pulse/native
+          export SDL_AUDIODRIVER=pulse
+          export AUDIODEV=default
+        fi
+        cat > /root/.config/libfm/libfm.conf <<'LIBFM'
+        [config]
+        quick_exec=1
+        single_click=0
+        middle_click=0
+        LIBFM
+        if [ -f /root/constructor-fabric/app/wallpaper.png ]; then
+          cat > /root/.config/pcmanfm/LXDE/desktop-items-0.conf <<'WALLCONF'
+        [*]
+        wallpaper_mode=fit
+        wallpaper=/root/constructor-fabric/app/wallpaper.png
+        desktop_bg=#001838
+        show_documents=0
+        show_trash=1
+        show_mounts=0
+        WALLCONF
+        fi
+
+        start_detached() {
+          name="$1"
+          logfile="$2"
+          shift 2
+          if pgrep -f "$name" >/dev/null 2>&1; then
+            echo "$name already running"
+          else
+            setsid "$@" </dev/null >"$logfile" 2>&1 &
+          fi
+        }
+
+        if [ -f /etc/supervisor/conf.d/supervisord.conf ]; then
+          python3 - <<'PYCONF'
+        from pathlib import Path
+        p = Path('/etc/supervisor/conf.d/supervisord.conf')
+        text = p.read_text()
+        text = text.replace('command=x11vnc -display :1 -xkb -forever -shared -repeat -rfbauth /.password2', 'command=x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2')
+        p.write_text(text)
+        PYCONF
+        fi
+
+        configure_openbox_theme() {
+          mkdir -p /usr/share/themes/ConstructorFabric/openbox-3 /root/.config/openbox /root/.config/gtk-3.0 /root/.config/gtk-2.0
+          cat > /usr/share/themes/ConstructorFabric/openbox-3/themerc <<'OBTHEME'
+        border.width: 2
+        padding.width: 6
+        padding.height: 5
+        window.client.padding.width: 0
+        window.handle.width: 4
+        window.active.border.color: #2dd4bf
+        window.inactive.border.color: #172944
+        window.active.title.bg: flat gradient vertical
+        window.active.title.bg.color: #132846
+        window.active.title.bg.colorTo: #0a1628
+        window.inactive.title.bg: flat gradient vertical
+        window.inactive.title.bg.color: #0c1728
+        window.inactive.title.bg.colorTo: #070d18
+        window.active.label.text.color: #eef6ff
+        window.inactive.label.text.color: #93a4b8
+        window.label.text.justify: center
+        window.active.handle.bg: flat solid
+        window.active.handle.bg.color: #0b1b31
+        window.inactive.handle.bg: flat solid
+        window.inactive.handle.bg.color: #07111f
+        window.active.grip.bg: flat solid
+        window.active.grip.bg.color: #2dd4bf
+        window.inactive.grip.bg: flat solid
+        window.inactive.grip.bg.color: #1f3554
+        window.active.button.unpressed.bg: flat solid
+        window.active.button.unpressed.bg.color: #183454
+        window.active.button.pressed.bg: flat solid
+        window.active.button.pressed.bg.color: #2dd4bf
+        window.active.button.hover.bg: flat solid
+        window.active.button.hover.bg.color: #2563eb
+        window.active.button.disabled.bg: flat solid
+        window.active.button.disabled.bg.color: #102039
+        window.active.button.unpressed.image.color: #e7f7ff
+        window.active.button.pressed.image.color: #04111f
+        window.active.button.hover.image.color: #ffffff
+        window.active.button.disabled.image.color: #5d7089
+        window.inactive.button.unpressed.bg: flat solid
+        window.inactive.button.unpressed.bg.color: #101d31
+        window.inactive.button.pressed.bg: flat solid
+        window.inactive.button.pressed.bg.color: #223957
+        window.inactive.button.hover.bg: flat solid
+        window.inactive.button.hover.bg.color: #1d3556
+        window.inactive.button.disabled.bg: flat solid
+        window.inactive.button.disabled.bg.color: #0b1524
+        window.inactive.button.unpressed.image.color: #93a4b8
+        window.inactive.button.pressed.image.color: #d8e9ff
+        window.inactive.button.hover.image.color: #d8e9ff
+        window.inactive.button.disabled.image.color: #3d4d63
+        menu.border.width: 1
+        menu.border.color: #2dd4bf
+        menu.title.bg: flat solid
+        menu.title.bg.color: #132846
+        menu.title.text.color: #eef6ff
+        menu.items.bg: flat solid
+        menu.items.bg.color: #07111f
+        menu.items.text.color: #d8e9ff
+        menu.items.active.bg: flat solid
+        menu.items.active.bg.color: #1e3a5f
+        menu.items.active.text.color: #ffffff
+        osd.bg: flat solid
+        osd.bg.color: #07111f
+        osd.border.width: 1
+        osd.border.color: #2dd4bf
+        osd.label.text.color: #eef6ff
+        OBTHEME
+          cat > /usr/share/themes/ConstructorFabric/openbox-3/close.xbm <<'OBXBM'
+        #define close_width 8
+        #define close_height 8
+        static unsigned char close_bits[] = { 0xc3,0xe7,0x7e,0x3c,0x3c,0x7e,0xe7,0xc3 };
+        OBXBM
+          cat > /usr/share/themes/ConstructorFabric/openbox-3/max.xbm <<'OBXBM'
+        #define max_width 8
+        #define max_height 8
+        static unsigned char max_bits[] = { 0xff,0x81,0x81,0x81,0x81,0x81,0x81,0xff };
+        OBXBM
+          cat > /usr/share/themes/ConstructorFabric/openbox-3/iconify.xbm <<'OBXBM'
+        #define iconify_width 8
+        #define iconify_height 8
+        static unsigned char iconify_bits[] = { 0x00,0x00,0x00,0x00,0x00,0x00,0xff,0xff };
+        OBXBM
+          cat > /usr/share/themes/ConstructorFabric/openbox-3/shade.xbm <<'OBXBM'
+        #define shade_width 8
+        #define shade_height 8
+        static unsigned char shade_bits[] = { 0x18,0x3c,0x7e,0xff,0x00,0x00,0x00,0x00 };
+        OBXBM
+          cat > /usr/share/themes/ConstructorFabric/openbox-3/desk.xbm <<'OBXBM'
+        #define desk_width 8
+        #define desk_height 8
+        static unsigned char desk_bits[] = { 0xff,0x81,0xbd,0xa5,0xa5,0xbd,0x81,0xff };
+        OBXBM
+          for n in close max iconify shade desk; do
+            cp "/usr/share/themes/ConstructorFabric/openbox-3/$n.xbm" "/usr/share/themes/ConstructorFabric/openbox-3/${n}_pressed.xbm"
+            cp "/usr/share/themes/ConstructorFabric/openbox-3/$n.xbm" "/usr/share/themes/ConstructorFabric/openbox-3/${n}_hover.xbm"
+            cp "/usr/share/themes/ConstructorFabric/openbox-3/$n.xbm" "/usr/share/themes/ConstructorFabric/openbox-3/${n}_disabled.xbm"
+          done
+          cp /etc/xdg/openbox/LXDE/rc.xml /root/.config/openbox/lxde-rc.xml
+          python3 - <<'PYOB'
+        from pathlib import Path
+        p=Path('/root/.config/openbox/lxde-rc.xml')
+        s=p.read_text().replace('<name>Onyx</name>', '<name>ConstructorFabric</name>').replace('<size>11</size>', '<size>12</size>')
+        p.write_text(s)
+        PYOB
+          cat > /root/.config/gtk-3.0/settings.ini <<'GTK3'
+        [Settings]
+        gtk-theme-name=Adwaita-dark
+        gtk-icon-theme-name=Adwaita
+        gtk-font-name=Sans 11
+        GTK3
+          cat > /root/.gtkrc-2.0 <<'GTK2'
+        gtk-theme-name="Adwaita-dark"
+        gtk-icon-theme-name="Adwaita"
+        gtk-font-name="Sans 11"
+        GTK2
+        }
+
+        configure_lxpanel() {
+          mkdir -p /root/.config/lxpanel/LXDE/panels
+          cat > /root/.config/lxpanel/LXDE/panels/panel <<'LXPANEL'
+        # Constructor Fabric bottom panel with task switcher for minimized windows.
+        Global {
+          edge=bottom
+          allign=left
+          margin=0
+          widthtype=percent
+          width=100
+          height=36
+          transparent=0
+          tintcolor=#07111f
+          alpha=235
+          autohide=0
+          heightwhenhidden=2
+          setdocktype=1
+          setpartialstrut=1
+          usefontcolor=1
+          fontcolor=#eef6ff
+          background=0
+          iconsize=24
+        }
+        Plugin {
+          type=space
+          Config {
+            Size=6
+          }
+        }
+        Plugin {
+          type=menu
+          Config {
+            image=/root/constructor-fabric/app/icon.png
+            system {
+            }
+            separator {
+            }
+            item {
+              name=Run
+              image=system-run
+              command=run
+            }
+            item {
+              name=Terminal
+              image=utilities-terminal
+              command=lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace
+            }
+            item {
+              name=Workspace
+              image=folder
+              command=pcmanfm /root/workspaces/constructor-fabric-workspace
+            }
+          }
+        }
+        Plugin {
+          type=launchbar
+          Config {
+            Button {
+              id=/root/Desktop/Constructor-Fabric-Trainer.desktop
+            }
+            Button {
+              id=/root/Desktop/Codex-Constructor-Fabric.desktop
+            }
+            Button {
+              id=/root/Desktop/Claude-Code-Constructor-Fabric.desktop
+            }
+          }
+        }
+        Plugin {
+          type=space
+          Config {
+            Size=8
+          }
+        }
+        Plugin {
+          type=taskbar
+          Config {
+            tooltips=1
+            IconsOnly=0
+            ShowAllDesks=1
+            UseMouseWheel=1
+            UseUrgencyHint=1
+            FlatButton=0
+            MaxTaskWidth=260
+            spacing=2
+            GroupedTasks=0
+          }
+        }
+        Plugin {
+          type=space
+          Config {
+            Size=8
+          }
+        }
+        Plugin {
+          type=tray
+        }
+        Plugin {
+          type=dclock
+          Config {
+            ClockFmt=%H:%M
+            TooltipFmt=%A %x
+            BoldFont=1
+          }
+        }
+        LXPANEL
+          cat > /root/.config/lxpanel/LXDE/config <<'LXCONF'
+        [Command]
+        FileManager=pcmanfm %s
+        Terminal=lxterminal
+        Logout=lxsession-logout
+        LXCONF
+        }
+
+        configure_openbox_theme
+        configure_lxpanel
+        start_detached 'Xvfb :1' /root/constructor-fabric/xvfb.log /usr/bin/Xvfb :1 -screen 0 ${RESOLUTION}x24 -ac +extension GLX +render -noreset
+        sleep 3
+        start_detached 'openbox.*lxde-rc.xml' /root/constructor-fabric/openbox.log /usr/bin/openbox --config-file /root/.config/openbox/lxde-rc.xml --replace
+        pkill -x lxpanel >/dev/null 2>&1 || true
+        start_detached 'lxpanel.*--profile LXDE' /root/constructor-fabric/lxpanel.log /usr/bin/lxpanel --profile LXDE
+        start_detached 'pcmanfm.*--desktop' /root/constructor-fabric/pcmanfm.log /usr/bin/pcmanfm --desktop --profile LXDE
+        # Avoid a foreground wallpaper setter here: on dorowu/LXDE it can stay attached
+        # and the Virtuozzo Cloud Scripting engine can eventually kill the whole cmd action with signal 9.
+        # The desktop-items-0.conf written above is enough for pcmanfm to pick the wallpaper.
+        pkill -x x11vnc >/dev/null 2>&1 || true
+        sleep 1
+        if [ -s /.password2 ]; then
+          start_detached 'x11vnc.*rfbport 5900' /root/constructor-fabric/x11vnc.log /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2
+        else
+          start_detached 'x11vnc.*rfbport 5900' /root/constructor-fabric/x11vnc.log /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -nopw
+        fi
+        # Bypass the base image's Vue noVNC wrapper: it can throw
+        # `Vnc.vue:120 TypeError: this.$t is not a function` in some browsers.
+        # Serve a tiny redirector to the upstream noVNC page directly, with the
+        # generated VNC password and websocket path filled in.
+        if [ -d /usr/local/lib/web/frontend ]; then
+          cat > /usr/local/lib/web/frontend/index.html <<'HTML'
+        <!doctype html>
+        <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Constructor Fabric noVNC</title>
+        <style>html,body{margin:0;width:100%;height:100%;background:#050505;color:#eee;font-family:system-ui,sans-serif}.msg{padding:24px}</style></head>
+        <body><div class="msg">Opening Constructor Fabric noVNC...</div><script>
+        (function(){
+          var host = window.location.hostname;
+          var port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+          var pass = window.__VNC_PASSWORD__ || '';
+          var qs = new URLSearchParams({host: host, port: port, path: 'websockify', autoconnect: 'true', resize: 'remote'});
+          if (pass) qs.set('password', pass);
+          window.location.replace('/static/novnc/vnc.html?' + qs.toString());
+        })();
+        </script></body></html>
+        HTML
+          python3 - <<'PY'
+        from pathlib import Path
+        import os
+        p=Path('/usr/local/lib/web/frontend/index.html')
+        s=p.read_text()
+        passwd=os.environ.get('VNC_PASSWORD') or os.environ.get('PASSWORD') or ''
+        s=s.replace("window.__VNC_PASSWORD__ || ''", repr(passwd))
+        p.write_text(s)
+        PY
+        fi
+        if [ -f /etc/nginx/sites-enabled/default ]; then
+          rm -f /etc/nginx/sites-enabled/default.bak.*
+          python3 - <<'PY'
+        from pathlib import Path
+        p=Path('/etc/nginx/sites-enabled/default')
+        s=p.read_text()
+        import re
+        s=re.sub(r'\n\s*auth_basic\s+[^;]+;\s*\n\s*auth_basic_user_file\s+[^;]+;\s*\n', '\n\t# Constructor Fabric: no HTTP basic auth; VNC itself is password-protected.\n\tauth_basic off;\n', s, count=1)
+        if 'location /websockify' not in s:
+            ws="""
+        \tlocation /websockify {
+        \t\tproxy_connect_timeout 7d;
+        \t\tproxy_send_timeout 7d;
+        \t\tproxy_read_timeout 7d;
+        \t\tproxy_buffering off;
+        \t\tproxy_http_version 1.1;
+        \t\tproxy_set_header Upgrade $http_upgrade;
+        \t\tproxy_set_header Connection "upgrade";
+        \t\tproxy_set_header Host $host;
+        \t\tproxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        \t\tproxy_pass http://127.0.0.1:6081;
+        \t}
+        """
+            marker='\n\tlocation ~ .*/(api/.*|websockify) {\n'
+            if marker in s:
+                s=s.replace(marker, ws+marker, 1)
+            else:
+                s=s.replace('\n\tlocation / {\n', ws+'\n\tlocation / {\n', 1)
+        if 'location = /health' not in s:
+            insert="""
+        	location = /health {
+        		auth_basic off;
+        		proxy_set_header Host $host;
+        		proxy_set_header X-Real-IP $remote_addr;
+        		proxy_pass http://127.0.0.1:8081/health;
+        	}
+        """
+            marker='\n\tlocation / {\n'
+            if marker in s:
+                s=s.replace(marker, insert+marker, 1)
+            else:
+                s=s.replace('\n}\n', insert+'\n}\n', 1)
+        p.write_text(s)
+        PY
+          nginx -t >/root/constructor-fabric/nginx-test.log 2>&1 && (nginx -s reload || service nginx reload || true) >/root/constructor-fabric/nginx-reload.log 2>&1 || true
+        fi
+        start_detached '/root/constructor-fabric/app/server.py' /root/constructor-fabric/app.log python3 /root/constructor-fabric/app/server.py
+        if [ -x /root/cyber-constructor/auto-bootstrap.sh ]; then
+          start_detached '/root/cyber-constructor/auto-bootstrap.sh' /root/cyber-constructor/auto-bootstrap-launch.log /root/cyber-constructor/auto-bootstrap.sh
+        fi
+        if [ -x /root/constructor-fabric/run-trainer.sh ]; then
+          start_detached 'constructor-fabric/trainer' /root/constructor-fabric/electron-trainer-launch.log /root/constructor-fabric/run-trainer.sh
+        fi
+        STARTSERVICES
+        chmod +x /root/constructor-fabric/start-services.sh
+        /root/constructor-fabric/start-services.sh
+
+  verify:
+    - cmd[cp]: |-
+        set -euo pipefail
+        export NO_PROXY=localhost,127.0.0.1,::1
+        export no_proxy=$NO_PROXY
+        app_ready=0
+        for i in $(seq 1 60); do
+          if curl --noproxy '*' -fsS http://127.0.0.1:8081/health >/dev/null; then
+            echo 'Constructor Fabric app is up'
+            curl --noproxy '*' -fsS http://127.0.0.1:8081/health
+            app_ready=1
+            break
+          fi
+          sleep 2
+        done
+        if [ "$app_ready" != "1" ]; then
+          echo 'Constructor Fabric app did not become ready in time' >&2
+          exit 1
+        fi
+        python3 -c 'import socket,sys; checks=[("127.0.0.1",5900,"native-vnc"),("127.0.0.1",6081,"websockify")];
+        import time
+        for host,port,name in checks:
+            last=None
+            for _ in range(30):
+                try:
+                    s=socket.create_connection((host,port),timeout=2)
+                    if port==5900:
+                        banner=s.recv(12).decode(errors="replace").strip()
+                        assert banner.startswith("RFB"), banner
+                    s.close(); print(f"{name} is up on {host}:{port}"); break
+                except Exception as exc:
+                    last=exc; time.sleep(2)
+            else:
+                print(f"{name} did not become ready: {last}", file=sys.stderr); sys.exit(1)'
+        cd /root/cyber-constructor
+        cfc --version
+        cfc info --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "FOUND", data; assert data["relative_path"] == ".cf-constructor", data; print("cyber-constructor info is FOUND at .cf-constructor")'
+        cfc validate --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "PASS", data; print("cyber-constructor validate is PASS")'
+        cfc agents --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "OK", data; text=json.dumps(data).lower(); required=["windsurf","cursor","claude","copilot","openai"]; missing=[x for x in required if x not in text]; assert not missing, {"missing": missing, "data": data}; print("cyber-constructor agents are OK for "+", ".join(required))'
+
+success: |
+  Constructor Fabric is ready.
+
+  ACCESS
+
+  noVNC URL:
+    https://${env.domain}/
+
+  Direct noVNC URL:
+    https://${env.domain}/static/novnc/vnc.html?host=${env.domain}&port=443&path=websockify&password=${globals.VNC_PASSWORD}&autoconnect=true&resize=remote
+
+  VNC password:
+    ${globals.VNC_PASSWORD}
+
+  Constructor Fabric app health:
+    https://${env.domain}/health
+    Internal health check: http://127.0.0.1:${globals.APP_PORT}/health
+
+  WHAT YOU WILL SEE
+
+  noVNC opens a polished Constructor Fabric Showcase Guideline.
+  A bottom desktop panel is available for launchers, clock, tray, and minimized application windows.
+  The Electron trainer has copy-ready prompts; press Copy prompt and paste directly into your IDE or agent chat.
+  Open VS Code/Copilot, Cursor, Windsurf, Codex, or Claude Code from the desktop to drive the product flow with /cf-constructor.
+  The showcase walks through PRD, features, tasks, implementation plans, artifacts, and validation.
+
+  WORKSPACE
+
+  Prepared showcase workspace:
+    /root/workspaces/constructor-fabric-workspace
+
+  Launchers:
+    Constructor Fabric Trainer
+    VS Code - Constructor Fabric
+    Cursor - Constructor Fabric
+    Windsurf - Constructor Fabric
+    Codex - Constructor Fabric
+    Claude Code - Constructor Fabric
+    GitHub Copilot - Constructor Fabric
+    Constructor Fabric Workspace
+
+  INSTALL OPTIONS USED
+
+  IDE automation profile:
+    ${settings.ide-profile}
+
+  LLM provider:
+    ${settings.llm-provider}
+
+  API Token:
+    configured from install form when provided
+
+  Model:
+    ${settings.openai-model:}${settings.claude-model:}
+
+  NOTE
+
+  If you set an API Token in the install form, Constructor Fabric exports it into the generated workspace environment.
+  The trainer is an Electron popup; terminal windows are not used for LLM setup prompts.
+
+
+
