@@ -372,9 +372,9 @@ if 'location /websockify' not in s:
 """
     marker='\n\tlocation ~ .*/(api/.*|websockify) {\n'
     if marker in s:
-s=s.replace(marker, ws+marker, 1)
+        s=s.replace(marker, ws+marker, 1)
     else:
-s=s.replace('\n\tlocation / {\n', ws+'\n\tlocation / {\n', 1)
+        s=s.replace('\n\tlocation / {\n', ws+'\n\tlocation / {\n', 1)
 if 'location = /health' not in s:
     insert="""
 	location = /health {
@@ -386,9 +386,9 @@ if 'location = /health' not in s:
 """
     marker='\n\tlocation / {\n'
     if marker in s:
-s=s.replace(marker, insert+marker, 1)
+        s=s.replace(marker, insert+marker, 1)
     else:
-s=s.replace('\n}\n', insert+'\n}\n', 1)
+        s=s.replace('\n}\n', insert+'\n}\n', 1)
 p.write_text(s)
 PY
   NGINX_BIN="$(command -v nginx || command -v /usr/sbin/nginx || true)"
