@@ -23,9 +23,16 @@ RUN rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/goo
       xauth xvfb \
     && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /opt/node-current/bin \
-    && ln -sf /usr/bin/node /opt/node-current/bin/node \
-    && ln -sf /usr/bin/npm /opt/node-current/bin/npm
+RUN mkdir -p /opt \
+    && curl --noproxy '*' -fsSL https://nodejs.org/dist/v22.16.0/node-v22.16.0-linux-x64.tar.xz -o /tmp/node.tar.xz \
+    && rm -rf /opt/node-v22.16.0-linux-x64 /opt/node-current \
+    && tar -xJf /tmp/node.tar.xz -C /opt \
+    && ln -s /opt/node-v22.16.0-linux-x64 /opt/node-current \
+    && ln -sf /opt/node-current/bin/node /usr/local/bin/node \
+    && ln -sf /opt/node-current/bin/npm /usr/local/bin/npm \
+    && ln -sf /opt/node-current/bin/npx /usr/local/bin/npx \
+    && rm -f /tmp/node.tar.xz \
+    && /opt/node-current/bin/npm install -g electron@latest
 
 RUN mkdir -p /root/.local/bin \
     && wget -q https://astral.sh/uv/install.sh -O /tmp/install-uv.sh \

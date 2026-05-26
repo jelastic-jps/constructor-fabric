@@ -60,7 +60,7 @@ ensure_ide_prereqs(){
   apt-get install -y --no-install-recommends curl wget ca-certificates gnupg apt-transport-https jq xz-utils libnss3 libxss1 libasound2 libgbm1 libgtk-3-0 libsecret-1-0 >> "$LOG" 2>&1 || true
 }
 install_node22(){
-  if [ -x /opt/node-current/bin/node ]; then return 0; fi
+  if [ -x /opt/node-current/bin/node ] && /opt/node-current/bin/node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 22 ? 0 : 1)' >/dev/null 2>&1; then return 0; fi
   ensure_ide_prereqs
   log "Installing Node.js 22 for agent CLIs"
   arch="linux-x64"
