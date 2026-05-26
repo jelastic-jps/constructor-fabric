@@ -9,7 +9,7 @@ if [ -z "$PROFILE" ]; then PROFILE=cli; fi
 LOG=/root/constructor-fabric/ide-install.log
 mkdir -p /root/constructor-fabric /root/Desktop /root/Downloads /opt
 echo "Constructor Fabric IDE automation profile: $PROFILE" > "$LOG"
-log(){ echo "[$(date -u +%H:%M:%S)] $*" >> "$LOG"; }
+log(){ echo "[$(date -u +%H:%M:%S)] $*" | tee -a "$LOG"; }
 mkdir -p /root/constructor-fabric/app/icons
 create_svg_icon(){
   file="$1"; bg="$2"; fg="$3"; label="$4"
@@ -81,7 +81,7 @@ install_vscode(){
     wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/packages.microsoft.gpg 2>>"$LOG" || true
     echo "deb [arch=amd64 signed-by=/usr/share/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list
     apt_refresh
-    apt-get install -y --no-install-recommends code >> "$LOG" 2>&1 || log "VS Code install failed; Constructor Fabric CLI remains available"
+    timeout 300 apt-get install -y --no-install-recommends code >> "$LOG" 2>&1 || log "VS Code install failed; Constructor Fabric CLI remains available"
   fi
   desktop_link "VS Code - Constructor Fabric" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && code --no-sandbox --user-data-dir=/root/.config/Code . || lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace'" "/root/constructor-fabric/app/icons/vscode.svg" "VS-Code-Constructor-Fabric.desktop"
 }
@@ -100,14 +100,18 @@ print(data.get('downloadUrl') or data.get('url') or '')
 PYCURSOR
 )
     if [ -n "$url" ]; then
-      curl --noproxy '*' -fL "$url" -o /root/Downloads/cursor.AppImage >> "$LOG" 2>&1 \
-        && chmod +x /root/Downloads/cursor.AppImage \
-        && rm -rf /opt/cursor \
-        && mkdir -p /opt/cursor \
-        && cd /opt/cursor \
-        && /root/Downloads/cursor.AppImage --appimage-extract >> "$LOG" 2>&1 \
-        && ln -sf /opt/cursor/squashfs-root/AppRun /usr/local/bin/cursor \
-        || log "Cursor AppImage install failed; generated Cursor integration files remain available"
+      rm -rf /opt/cursor
+      mkdir -p /opt/cursor
+      if timeout 300 curl --noproxy '*' -fL "$url" -o /opt/cursor/cursor.AppImage >> "$LOG" 2>&1; then
+        chmod +x /opt/cursor/cursor.AppImage
+        cat > /usr/local/bin/cursor <<'CURSORWRAP'
+#!/bin/sh
+exec /opt/cursor/cursor.AppImage --no-sandbox "$@"
+CURSORWRAP
+        chmod +x /usr/local/bin/cursor
+      else
+        log "Cursor AppImage download failed; generated Cursor integration files remain available"
+      fi
     else
       log "Cursor download API did not return a URL"
     fi
@@ -118,17 +122,19 @@ install_windsurf(){
   ensure_ide_prereqs
   log "Installing Windsurf"
   if ! command -v windsurf >/dev/null 2>&1; then
-    curl --noproxy '*' -fsSL 'https://windsurf.com/api/windsurf/download-redirect?build=linux-x64&isNext=false' -o /root/Downloads/windsurf.tar.gz >> "$LOG" 2>&1 \
+      timeout 300 curl --noproxy '*' -fsSL 'https://windsurf.com/api/windsurf/download-redirect?build=linux-x64&isNext=false' -o /root/Downloads/windsurf.tar.gz >> "$LOG" 2>&1 \
       && rm -rf /opt/windsurf \
       && mkdir -p /opt/windsurf \
       && tar -xzf /root/Downloads/windsurf.tar.gz -C /opt/windsurf --strip-components=1 \
-      && ln -sf /opt/windsurf/windsurf /usr/local/bin/windsurf \
+      && windsurf_bin="$(find /opt/windsurf -maxdepth 4 -type f -perm -111 \( -name windsurf -o -name Windsurf -o -name AppRun \) | head -1)" \
+      && [ -n "$windsurf_bin" ] \
+      && ln -sf "$windsurf_bin" /usr/local/bin/windsurf \
       || log "Windsurf tarball install failed; trying apt repository"
     if ! command -v windsurf >/dev/null 2>&1; then
       curl --noproxy '*' -fsSL https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/windsurf.gpg | gpg --dearmor > /usr/share/keyrings/windsurf.gpg 2>>"$LOG" || true
       echo "deb [signed-by=/usr/share/keyrings/windsurf.gpg arch=amd64] https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/apt stable main" > /etc/apt/sources.list.d/windsurf.list
       apt_refresh
-      apt-get install -y --no-install-recommends windsurf >> "$LOG" 2>&1 || log "Windsurf install failed; generated Windsurf integration files remain available"
+      timeout 300 apt-get install -y --no-install-recommends windsurf >> "$LOG" 2>&1 || log "Windsurf install failed; generated Windsurf integration files remain available"
     fi
   fi
   desktop_link "Windsurf - Constructor Fabric" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && (windsurf --no-sandbox . || lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace)'" "/root/constructor-fabric/app/icons/windsurf.svg" "Windsurf-Constructor-Fabric.desktop"
@@ -137,8 +143,16 @@ install_codex(){
   install_node22
   log "Installing OpenAI Codex CLI"
   if ! command -v codex >/dev/null 2>&1 && [ -x /opt/node-current/bin/npm ]; then
-    /opt/node-current/bin/npm install -g @openai/codex >> "$LOG" 2>&1 || log "Codex CLI install failed"
-    ln -sf /opt/node-current/bin/codex /usr/local/bin/codex || true
+    timeout --kill-after=10s 120s env NPM_CONFIG_AUDIT=false NPM_CONFIG_FUND=false NPM_CONFIG_PROGRESS=false /opt/node-current/bin/npm install -g @openai/codex >> "$LOG" 2>&1 || log "Codex CLI install failed; creating npx fallback wrapper"
+    if [ -x /opt/node-current/bin/codex ]; then
+      ln -sf /opt/node-current/bin/codex /usr/local/bin/codex || true
+    elif ! command -v codex >/dev/null 2>&1; then
+      cat > /usr/local/bin/codex <<'CODEXWRAP'
+#!/bin/sh
+exec /opt/node-current/bin/npx -y @openai/codex "$@"
+CODEXWRAP
+      chmod +x /usr/local/bin/codex
+    fi
   fi
   desktop_link "Codex - Constructor Fabric" "lxterminal --title=\"Constructor Fabric - Codex\" --geometry=132x42 -e /root/constructor-fabric/open-agent.sh codex" "/root/constructor-fabric/app/icons/codex.svg" "Codex-Constructor-Fabric.desktop"
 }
@@ -146,8 +160,16 @@ install_claude(){
   install_node22
   log "Installing Claude Code CLI"
   if ! command -v claude >/dev/null 2>&1 && [ -x /opt/node-current/bin/npm ]; then
-    /opt/node-current/bin/npm install -g @anthropic-ai/claude-code >> "$LOG" 2>&1 || log "Claude Code CLI install failed"
-    ln -sf /opt/node-current/bin/claude /usr/local/bin/claude || true
+    timeout --kill-after=10s 120s env NPM_CONFIG_AUDIT=false NPM_CONFIG_FUND=false NPM_CONFIG_PROGRESS=false /opt/node-current/bin/npm install -g @anthropic-ai/claude-code >> "$LOG" 2>&1 || log "Claude Code CLI install failed; creating npx fallback wrapper"
+    if [ -x /opt/node-current/bin/claude ]; then
+      ln -sf /opt/node-current/bin/claude /usr/local/bin/claude || true
+    elif ! command -v claude >/dev/null 2>&1; then
+      cat > /usr/local/bin/claude <<'CLAUDEWRAP'
+#!/bin/sh
+exec /opt/node-current/bin/npx -y @anthropic-ai/claude-code "$@"
+CLAUDEWRAP
+      chmod +x /usr/local/bin/claude
+    fi
   fi
   desktop_link "Claude Code - Constructor Fabric" "lxterminal --title=\"Constructor Fabric - Claude Code\" --geometry=132x42 -e /root/constructor-fabric/open-agent.sh claude" "/root/constructor-fabric/app/icons/claude.svg" "Claude-Code-Constructor-Fabric.desktop"
 }
@@ -155,8 +177,8 @@ install_copilot(){
   install_vscode
   log "Preparing GitHub Copilot in VS Code"
   if command -v code >/dev/null 2>&1; then
-    code --no-sandbox --user-data-dir=/root/.config/Code --install-extension GitHub.copilot >> "$LOG" 2>&1 || log "GitHub Copilot extension install failed; generated copilot integration files remain available"
-    code --no-sandbox --user-data-dir=/root/.config/Code --install-extension GitHub.copilot-chat >> "$LOG" 2>&1 || true
+    timeout 120 code --no-sandbox --user-data-dir=/root/.config/Code --install-extension GitHub.copilot >> "$LOG" 2>&1 || log "GitHub Copilot extension install failed; generated copilot integration files remain available"
+    timeout 120 code --no-sandbox --user-data-dir=/root/.config/Code --install-extension GitHub.copilot-chat >> "$LOG" 2>&1 || true
   fi
   desktop_link "GitHub Copilot - Constructor Fabric" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && (code --no-sandbox --user-data-dir=/root/.config/Code . || lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace)'" "/root/constructor-fabric/app/icons/copilot.svg" "GitHub-Copilot-Constructor-Fabric.desktop"
 }

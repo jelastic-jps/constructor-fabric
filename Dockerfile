@@ -15,10 +15,11 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google.list \
     && apt-get update && apt-get install -y --no-install-recommends \
       python3 python3-pip python3-venv \
-      curl wget ca-certificates git xdg-utils \
+      curl wget ca-certificates git xdg-utils gnupg apt-transport-https xz-utils \
       x11vnc x11-utils net-tools xkb-data \
       openbox lxpanel pcmanfm lxterminal dbus-x11 \
-      libnss3 libxss1 libasound2 libgbm1 libgtk-3-0 libsecret-1-0 \
+      libnss3 libxss1 libasound2 libgbm1 libgtk-3-0 libsecret-1-0 libfuse2 \
+      libxshmfence1 libatk-bridge2.0-0 libdrm2 libxcomposite1 libxdamage1 libxrandr2 libxkbcommon0 \
       jq pulseaudio pulseaudio-utils nodejs npm \
       xauth xvfb \
     && rm -rf /var/lib/apt/lists/*
@@ -54,6 +55,15 @@ RUN mkdir -p /root/constructor-fabric/app /root/constructor-fabric/data /root/.c
     && chmod 1777 /tmp/.X11-unix || true
 
 COPY . /root/constructor-fabric/
-RUN chmod +x /root/constructor-fabric/scripts/*.sh 2>/dev/null || true
+RUN chmod +x /root/constructor-fabric/scripts/*.sh 2>/dev/null || true \
+    && CF_IDE_PROFILE=all CF_PREINSTALLED_IDES=0 /root/constructor-fabric/scripts/install-ides.sh \
+    && command -v code \
+    && command -v cursor \
+    && command -v windsurf \
+    && command -v codex \
+    && command -v claude \
+    && echo 'Constructor Fabric IDEs and agent CLIs are preinstalled'
+
+ENV CF_PREINSTALLED_IDES=1
 
 WORKDIR /root/constructor-fabric
