@@ -26,7 +26,7 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-3-5-sonnet-latest
-  RESOLUTION: 2560x1440
+  RESOLUTION: 1280x720
 
 settings:
   fields:
@@ -115,7 +115,7 @@ nodes:
       no_proxy: localhost,127.0.0.1,::1
       JELASTIC_EXPOSE: 80
       JELASTIC_PORTS: 80
-      RESOLUTION: 2560x1440
+      RESOLUTION: 1280x720
 
 onInstall:
   - bootstrap
@@ -172,64 +172,40 @@ actions:
         cfc agents --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "OK", data; text=json.dumps(data).lower(); required=["windsurf","cursor","claude","copilot","openai"]; missing=[x for x in required if x not in text]; assert not missing, {"missing": missing, "data": data}; print("cyber-constructor agents are OK for "+", ".join(required))'
 
 success: |
-  Constructor Fabric is ready.
+  <h3>Constructor Fabric is ready</h3>
 
-  ACCESS
+  <h4>Access</h4>
+  <p>
+    <a href="https://${env.domain}/" target="_blank">Open Constructor Fabric noVNC desktop</a>
+  </p>
+  <p>
+    <a href="https://${env.domain}/static/novnc/vnc.html?host=${env.domain}&port=443&path=websockify&password=${globals.VNC_PASSWORD}&autoconnect=true&resize=remote" target="_blank">Open direct noVNC session</a>
+  </p>
+  <p>
+    <a href="https://${env.domain}/health" target="_blank">Open public health check</a>
+  </p>
 
-  noVNC URL:
-    https://${env.domain}/
+  <h4>VNC password</h4>
+  <p>Use this password if noVNC asks for it:</p>
+  <input type="text" readonly="readonly" value="${globals.VNC_PASSWORD}" style="width: 100%; max-width: 420px; font-family: monospace; padding: 6px;" onclick="this.select();" />
 
-  Direct noVNC URL:
-    https://${env.domain}/static/novnc/vnc.html?host=${env.domain}&port=443&path=websockify&password=${globals.VNC_PASSWORD}&autoconnect=true&resize=remote
+  <h4>Desktop contents</h4>
+  <ul>
+    <li>noVNC opens the Constructor Fabric desktop at 1280x720.</li>
+    <li>The bottom LXDE panel contains launchers, clock, tray, and task switcher.</li>
+    <li>The Constructor Fabric Trainer opens with copy-ready prompts; if Electron is unavailable it opens in Firefox.</li>
+    <li>Desktop launchers are prepared for VS Code/Copilot, Cursor, Windsurf, Codex, Claude Code, and the workspace terminal.</li>
+  </ul>
 
-  VNC password:
-    ${globals.VNC_PASSWORD}
+  <h4>Workspace</h4>
+  <p><code>/root/workspaces/constructor-fabric-workspace</code></p>
 
-  Constructor Fabric app health:
-    https://${env.domain}/health
-    Internal health check: http://127.0.0.1:${globals.APP_PORT}/health
+  <h4>Install options used</h4>
+  <table>
+    <tr><td>IDE automation profile</td><td><code>${settings.ide-profile}</code></td></tr>
+    <tr><td>LLM provider</td><td><code>${settings.llm-provider}</code></td></tr>
+    <tr><td>Model</td><td><code>${settings.openai-model:}${settings.claude-model:}</code></td></tr>
+    <tr><td>API Token</td><td>configured from install form when provided</td></tr>
+  </table>
 
-  WHAT YOU WILL SEE
-
-  noVNC opens a polished Constructor Fabric Showcase Guideline.
-  A bottom desktop panel is available for launchers, clock, tray, and minimized application windows.
-  The Electron trainer has copy-ready prompts; press Copy prompt and paste directly into your IDE or agent chat.
-  Open VS Code/Copilot, Cursor, Windsurf, Codex, or Claude Code from the desktop to drive the product flow with /cf-constructor.
-  The showcase walks through PRD, features, tasks, implementation plans, artifacts, and validation.
-
-  WORKSPACE
-
-  Prepared showcase workspace:
-    /root/workspaces/constructor-fabric-workspace
-
-  Launchers:
-    Constructor Fabric Trainer
-    VS Code - Constructor Fabric
-    Cursor - Constructor Fabric
-    Windsurf - Constructor Fabric
-    Codex - Constructor Fabric
-    Claude Code - Constructor Fabric
-    GitHub Copilot - Constructor Fabric
-    Constructor Fabric Workspace
-
-  INSTALL OPTIONS USED
-
-  IDE automation profile:
-    ${settings.ide-profile}
-
-  LLM provider:
-    ${settings.llm-provider}
-
-  API Token:
-    configured from install form when provided
-
-  Model:
-    ${settings.openai-model:}${settings.claude-model:}
-
-  NOTE
-
-  If you set an API Token in the install form, Constructor Fabric exports it into the generated workspace environment.
-  The trainer is an Electron popup; terminal windows are not used for LLM setup prompts.
-
-
-
+  <p>If you set an API Token in the install form, Constructor Fabric exports it into the generated workspace environment.</p>
