@@ -230,7 +230,33 @@ RUNTRAINER
 chmod +x /root/cyber-constructor/auto-bootstrap.sh
 chmod +x /root/cyber-constructor/run-cfc.sh
 chmod +x /root/constructor-fabric/run-trainer.sh
-mkdir -p /root/Desktop
+mkdir -p /root/Desktop /root/.config/autostart
+cat > /root/.config/autostart/constructor-fabric.desktop <<'DESK'
+[Desktop Entry]
+Type=Application
+Name=Constructor Fabric Trainer
+Exec=sh -lc 'sleep 12; /root/constructor-fabric/run-trainer.sh || true'
+X-GNOME-Autostart-enabled=true
+DESK
+cat > /root/Desktop/Constructor-Fabric-Trainer.desktop <<'DESK'
+[Desktop Entry]
+Type=Application
+Name=Constructor Fabric Trainer
+Exec=/root/constructor-fabric/run-trainer.sh
+Icon=/root/constructor-fabric/app/icon.png
+Terminal=false
+Categories=Development;
+DESK
+cat > /root/Desktop/Constructor-Fabric-Health.desktop <<'DESK'
+[Desktop Entry]
+Type=Application
+Name=Constructor Fabric Health
+Exec=xdg-open http://127.0.0.1:8081/
+Icon=/root/constructor-fabric/app/icon.png
+Terminal=false
+Categories=Development;
+DESK
+chmod +x /root/.config/autostart/constructor-fabric.desktop /root/Desktop/Constructor-Fabric-Trainer.desktop /root/Desktop/Constructor-Fabric-Health.desktop
 cat > /root/Desktop/Cyber-Constructor.desktop <<'CFCDESK'
 [Desktop Entry]
 Version=1.0
