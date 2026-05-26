@@ -391,7 +391,10 @@ if 'location = /health' not in s:
         s=s.replace('\n}\n', insert+'\n}\n', 1)
 p.write_text(s)
 PY
-          nginx -t >/root/constructor-fabric/nginx-test.log 2>&1 && (nginx -s reload || service nginx reload || true) >/root/constructor-fabric/nginx-reload.log 2>&1 || true
+          NGINX_BIN="$(command -v nginx || command -v /usr/sbin/nginx || true)"
+          if [ -n "$NGINX_BIN" ]; then
+            "$NGINX_BIN" -t >/root/constructor-fabric/nginx-test.log 2>&1 && ("$NGINX_BIN" -s reload || service nginx reload || true) >/root/constructor-fabric/nginx-reload.log 2>&1 || true
+          fi
         fi
         start_detached '/root/constructor-fabric/app/server.py' /root/constructor-fabric/app.log python3 /root/constructor-fabric/app/server.py
         if [ -x /root/cyber-constructor/auto-bootstrap.sh ]; then
