@@ -5,6 +5,8 @@ export DEBIAN_FRONTEND=noninteractive
 mkdir -p /root/constructor-fabric/app /root/constructor-fabric/data /root/.config/autostart /root/Desktop
 curl --noproxy '*' -fsSL https://files.catbox.moe/3fnged.png -o /root/constructor-fabric/app/icon.png || true
 curl --noproxy '*' -fsSL https://files.catbox.moe/dvhfoo.png -o /root/constructor-fabric/app/wallpaper.png || true
+curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/scripts/app-server.py" -o /root/constructor-fabric/app/server.py
+chmod +x /root/constructor-fabric/app/server.py
 
 # The focal desktop base can carry a stale Google Chrome apt source whose
 # rotated signing key breaks every apt-get update before our packages install.
