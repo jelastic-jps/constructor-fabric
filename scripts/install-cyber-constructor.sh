@@ -225,7 +225,7 @@
         if command -v electron >/dev/null 2>&1; then
           exec electron --no-sandbox /root/constructor-fabric/trainer
         fi
-        exec xdg-open http://127.0.0.1:8081/
+        exec xdg-open http://127.0.0.1:80/
         RUNTRAINER
         chmod +x /root/cyber-constructor/auto-bootstrap.sh
         chmod +x /root/cyber-constructor/run-cfc.sh
