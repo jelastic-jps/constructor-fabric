@@ -48,11 +48,11 @@ WALLCONF
 
         if [ -f /etc/supervisor/conf.d/supervisord.conf ]; then
           python3 - <<'PYCONF'
-        from pathlib import Path
-        p = Path('/etc/supervisor/conf.d/supervisord.conf')
-        text = p.read_text()
-        text = text.replace('command=x11vnc -display :1 -xkb -forever -shared -repeat -rfbauth /.password2', 'command=x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2')
-        p.write_text(text)
+from pathlib import Path
+p = Path('/etc/supervisor/conf.d/supervisord.conf')
+text = p.read_text()
+text = text.replace('command=x11vnc -display :1 -xkb -forever -shared -repeat -rfbauth /.password2', 'command=x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2')
+p.write_text(text)
 PYCONF
         fi
 
@@ -155,22 +155,22 @@ OBXBM
             cp "/usr/share/themes/ConstructorFabric/openbox-3/$n.xbm" "/usr/share/themes/ConstructorFabric/openbox-3/${n}_disabled.xbm"
           done
           python3 - <<'PYOB'
-        from pathlib import Path
-        candidates = [
-          Path('/etc/xdg/openbox/LXDE/rc.xml'),
-          Path('/etc/xdg/openbox/rc.xml'),
-          Path('/usr/share/openbox/rc.xml'),
-          Path('/usr/share/lxde/openbox/rc.xml'),
-        ]
-        p=Path('/root/.config/openbox/lxde-rc.xml')
-        for src in candidates:
-          if src.exists():
-            p.write_text(src.read_text())
-            break
-        else:
-          p.write_text('<?xml version="1.0" encoding="UTF-8"?>\n<openbox_config xmlns="http://openbox.org/3.4/rc"><theme><name>Onyx</name></theme><font><name>Sans</name><size>11</size></font></openbox_config>\n')
-        s=p.read_text().replace('<name>Onyx</name>', '<name>ConstructorFabric</name>').replace('<size>11</size>', '<size>12</size>')
-        p.write_text(s)
+from pathlib import Path
+candidates = [
+  Path('/etc/xdg/openbox/LXDE/rc.xml'),
+  Path('/etc/xdg/openbox/rc.xml'),
+  Path('/usr/share/openbox/rc.xml'),
+  Path('/usr/share/lxde/openbox/rc.xml'),
+]
+p=Path('/root/.config/openbox/lxde-rc.xml')
+for src in candidates:
+  if src.exists():
+    p.write_text(src.read_text())
+    break
+else:
+  p.write_text('<?xml version="1.0" encoding="UTF-8"?>\n<openbox_config xmlns="http://openbox.org/3.4/rc"><theme><name>Onyx</name></theme><font><name>Sans</name><size>11</size></font></openbox_config>\n')
+s=p.read_text().replace('<name>Onyx</name>', '<name>ConstructorFabric</name>').replace('<size>11</size>', '<size>12</size>')
+p.write_text(s)
 PYOB
           cat > /root/.config/gtk-3.0/settings.ini <<'GTK3'
         [Settings]
@@ -338,58 +338,58 @@ LXCONF
         </script></body></html>
 HTML
           python3 - <<'PY'
-        from pathlib import Path
-        import os
-        p=Path('/usr/local/lib/web/frontend/index.html')
-        s=p.read_text()
-        passwd=os.environ.get('VNC_PASSWORD') or os.environ.get('PASSWORD') or ''
-        s=s.replace("window.__VNC_PASSWORD__ || ''", repr(passwd))
-        p.write_text(s)
+from pathlib import Path
+import os
+p=Path('/usr/local/lib/web/frontend/index.html')
+s=p.read_text()
+passwd=os.environ.get('VNC_PASSWORD') or os.environ.get('PASSWORD') or ''
+s=s.replace("window.__VNC_PASSWORD__ || ''", repr(passwd))
+p.write_text(s)
 PY
         fi
         if [ -f /etc/nginx/sites-enabled/default ]; then
           rm -f /etc/nginx/sites-enabled/default.bak.*
           python3 - <<'PY'
-        from pathlib import Path
-        p=Path('/etc/nginx/sites-enabled/default')
-        s=p.read_text()
-        import re
-        s=re.sub(r'\n\s*auth_basic\s+[^;]+;\s*\n\s*auth_basic_user_file\s+[^;]+;\s*\n', '\n\t# Constructor Fabric: no HTTP basic auth; VNC itself is password-protected.\n\tauth_basic off;\n', s, count=1)
-        if 'location /websockify' not in s:
-            ws="""
-        \tlocation /websockify {
-        \t\tproxy_connect_timeout 7d;
-        \t\tproxy_send_timeout 7d;
-        \t\tproxy_read_timeout 7d;
-        \t\tproxy_buffering off;
-        \t\tproxy_http_version 1.1;
-        \t\tproxy_set_header Upgrade $http_upgrade;
-        \t\tproxy_set_header Connection "upgrade";
-        \t\tproxy_set_header Host $host;
-        \t\tproxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
-        \t\tproxy_pass http://127.0.0.1:6081;
-        \t}
-        """
-            marker='\n\tlocation ~ .*/(api/.*|websockify) {\n'
-            if marker in s:
-                s=s.replace(marker, ws+marker, 1)
-            else:
-                s=s.replace('\n\tlocation / {\n', ws+'\n\tlocation / {\n', 1)
-        if 'location = /health' not in s:
-            insert="""
-        	location = /health {
-        		auth_basic off;
-        		proxy_set_header Host $host;
-        		proxy_set_header X-Real-IP $remote_addr;
-        		proxy_pass http://127.0.0.1:80/health;
-        	}
-        """
-            marker='\n\tlocation / {\n'
-            if marker in s:
-                s=s.replace(marker, insert+marker, 1)
-            else:
-                s=s.replace('\n}\n', insert+'\n}\n', 1)
-        p.write_text(s)
+from pathlib import Path
+p=Path('/etc/nginx/sites-enabled/default')
+s=p.read_text()
+import re
+s=re.sub(r'\n\s*auth_basic\s+[^;]+;\s*\n\s*auth_basic_user_file\s+[^;]+;\s*\n', '\n\t# Constructor Fabric: no HTTP basic auth; VNC itself is password-protected.\n\tauth_basic off;\n', s, count=1)
+if 'location /websockify' not in s:
+    ws="""
+\tlocation /websockify {
+\t\tproxy_connect_timeout 7d;
+\t\tproxy_send_timeout 7d;
+\t\tproxy_read_timeout 7d;
+\t\tproxy_buffering off;
+\t\tproxy_http_version 1.1;
+\t\tproxy_set_header Upgrade $http_upgrade;
+\t\tproxy_set_header Connection "upgrade";
+\t\tproxy_set_header Host $host;
+\t\tproxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+\t\tproxy_pass http://127.0.0.1:6081;
+\t}
+"""
+    marker='\n\tlocation ~ .*/(api/.*|websockify) {\n'
+    if marker in s:
+        s=s.replace(marker, ws+marker, 1)
+    else:
+        s=s.replace('\n\tlocation / {\n', ws+'\n\tlocation / {\n', 1)
+if 'location = /health' not in s:
+    insert="""
+	location = /health {
+		auth_basic off;
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_pass http://127.0.0.1:80/health;
+	}
+"""
+    marker='\n\tlocation / {\n'
+    if marker in s:
+        s=s.replace(marker, insert+marker, 1)
+    else:
+        s=s.replace('\n}\n', insert+'\n}\n', 1)
+p.write_text(s)
 PY
           nginx -t >/root/constructor-fabric/nginx-test.log 2>&1 && (nginx -s reload || service nginx reload || true) >/root/constructor-fabric/nginx-reload.log 2>&1 || true
         fi
