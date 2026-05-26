@@ -124,13 +124,13 @@
         fi
         cfc generate-agents --root "$root" -y
         (cd "$root" && cfc agents --json > /root/cyber-constructor/workspace-agents.json && python3 - <<'PYAGENTS'
-        import json, sys
-        text=json.dumps(json.load(open('/root/cyber-constructor/workspace-agents.json'))).lower()
-        required=['windsurf','cursor','claude','copilot','openai']
-        missing=[name for name in required if name not in text]
-        if missing:
-            raise SystemExit('Missing generated IDE/agent integrations: '+', '.join(missing))
-        print('Generated Constructor Fabric integrations for: '+', '.join(required))
+import json, sys
+text=json.dumps(json.load(open('/root/cyber-constructor/workspace-agents.json'))).lower()
+required=['windsurf','cursor','claude','copilot','openai']
+missing=[name for name in required if name not in text]
+if missing:
+    raise SystemExit('Missing generated IDE/agent integrations: '+', '.join(missing))
+print('Generated Constructor Fabric integrations for: '+', '.join(required))
         PYAGENTS
         )
         (cd "$root" && cfc validate --json) || true
@@ -258,10 +258,10 @@ CFCDESK
           set +a
         fi
         provider="$(python3 - <<'PYCFG' 2>/dev/null || true
-        import json, pathlib
-        p=pathlib.Path('.constructor-fabric.json')
-        if p.exists():
-            print(json.loads(p.read_text()).get('provider',''))
+import json, pathlib
+p=pathlib.Path('.constructor-fabric.json')
+if p.exists():
+    print(json.loads(p.read_text()).get('provider',''))
         PYCFG
         )"
         existing_openai_key="$(printenv OPENAI_API_KEY || true)"
