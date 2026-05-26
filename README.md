@@ -5,11 +5,15 @@ Jelastic JPS repositories are organized (for example: manifest + configs + scrip
 
 Layout:
 - manifest.jps: assembled/publishable JPS artifact
+- Dockerfile: Docker Hub image build for the Constructor Fabric node
 - scripts/: operational shell scripts extracted from the monolithic manifest
 - configs/: desktop/panel/file-manager configuration snippets
 - trainer/: Electron trainer app files
 - images/: wallpaper/media assets used by the showcase
 - assets/: copied media assets and convenience files from the current worktree
+
+Published runtime image:
+- ihorman/constructor-fabric:latest
 
 Source reference repos on GitHub often use multi-folder layouts like:
 - README.md

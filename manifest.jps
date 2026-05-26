@@ -88,7 +88,7 @@ settings:
       tooltip: Choose the preferred desktop shortcut for the showcase. Constructor Fabric prepares the workspace and agent integrations automatically.
 
 nodes:
-  - image: ubuntu:22.04
+  - image: ihorman/constructor-fabric:latest
     nodeType: docker
     displayName: Constructor Fabric
     cloudlets: 16
