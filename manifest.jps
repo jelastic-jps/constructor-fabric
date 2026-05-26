@@ -179,7 +179,7 @@ success: |
     <a href="https://${env.domain}/" target="_blank">Open Constructor Fabric noVNC desktop</a>
   </p>
   <p>
-    <a href="https://${env.domain}/static/novnc/vnc.html?host=${env.domain}&port=443&path=websockify&password=${globals.VNC_PASSWORD}&autoconnect=true&resize=remote" target="_blank">Open direct noVNC session</a>
+    <a href="https://${env.domain}/static/novnc/vnc.html?host=${env.domain}&port=443&path=websockify&autoconnect=true&resize=remote" target="_blank">Open direct noVNC session</a>
   </p>
   <p>
     <a href="https://${env.domain}/health" target="_blank">Open public health check</a>
