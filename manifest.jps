@@ -195,7 +195,7 @@ success: |
   <ul>
     <li>noVNC opens the Constructor Fabric desktop at 1280x720.</li>
     <li>The bottom LXDE panel contains launchers, clock, tray, and task switcher.</li>
-    <li>The Constructor Fabric Trainer opens with copy-ready prompts; if Electron is unavailable it opens in Firefox.</li>
+    <li>The Constructor Fabric Trainer opens as an Electron desktop app with copy-ready prompts.</li>
     <li>Desktop launchers are prepared for VS Code/Copilot, Cursor, Windsurf, Codex, Claude Code, and the workspace terminal.</li>
   </ul>
 
