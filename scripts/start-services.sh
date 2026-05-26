@@ -22,7 +22,7 @@
         quick_exec=1
         single_click=0
         middle_click=0
-        LIBFM
+LIBFM
         if [ -f /root/constructor-fabric/app/wallpaper.png ]; then
           cat > /root/.config/pcmanfm/LXDE/desktop-items-0.conf <<'WALLCONF'
         [*]
@@ -32,7 +32,7 @@
         show_documents=0
         show_trash=1
         show_mounts=0
-        WALLCONF
+WALLCONF
         fi
 
         start_detached() {
@@ -53,7 +53,7 @@
         text = p.read_text()
         text = text.replace('command=x11vnc -display :1 -xkb -forever -shared -repeat -rfbauth /.password2', 'command=x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2')
         p.write_text(text)
-        PYCONF
+PYCONF
         fi
 
         configure_openbox_theme() {
@@ -123,32 +123,32 @@
         osd.border.width: 1
         osd.border.color: #2dd4bf
         osd.label.text.color: #eef6ff
-        OBTHEME
+OBTHEME
           cat > /usr/share/themes/ConstructorFabric/openbox-3/close.xbm <<'OBXBM'
         #define close_width 8
         #define close_height 8
         static unsigned char close_bits[] = { 0xc3,0xe7,0x7e,0x3c,0x3c,0x7e,0xe7,0xc3 };
-        OBXBM
+OBXBM
           cat > /usr/share/themes/ConstructorFabric/openbox-3/max.xbm <<'OBXBM'
         #define max_width 8
         #define max_height 8
         static unsigned char max_bits[] = { 0xff,0x81,0x81,0x81,0x81,0x81,0x81,0xff };
-        OBXBM
+OBXBM
           cat > /usr/share/themes/ConstructorFabric/openbox-3/iconify.xbm <<'OBXBM'
         #define iconify_width 8
         #define iconify_height 8
         static unsigned char iconify_bits[] = { 0x00,0x00,0x00,0x00,0x00,0x00,0xff,0xff };
-        OBXBM
+OBXBM
           cat > /usr/share/themes/ConstructorFabric/openbox-3/shade.xbm <<'OBXBM'
         #define shade_width 8
         #define shade_height 8
         static unsigned char shade_bits[] = { 0x18,0x3c,0x7e,0xff,0x00,0x00,0x00,0x00 };
-        OBXBM
+OBXBM
           cat > /usr/share/themes/ConstructorFabric/openbox-3/desk.xbm <<'OBXBM'
         #define desk_width 8
         #define desk_height 8
         static unsigned char desk_bits[] = { 0xff,0x81,0xbd,0xa5,0xa5,0xbd,0x81,0xff };
-        OBXBM
+OBXBM
           for n in close max iconify shade desk; do
             cp "/usr/share/themes/ConstructorFabric/openbox-3/$n.xbm" "/usr/share/themes/ConstructorFabric/openbox-3/${n}_pressed.xbm"
             cp "/usr/share/themes/ConstructorFabric/openbox-3/$n.xbm" "/usr/share/themes/ConstructorFabric/openbox-3/${n}_hover.xbm"
@@ -171,18 +171,18 @@
           p.write_text('<?xml version="1.0" encoding="UTF-8"?>\n<openbox_config xmlns="http://openbox.org/3.4/rc"><theme><name>Onyx</name></theme><font><name>Sans</name><size>11</size></font></openbox_config>\n')
         s=p.read_text().replace('<name>Onyx</name>', '<name>ConstructorFabric</name>').replace('<size>11</size>', '<size>12</size>')
         p.write_text(s)
-        PYOB
+PYOB
           cat > /root/.config/gtk-3.0/settings.ini <<'GTK3'
         [Settings]
         gtk-theme-name=Adwaita-dark
         gtk-icon-theme-name=Adwaita
         gtk-font-name=Sans 11
-        GTK3
+GTK3
           cat > /root/.gtkrc-2.0 <<'GTK2'
         gtk-theme-name="Adwaita-dark"
         gtk-icon-theme-name="Adwaita"
         gtk-font-name="Sans 11"
-        GTK2
+GTK2
         }
 
         configure_lxpanel() {
@@ -290,13 +290,13 @@
             BoldFont=1
           }
         }
-        LXPANEL
+LXPANEL
           cat > /root/.config/lxpanel/LXDE/config <<'LXCONF'
         [Command]
         FileManager=pcmanfm %s
         Terminal=lxterminal
         Logout=lxsession-logout
-        LXCONF
+LXCONF
         }
 
         configure_openbox_theme
@@ -336,7 +336,7 @@
           window.location.replace('/static/novnc/vnc.html?' + qs.toString());
         })();
         </script></body></html>
-        HTML
+HTML
           python3 - <<'PY'
         from pathlib import Path
         import os
@@ -345,7 +345,7 @@
         passwd=os.environ.get('VNC_PASSWORD') or os.environ.get('PASSWORD') or ''
         s=s.replace("window.__VNC_PASSWORD__ || ''", repr(passwd))
         p.write_text(s)
-        PY
+PY
         fi
         if [ -f /etc/nginx/sites-enabled/default ]; then
           rm -f /etc/nginx/sites-enabled/default.bak.*
@@ -390,7 +390,7 @@
             else:
                 s=s.replace('\n}\n', insert+'\n}\n', 1)
         p.write_text(s)
-        PY
+PY
           nginx -t >/root/constructor-fabric/nginx-test.log 2>&1 && (nginx -s reload || service nginx reload || true) >/root/constructor-fabric/nginx-reload.log 2>&1 || true
         fi
         start_detached '/root/constructor-fabric/app/server.py' /root/constructor-fabric/app.log python3 /root/constructor-fabric/app/server.py
