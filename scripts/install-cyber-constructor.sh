@@ -223,7 +223,7 @@ fi
 # The desktop base can have an old Node.js where current Electron installs but cannot run.
 # Fall back to opening the trainer HTML in the desktop browser instead of leaving no trainer window.
 trainer_url="file:///root/constructor-fabric/trainer/index.html"
-for browser in google-chrome chromium-browser chromium firefox x-www-browser; do
+for browser in firefox google-chrome chromium-browser chromium x-www-browser; do
   if command -v "$browser" >/dev/null 2>&1; then
     exec "$browser" --no-sandbox "$trainer_url"
   fi
