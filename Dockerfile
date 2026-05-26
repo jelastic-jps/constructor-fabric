@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM dorowu/ubuntu-desktop-lxde-vnc:focal
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG UV_INSTALL_DIR=/root/.local/bin
@@ -12,7 +12,8 @@ ENV TZ=Europe/Kyiv \
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google.list \
+    && apt-get update && apt-get install -y --no-install-recommends \
       python3 python3-pip python3-venv \
       curl wget ca-certificates git xdg-utils \
       x11vnc x11-utils net-tools xkb-data \
@@ -49,5 +50,3 @@ COPY . /root/constructor-fabric/
 RUN chmod +x /root/constructor-fabric/scripts/*.sh 2>/dev/null || true
 
 WORKDIR /root/constructor-fabric
-
-CMD ["/bin/bash"]
