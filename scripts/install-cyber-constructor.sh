@@ -226,7 +226,7 @@
           exec electron --no-sandbox /root/constructor-fabric/trainer
         fi
         exec xdg-open http://127.0.0.1:80/
-        RUNTRAINER
+RUNTRAINER
         chmod +x /root/cyber-constructor/auto-bootstrap.sh
         chmod +x /root/cyber-constructor/run-cfc.sh
         chmod +x /root/constructor-fabric/run-trainer.sh
@@ -241,7 +241,7 @@
         Icon=/root/constructor-fabric/app/icon.png
         Terminal=false
         Categories=Development;
-        CFCDESK
+CFCDESK
         chmod +x /root/Desktop/Cyber-Constructor.desktop
         mkdir -p /root/constructor-fabric
         cat > /root/constructor-fabric/open-agent.sh <<'OPENAGENT'
