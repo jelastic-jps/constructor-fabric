@@ -8,11 +8,6 @@ ARG CYBER_CONSTRUCTOR_TARBALL_SHA256=8ca1c8005097cb3bdca521888a61cc3f0c508601a19
 ENV TZ=Europe/Kyiv \
     HOME=/root \
     USER=root \
-    ALSADEV=default \
-    PULSE_RUNTIME_PATH=/tmp/pulse-root \
-    PULSE_SERVER=unix:/tmp/pulse-root/native \
-    SDL_AUDIODRIVER=pulse \
-    AUDIODEV=default \
     PATH=/opt/node-current/bin:/root/.local/bin:/usr/local/bin:/usr/bin:/bin
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -58,6 +53,12 @@ RUN mkdir -p /root/cfc-build /root/cyber-constructor /root/.cf-constructor/cache
 
 RUN mkdir -p /root/constructor-fabric/app /root/constructor-fabric/data /root/.config/autostart /root/Desktop /root/.config/lxpanel/LXDE/panels /root/.config/libfm /root/.config/pcmanfm/LXDE /tmp/.X11-unix \
     && chmod 1777 /tmp/.X11-unix || true
+
+ENV ALSADEV=default \
+    PULSE_RUNTIME_PATH=/tmp/pulse-root \
+    PULSE_SERVER=unix:/tmp/pulse-root/native \
+    SDL_AUDIODRIVER=pulse \
+    AUDIODEV=default
 
 COPY . /root/constructor-fabric/
 RUN chmod +x /root/constructor-fabric/scripts/*.sh 2>/dev/null || true \
