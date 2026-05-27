@@ -72,21 +72,6 @@ settings:
       value: ""
       required: false
       tooltip: API token for the selected provider. Use an OpenAI key for openai or an Anthropic/Claude key for claude.
-    - caption: IDE automation
-      type: list
-      inputType: string
-      name: ide-profile
-      default: cli
-      values:
-        cli: CLI only
-        vscode: VS Code
-        cursor: Cursor
-        windsurf: Windsurf
-        codex: OpenAI Codex
-        claude: Claude Code
-        copilot: GitHub Copilot in VS Code
-        all: All supported editors and agent CLIs
-      tooltip: Choose the preferred desktop shortcut for the showcase. Constructor Fabric prepares the workspace and agent integrations automatically.
 
 nodes:
   - image: ihorman/constructor-fabric:latest
@@ -108,7 +93,7 @@ nodes:
       ANTHROPIC_API_KEY: ${settings.api-token}
       OPENAI_MODEL: ${settings.openai-model:gpt-5.5}
       CLAUDE_MODEL: ${settings.claude-model:claude-3-5-sonnet-latest}
-      CF_IDE_PROFILE: ${settings.ide-profile}
+      CF_IDE_PROFILE: all
       CF_PREINSTALLED_IDES: 1
       CF_HOME: /root/constructor-fabric
       CF_PORT: ${globals.CF_PORT}
@@ -185,13 +170,6 @@ success: |
   <p>
     <a href="https://${env.domain}/" target="_blank">Open Constructor Fabric noVNC desktop</a>
   </p>
-  <p>
-    <a href="https://${env.domain}/static/novnc/vnc.html?host=${env.domain}&port=443&path=websockify&autoconnect=true&resize=remote" target="_blank">Open direct noVNC session</a>
-  </p>
-  <p>
-    <a href="https://${env.domain}/health" target="_blank">Open public health check</a>
-  </p>
-
   <h4>VNC password</h4>
   <p>Use this password if noVNC asks for it:</p>
   <input type="text" readonly="readonly" value="${globals.VNC_PASSWORD}" style="width: 100%; max-width: 420px; font-family: monospace; padding: 6px;" onclick="this.select();" />
@@ -210,7 +188,6 @@ success: |
 
   <h4>Install options used</h4>
   <table>
-    <tr><td>IDE automation profile</td><td><code>${settings.ide-profile}</code></td></tr>
     <tr><td>LLM provider</td><td><code>${settings.llm-provider}</code></td></tr>
     <tr><td>Model</td><td><code>${settings.openai-model:}${settings.claude-model:}</code></td></tr>
     <tr><td>API Token</td><td>configured from install form when provided</td></tr>
