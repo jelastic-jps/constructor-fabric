@@ -7,15 +7,37 @@ export XDG_CURRENT_DESKTOP=LXDE
 export DESKTOP_SESSION=LXDE
 mkdir -p /tmp/.X11-unix /root/constructor-fabric /root/.config/pcmanfm/LXDE /root/.config/lxpanel/LXDE/panels /root/.config/libfm
 chmod 1777 /tmp/.X11-unix || true
+# Audio: provide a real PulseAudio endpoint for Electron/Chromium apps so they do
+# not emit the base-image "To support audio, please read README" warning. Browser
+# audio forwarding is platform-dependent, but apps must at least see a working sink.
+export PULSE_RUNTIME_PATH=/tmp/pulse-root
+export PULSE_SERVER=unix:/tmp/pulse-root/native
+export SDL_AUDIODRIVER=pulse
+export AUDIODEV=default
+mkdir -p /tmp/pulse-root /root/.config/pulse
+chmod 700 /tmp/pulse-root || true
+cat > /root/.config/pulse/client.conf <<'PULSECLIENT'
+default-server = unix:/tmp/pulse-root/native
+autospawn = yes
+daemon-binary = /usr/bin/pulseaudio
+PULSECLIENT
+cat > /root/.asoundrc <<'ASOUNDRC'
+pcm.!default {
+  type pulse
+}
+ctl.!default {
+  type pulse
+}
+ASOUNDRC
 if command -v pulseaudio >/dev/null 2>&1; then
-  mkdir -p /root/.config/pulse
-  pulseaudio --start --exit-idle-time=-1 --log-target=file:/root/constructor-fabric/pulseaudio.log || true
+  pulseaudio --kill >/dev/null 2>&1 || true
+  pulseaudio --daemonize=yes --exit-idle-time=-1 --disallow-exit --log-target=file:/root/constructor-fabric/pulseaudio.log || true
   if command -v pactl >/dev/null 2>&1; then
+    for i in $(seq 1 20); do pactl info >/dev/null 2>&1 && break || sleep 0.2; done
     pactl load-module module-null-sink sink_name=virt_audio sink_properties=device.description=VirtualAudio >/dev/null 2>&1 || true
+    pactl set-default-sink virt_audio >/dev/null 2>&1 || true
+    pactl set-default-source virt_audio.monitor >/dev/null 2>&1 || true
   fi
-  export PULSE_SERVER=unix:/root/.config/pulse/native
-  export SDL_AUDIODRIVER=pulse
-  export AUDIODEV=default
 fi
 cat > /root/.config/libfm/libfm.conf <<'LIBFM'
 [config]
@@ -30,7 +52,7 @@ wallpaper_mode=fit
 wallpaper=/root/constructor-fabric/app/wallpaper.png
 desktop_bg=#001838
 show_documents=0
-show_trash=1
+show_trash=0
 show_mounts=0
 WALLCONF
 fi
@@ -246,10 +268,13 @@ Plugin {
       id=/root/Desktop/Constructor-Fabric-Trainer.desktop
     }
     Button {
-      id=/root/Desktop/Codex-Constructor-Fabric.desktop
+      id=/root/Desktop/VS-Code.desktop
     }
     Button {
-      id=/root/Desktop/Claude-Code-Constructor-Fabric.desktop
+      id=/root/Desktop/Cursor.desktop
+    }
+    Button {
+      id=/root/Desktop/Windsurf.desktop
     }
   }
 }

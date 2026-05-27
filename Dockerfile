@@ -20,7 +20,7 @@ RUN rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/goo
       openbox lxpanel pcmanfm lxterminal dbus-x11 \
       libnss3 libxss1 libasound2 libgbm1 libgtk-3-0 libsecret-1-0 libfuse2 \
       libxshmfence1 libatk-bridge2.0-0 libdrm2 libxcomposite1 libxdamage1 libxrandr2 libxkbcommon0 \
-      jq pulseaudio pulseaudio-utils nodejs npm \
+      jq pulseaudio pulseaudio-utils libasound2-plugins alsa-utils nodejs npm \
       xauth xvfb \
     && rm -rf /var/lib/apt/lists/*
 
