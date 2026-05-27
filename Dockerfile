@@ -8,6 +8,11 @@ ARG CYBER_CONSTRUCTOR_TARBALL_SHA256=8ca1c8005097cb3bdca521888a61cc3f0c508601a19
 ENV TZ=Europe/Kyiv \
     HOME=/root \
     USER=root \
+    ALSADEV=default \
+    PULSE_RUNTIME_PATH=/tmp/pulse-root \
+    PULSE_SERVER=unix:/tmp/pulse-root/native \
+    SDL_AUDIODRIVER=pulse \
+    AUDIODEV=default \
     PATH=/opt/node-current/bin:/root/.local/bin:/usr/local/bin:/usr/bin:/bin
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]

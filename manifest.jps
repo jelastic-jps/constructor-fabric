@@ -27,7 +27,7 @@ globals:
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-3-5-sonnet-latest
   RESOLUTION: 1280x720
-  SCRIPT_VERSION: desktop-audio-icons-20260527-1
+  SCRIPT_VERSION: desktop-audio-dummy-20260527-2
 
 settings:
   fields:
@@ -112,6 +112,11 @@ nodes:
       CF_PREINSTALLED_IDES: 1
       CF_HOME: /root/constructor-fabric
       CF_PORT: ${globals.CF_PORT}
+      ALSADEV: default
+      PULSE_RUNTIME_PATH: /tmp/pulse-root
+      PULSE_SERVER: unix:/tmp/pulse-root/native
+      SDL_AUDIODRIVER: pulse
+      AUDIODEV: default
       NO_PROXY: localhost,127.0.0.1,::1
       no_proxy: localhost,127.0.0.1,::1
       JELASTIC_EXPOSE: 80
