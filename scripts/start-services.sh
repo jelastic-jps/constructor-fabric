@@ -10,11 +10,17 @@ chmod 1777 /tmp/.X11-unix || true
 # Audio: provide a real PulseAudio endpoint for Electron/Chromium apps so they do
 # not emit the base-image "To support audio, please read README" warning. Browser
 # audio forwarding is platform-dependent, but apps must at least see a working sink.
+export ALSADEV="${ALSADEV:-default}"
 export PULSE_RUNTIME_PATH=/tmp/pulse-root
 export PULSE_SERVER=unix:/tmp/pulse-root/native
 export SDL_AUDIODRIVER=pulse
 export AUDIODEV=default
-mkdir -p /tmp/pulse-root /root/.config/pulse
+# The upstream desktop image documents audio as: --device /dev/snd -e ALSADEV=hw:2,0.
+# For this marketplace desktop real sound is not required, but some launchers/apps
+# only check that ALSADEV and /dev/snd exist before printing the noisy warning.
+# Provide a harmless dummy /dev/snd directory plus Pulse/ALSA null routing.
+mkdir -p /dev/snd /tmp/pulse-root /root/.config/pulse
+chmod 755 /dev/snd || true
 chmod 700 /tmp/pulse-root || true
 cat > /root/.config/pulse/client.conf <<'PULSECLIENT'
 default-server = unix:/tmp/pulse-root/native
@@ -24,11 +30,22 @@ PULSECLIENT
 cat > /root/.asoundrc <<'ASOUNDRC'
 pcm.!default {
   type pulse
+  fallback "nullsink"
+  hint.description "Constructor Fabric virtual audio"
+}
+pcm.nullsink {
+  type null
 }
 ctl.!default {
   type pulse
+  fallback "nullctl"
+}
+ctl.nullctl {
+  type hw
+  card 0
 }
 ASOUNDRC
+cp /root/.asoundrc /etc/asound.conf 2>/dev/null || true
 if command -v pulseaudio >/dev/null 2>&1; then
   pulseaudio --kill >/dev/null 2>&1 || true
   pulseaudio --daemonize=yes --exit-idle-time=-1 --disallow-exit --log-target=file:/root/constructor-fabric/pulseaudio.log || true

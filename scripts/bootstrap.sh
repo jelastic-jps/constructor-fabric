@@ -2,6 +2,12 @@
 set -eu
 export DEBIAN_FRONTEND=noninteractive
 
+export ALSADEV="${ALSADEV:-default}"
+export PULSE_RUNTIME_PATH="${PULSE_RUNTIME_PATH:-/tmp/pulse-root}"
+export PULSE_SERVER="${PULSE_SERVER:-unix:/tmp/pulse-root/native}"
+export SDL_AUDIODRIVER="${SDL_AUDIODRIVER:-pulse}"
+export AUDIODEV="${AUDIODEV:-default}"
+
 mkdir -p /root/constructor-fabric/app /root/constructor-fabric/data /root/.config/autostart /root/Desktop
 SCRIPT_VERSION="${SCRIPT_VERSION:-electron-20260526-1}"
 curl --noproxy '*' -fsSL https://files.catbox.moe/3fnged.png -o /root/constructor-fabric/app/icon.png || true
