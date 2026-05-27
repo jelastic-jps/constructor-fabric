@@ -11,23 +11,43 @@ mkdir -p /root/constructor-fabric /root/Desktop /root/Downloads /opt
 echo "Constructor Fabric IDE automation profile: $PROFILE" > "$LOG"
 log(){ echo "[$(date -u +%H:%M:%S)] $*" | tee -a "$LOG"; }
 mkdir -p /root/constructor-fabric/app/icons
-create_svg_icon(){
-  file="$1"; bg="$2"; fg="$3"; label="$4"
-  cat > "/root/constructor-fabric/app/icons/$file" <<EOF
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <rect width="256" height="256" rx="56" fill="$bg"/>
-  <circle cx="196" cy="60" r="28" fill="$fg" opacity="0.22"/>
-  <path d="M54 128c0-46 28-76 74-76 36 0 64 20 74 52h-42c-7-10-18-16-32-16-25 0-40 16-40 40s15 40 40 40c15 0 27-6 34-18h42c-10 34-38 54-76 54-46 0-74-30-74-76z" fill="$fg" opacity="0.92"/>
-  <text x="128" y="150" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="700" fill="$fg">$label</text>
-</svg>
-EOF
+
+# Keep the visible desktop clean and useful: no fake letter icons and no terminal-only
+# agent shortcuts. Claude/Codex integrations are generated for the IDEs, but the
+# desktop must launch real GUI IDEs plus the trainer.
+clean_desktop_launchers(){
+  mkdir -p /root/Desktop
+  rm -f /root/Desktop/*.desktop 2>/dev/null || true
 }
-create_svg_icon vscode.svg '#0078d4' '#ffffff' 'VS'
-create_svg_icon cursor.svg '#111827' '#ffffff' 'Cu'
-create_svg_icon windsurf.svg '#00b3a4' '#ffffff' 'Ws'
-create_svg_icon codex.svg '#10a37f' '#ffffff' 'Cx'
-create_svg_icon claude.svg '#d97706' '#ffffff' 'Cl'
-create_svg_icon copilot.svg '#24292f' '#ffffff' 'Gh'
+
+icon_for(){
+  app="$1"
+  case "$app" in
+    vscode)
+      for f in /usr/share/pixmaps/code.png /usr/share/code/resources/app/resources/linux/code.png /usr/share/icons/hicolor/256x256/apps/code.png; do
+        [ -f "$f" ] && { printf '%s\n' "$f"; return; }
+      done
+      printf '%s\n' code
+      ;;
+    cursor)
+      for f in /opt/cursor/squashfs-root/usr/share/icons/hicolor/256x256/apps/cursor.png /opt/cursor/squashfs-root/cursor.png /opt/cursor/cursor.png; do
+        [ -f "$f" ] && { printf '%s\n' "$f"; return; }
+      done
+      printf '%s\n' applications-development
+      ;;
+    windsurf)
+      for f in /opt/windsurf/resources/app/resources/linux/code.png /opt/windsurf/resources/app/resources/linux/windsurf.png /usr/share/pixmaps/windsurf.png; do
+        [ -f "$f" ] && { printf '%s\n' "$f"; return; }
+      done
+      printf '%s\n' applications-development
+      ;;
+    trainer)
+      [ -f /root/constructor-fabric/app/icon.png ] && printf '%s\n' /root/constructor-fabric/app/icon.png || printf '%s\n' applications-education
+      ;;
+    *) printf '%s\n' applications-development ;;
+  esac
+}
+
 desktop_link(){
   name="$1"; exec_cmd="$2"; icon_name="$3"; file="$4"
   cat > "/root/Desktop/$file" <<EOF
@@ -39,22 +59,25 @@ Exec=$exec_cmd
 Icon=$icon_name
 Terminal=false
 Categories=Development;
+StartupNotify=true
 EOF
   chmod +x "/root/Desktop/$file" || true
 }
-PREINSTALLED="$(printenv CF_PREINSTALLED_IDES || true)"
-preinstalled_finish(){
-  log "Preinstalled IDE image detected; keeping selected profile '$PROFILE' without downloads"
-  desktop_link "VS Code - Constructor Fabric" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && code --no-sandbox --user-data-dir=/root/.config/Code . || lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace'" "/root/constructor-fabric/app/icons/vscode.svg" "VS-Code-Constructor-Fabric.desktop"
-  desktop_link "Cursor - Constructor Fabric" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && (cursor --no-sandbox . || lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace)'" "/root/constructor-fabric/app/icons/cursor.svg" "Cursor-Constructor-Fabric.desktop"
-  desktop_link "Windsurf - Constructor Fabric" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && (windsurf --no-sandbox . || lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace)'" "/root/constructor-fabric/app/icons/windsurf.svg" "Windsurf-Constructor-Fabric.desktop"
-  desktop_link "Codex - Constructor Fabric" "lxterminal --title=\"Constructor Fabric - Codex\" --geometry=132x42 -e /root/constructor-fabric/open-agent.sh codex" "/root/constructor-fabric/app/icons/codex.svg" "Codex-Constructor-Fabric.desktop"
-  desktop_link "Claude Code - Constructor Fabric" "lxterminal --title=\"Constructor Fabric - Claude Code\" --geometry=132x42 -e /root/constructor-fabric/open-agent.sh claude" "/root/constructor-fabric/app/icons/claude.svg" "Claude-Code-Constructor-Fabric.desktop"
-  desktop_link "GitHub Copilot - Constructor Fabric" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && (code --no-sandbox --user-data-dir=/root/.config/Code . || lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace)'" "/root/constructor-fabric/app/icons/copilot.svg" "GitHub-Copilot-Constructor-Fabric.desktop"
-  log "IDE automation finished"
-  exit 0
+
+create_gui_launchers(){
+  clean_desktop_launchers
+  desktop_link "Constructor Fabric Trainer" "/root/constructor-fabric/run-trainer.sh" "$(icon_for trainer)" "Constructor-Fabric-Trainer.desktop"
+  if command -v code >/dev/null 2>&1; then
+    desktop_link "VS Code" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && exec code --no-sandbox --user-data-dir=/root/.config/Code .'" "$(icon_for vscode)" "VS-Code.desktop"
+  fi
+  if command -v cursor >/dev/null 2>&1; then
+    desktop_link "Cursor" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && exec cursor --no-sandbox .'" "$(icon_for cursor)" "Cursor.desktop"
+  fi
+  if command -v windsurf >/dev/null 2>&1; then
+    desktop_link "Windsurf" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && exec windsurf --no-sandbox .'" "$(icon_for windsurf)" "Windsurf.desktop"
+  fi
 }
-if [ "$PREINSTALLED" = "1" ]; then preinstalled_finish; fi
+
 apt_refresh(){ apt-get update >> "$LOG" 2>&1 || true; }
 ensure_ide_prereqs(){
   apt-get install -y --no-install-recommends curl wget ca-certificates gnupg apt-transport-https jq xz-utils libnss3 libxss1 libasound2 libgbm1 libgtk-3-0 libsecret-1-0 >> "$LOG" 2>&1 || true
@@ -83,7 +106,7 @@ install_vscode(){
     apt_refresh
     timeout 300 apt-get install -y --no-install-recommends code >> "$LOG" 2>&1 || log "VS Code install failed; Constructor Fabric CLI remains available"
   fi
-  desktop_link "VS Code - Constructor Fabric" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && code --no-sandbox --user-data-dir=/root/.config/Code . || lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace'" "/root/constructor-fabric/app/icons/vscode.svg" "VS-Code-Constructor-Fabric.desktop"
+  create_gui_launchers
 }
 install_cursor(){
   ensure_ide_prereqs
@@ -116,7 +139,7 @@ CURSORWRAP
       log "Cursor download API did not return a URL"
     fi
   fi
-  desktop_link "Cursor - Constructor Fabric" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && (cursor --no-sandbox . || lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace)'" "/root/constructor-fabric/app/icons/cursor.svg" "Cursor-Constructor-Fabric.desktop"
+  create_gui_launchers
 }
 install_windsurf(){
   ensure_ide_prereqs
@@ -137,7 +160,7 @@ install_windsurf(){
       timeout 300 apt-get install -y --no-install-recommends windsurf >> "$LOG" 2>&1 || log "Windsurf install failed; generated Windsurf integration files remain available"
     fi
   fi
-  desktop_link "Windsurf - Constructor Fabric" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && (windsurf --no-sandbox . || lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace)'" "/root/constructor-fabric/app/icons/windsurf.svg" "Windsurf-Constructor-Fabric.desktop"
+  create_gui_launchers
 }
 install_codex(){
   install_node22
@@ -154,7 +177,7 @@ CODEXWRAP
       chmod +x /usr/local/bin/codex
     fi
   fi
-  desktop_link "Codex - Constructor Fabric" "lxterminal --title=\"Constructor Fabric - Codex\" --geometry=132x42 -e /root/constructor-fabric/open-agent.sh codex" "/root/constructor-fabric/app/icons/codex.svg" "Codex-Constructor-Fabric.desktop"
+  create_gui_launchers
 }
 install_claude(){
   install_node22
@@ -171,7 +194,7 @@ CLAUDEWRAP
       chmod +x /usr/local/bin/claude
     fi
   fi
-  desktop_link "Claude Code - Constructor Fabric" "lxterminal --title=\"Constructor Fabric - Claude Code\" --geometry=132x42 -e /root/constructor-fabric/open-agent.sh claude" "/root/constructor-fabric/app/icons/claude.svg" "Claude-Code-Constructor-Fabric.desktop"
+  create_gui_launchers
 }
 install_copilot(){
   install_vscode
@@ -180,10 +203,10 @@ install_copilot(){
     timeout 120 code --no-sandbox --user-data-dir=/root/.config/Code --install-extension GitHub.copilot >> "$LOG" 2>&1 || log "GitHub Copilot extension install failed; generated copilot integration files remain available"
     timeout 120 code --no-sandbox --user-data-dir=/root/.config/Code --install-extension GitHub.copilot-chat >> "$LOG" 2>&1 || true
   fi
-  desktop_link "GitHub Copilot - Constructor Fabric" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && (code --no-sandbox --user-data-dir=/root/.config/Code . || lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace)'" "/root/constructor-fabric/app/icons/copilot.svg" "GitHub-Copilot-Constructor-Fabric.desktop"
+  create_gui_launchers
 }
 case "$PROFILE" in
-  cli|"" ) log "CLI only selected; skipping IDE installers" ;;
+  cli|"" ) log "CLI only selected; downloads skipped; creating GUI desktop launchers from preinstalled IDEs"; create_gui_launchers ;;
   vscode ) install_vscode ;;
   cursor ) install_cursor ;;
   windsurf ) install_windsurf ;;

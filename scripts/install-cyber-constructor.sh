@@ -248,28 +248,7 @@ Icon=/root/constructor-fabric/app/icon.png
 Terminal=false
 Categories=Development;
 DESK
-cat > /root/Desktop/Constructor-Fabric-Health.desktop <<'DESK'
-[Desktop Entry]
-Type=Application
-Name=Constructor Fabric Health
-Exec=xdg-open http://127.0.0.1:8081/
-Icon=/root/constructor-fabric/app/icon.png
-Terminal=false
-Categories=Development;
-DESK
-chmod +x /root/.config/autostart/constructor-fabric.desktop /root/Desktop/Constructor-Fabric-Trainer.desktop /root/Desktop/Constructor-Fabric-Health.desktop
-cat > /root/Desktop/Cyber-Constructor.desktop <<'CFCDESK'
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=Constructor Fabric Workspace
-Comment=Open the prepared showcase workspace
-Exec=lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace
-Icon=/root/constructor-fabric/app/icon.png
-Terminal=false
-Categories=Development;
-CFCDESK
-chmod +x /root/Desktop/Cyber-Constructor.desktop
+chmod +x /root/.config/autostart/constructor-fabric.desktop /root/Desktop/Constructor-Fabric-Trainer.desktop
 mkdir -p /root/constructor-fabric
 cat > /root/constructor-fabric/open-agent.sh <<'OPENAGENT'
 #!/bin/bash
