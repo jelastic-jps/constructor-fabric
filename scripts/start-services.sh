@@ -90,7 +90,7 @@ if [ -f /etc/supervisor/conf.d/supervisord.conf ]; then
 from pathlib import Path
 p = Path('/etc/supervisor/conf.d/supervisord.conf')
 text = p.read_text()
-text = text.replace('command=x11vnc -display :1 -xkb -forever -shared -repeat -rfbauth /.password2', 'command=x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2')
+text = text.replace('command=x11vnc -display :1 -xkb -forever -shared -repeat -rfbauth /.password2', 'command=x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2 -clipboard')
 p.write_text(text)
 PYCONF
 fi
@@ -355,9 +355,13 @@ start_detached 'pcmanfm.*--desktop' /root/constructor-fabric/pcmanfm.log /usr/bi
 pkill -x x11vnc >/dev/null 2>&1 || true
 sleep 1
 if [ -s /.password2 ]; then
-  start_detached 'x11vnc.*rfbport 5900' /root/constructor-fabric/x11vnc.log /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2
+  start_detached 'x11vnc.*rfbport 5900' /root/constructor-fabric/x11vnc.log /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2 -clipboard
 else
-  start_detached 'x11vnc.*rfbport 5900' /root/constructor-fabric/x11vnc.log /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -nopw
+  start_detached 'x11vnc.*rfbport 5900' /root/constructor-fabric/x11vnc.log /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -nopw -clipboard
+fi
+# Enable VNC clipboard bidirectional sync via autocutsel
+if command -v autocutsel >/dev/null 2>&1; then
+  start_detached 'autocutsel' /root/constructor-fabric/autocutsel.log /usr/bin/autocutsel -fork
 fi
 # Bypass the base image's Vue noVNC wrapper: it can throw
 # `Vnc.vue:120 TypeError: this.$t is not a function` in some browsers.

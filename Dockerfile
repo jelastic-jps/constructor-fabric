@@ -21,8 +21,23 @@ RUN rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/goo
       libnss3 libxss1 libasound2 libgbm1 libgtk-3-0 libsecret-1-0 libfuse2 \
       libxshmfence1 libatk-bridge2.0-0 libdrm2 libxcomposite1 libxdamage1 libxrandr2 libxkbcommon0 \
       jq pulseaudio pulseaudio-utils libasound2-plugins alsa-utils nodejs npm \
-      xauth xvfb \
+      xauth xvfb autocutsel fonts-liberation libu2f-udev \
+    && apt-get remove --purge -y firefox firefox-locale-en || true \
+    && apt-get autoremove -y || true \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Google Chrome and set as default browser (Chromium snap fails in Docker)
+RUN wget -qO- https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor > /usr/share/keyrings/google-chrome.gpg \
+    && echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main' > /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends google-chrome-stable \
+    && rm -rf /var/lib/apt/lists/* \
+    && xdg-settings set default-web-browser google-chrome.desktop || true \
+    && update-alternatives --set x-www-browser /usr/bin/google-chrome-stable 2>/dev/null || true
+
+# Enable VNC clipboard via x11vnc + autocutsel
+COPY patch-x11vnc.py /tmp/patch-x11vnc.py
+RUN python3 /tmp/patch-x11vnc.py && rm /tmp/patch-x11vnc.py
 
 RUN mkdir -p /opt \
     && curl --noproxy '*' -fsSL https://nodejs.org/dist/v22.16.0/node-v22.16.0-linux-x64.tar.xz -o /tmp/node.tar.xz \
@@ -54,6 +69,10 @@ RUN mkdir -p /root/cfc-build /root/cyber-constructor /root/.cf-constructor/cache
 RUN mkdir -p /root/constructor-fabric/app /root/constructor-fabric/data /root/.config/autostart /root/Desktop /root/.config/lxpanel/LXDE/panels /root/.config/libfm /root/.config/pcmanfm/LXDE /tmp/.X11-unix \
     && chmod 1777 /tmp/.X11-unix || true
 
+# Pre-download edited wallpaper (without Powered by Virtuozzo on right)
+RUN mkdir -p /root/constructor-fabric/app \
+    && curl --noproxy '*' -fsSL https://files.catbox.moe/pnybix.png -o /root/constructor-fabric/app/wallpaper.png
+
 ENV ALSADEV=default \
     PULSE_RUNTIME_PATH=/tmp/pulse-root \
     PULSE_SERVER=unix:/tmp/pulse-root/native \
@@ -69,6 +88,51 @@ RUN chmod +x /root/constructor-fabric/scripts/*.sh 2>/dev/null || true \
     && command -v codex \
     && command -v claude \
     && echo 'Constructor Fabric IDEs and agent CLIs are preinstalled'
+
+# Install Chromium browser and create desktop icons
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends chromium-browser || \
+    echo "Chromium skipped (Google Chrome available)"; \
+    rm -rf /var/lib/apt/lists/*
+
+# Desktop icons for Chromium/Chrome and Terminal
+RUN python3 - <<'PY'
+from pathlib import Path
+d = Path('/root/Desktop')
+d.mkdir(parents=True, exist_ok=True)
+
+chrome = d / 'Chromium-Browser.desktop'
+chrome_bin = '/usr/bin/chromium-browser'
+chrome_name = 'Chromium'
+if not Path(chrome_bin).exists():
+    chrome_bin = '/usr/bin/google-chrome-stable'
+    chrome_name = 'Google Chrome'
+chrome.write_text(f'''[Desktop Entry]
+Version=1.0
+Type=Application
+Name={chrome_name}
+Exec={chrome_bin} --no-sandbox --disable-gpu %U
+Icon=web-browser
+Terminal=false
+Categories=Network;WebBrowser;
+''')
+chrome.chmod(0o755)
+
+term = d / 'Terminal.desktop'
+term.write_text('''[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Terminal
+Comment=Open a terminal emulator
+Exec=lxterminal
+Icon=utilities-terminal
+Terminal=false
+Categories=System;TerminalEmulator;
+''')
+term.chmod(0o755)
+print(f'Created desktop icons: {chrome_name}, Terminal')
+PY
 
 ENV CF_PREINSTALLED_IDES=1
 

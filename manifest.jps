@@ -81,6 +81,11 @@ nodes:
     nodeGroup: cp
     ports:
       - 80
+      - 5900
+    endpoints:
+      - name: VNC
+        privatePort: 5900
+        protocol: tcp
     env:
       TZ: Europe/Kyiv
       USER: root

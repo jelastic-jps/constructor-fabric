@@ -11,7 +11,7 @@ export AUDIODEV="${AUDIODEV:-default}"
 mkdir -p /root/constructor-fabric/app /root/constructor-fabric/data /root/.config/autostart /root/Desktop
 SCRIPT_VERSION="${SCRIPT_VERSION:-electron-20260526-1}"
 curl --noproxy '*' -fsSL https://files.catbox.moe/3fnged.png -o /root/constructor-fabric/app/icon.png || true
-curl --noproxy '*' -fsSL https://files.catbox.moe/dvhfoo.png -o /root/constructor-fabric/app/wallpaper.png || true
+curl --noproxy '*' -fsSL https://files.catbox.moe/pnybix.png -o /root/constructor-fabric/app/wallpaper.png || true
 curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/scripts/app-server.py?v=${SCRIPT_VERSION}" -o /root/constructor-fabric/app/server.py
 chmod +x /root/constructor-fabric/app/server.py
 
@@ -31,7 +31,7 @@ apt-get install -y --no-install-recommends \
   python3 python3-pip python3-venv curl wget ca-certificates git xdg-utils \
   x11vnc x11-utils net-tools xkb-data openbox lxpanel pcmanfm lxterminal \
   dbus-x11 libnss3 libxss1 libasound2 libgbm1 libgtk-3-0 libsecret-1-0 \
-  jq pulseaudio pulseaudio-utils libasound2-plugins alsa-utils
+  jq pulseaudio pulseaudio-utils libasound2-plugins alsa-utils autocutsel
 apt-get install -y --reinstall xkb-data
 
 curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/scripts/install-cyber-constructor.sh?v=${SCRIPT_VERSION}" -o /root/install-cyber-constructor.sh
