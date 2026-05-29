@@ -10,7 +10,7 @@ categories:
   - apps/productivity
 
 description:
-  text: Constructor Fabric environment with a local PRD -> features -> tasks pipeline and OpenAI/Claude LLM configuration.
+  text: CLets AI define, build, and run software end to end — with reusable components, operational automation, and built-in productivity measurement and insights.
   short: Constructor Fabric
 
 targetRegions:
