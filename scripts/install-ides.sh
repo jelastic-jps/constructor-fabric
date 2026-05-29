@@ -55,7 +55,7 @@ icon_for(){
 }
 
 desktop_link(){
-  name="$1"; exec_cmd="$2"; icon_name="$3"; file="$4"
+  name="$1"; exec_cmd="$2"; icon_name="$3"; file="$4"; categories="${5:-Development;}"
   cat > "/root/Desktop/$file" <<EOF
 [Desktop Entry]
 Version=1.0
@@ -64,21 +64,38 @@ Name=$name
 Exec=$exec_cmd
 Icon=$icon_name
 Terminal=false
-Categories=Development;
+Categories=$categories
 StartupNotify=true
 EOF
-  chmod +x "/root/Desktop/$file" || true
+  chmod 755 "/root/Desktop/$file" || true
+  if command -v gio >/dev/null 2>&1; then
+    gio set "/root/Desktop/$file" metadata::trusted true >/dev/null 2>&1 || true
+  fi
+}
+
+ensure_chromium_wrapper(){
+  if command -v google-chrome-stable >/dev/null 2>&1; then
+    cat > /usr/local/bin/constructor-fabric-chromium <<'CHROMIUMWRAP'
+#!/bin/sh
+exec /usr/bin/google-chrome-stable --no-sandbox --disable-gpu --disable-dev-shm-usage "$@"
+CHROMIUMWRAP
+  elif command -v chromium-browser >/dev/null 2>&1; then
+    cat > /usr/local/bin/constructor-fabric-chromium <<'CHROMIUMWRAP'
+#!/bin/sh
+exec /usr/bin/chromium-browser --no-sandbox --disable-gpu --disable-dev-shm-usage "$@"
+CHROMIUMWRAP
+  fi
+  chmod 755 /usr/local/bin/constructor-fabric-chromium 2>/dev/null || true
 }
 
 create_gui_launchers(){
   clean_desktop_launchers
+  ensure_chromium_wrapper
   desktop_link "Constructor Fabric Trainer" "/root/constructor-fabric/run-trainer.sh" "$(icon_for trainer)" "Constructor-Fabric-Trainer.desktop"
-  if command -v chromium-browser >/dev/null 2>&1; then
-    desktop_link "Chromium" "chromium-browser --no-sandbox --disable-gpu %U" "$(icon_for chromium)" "Chromium.desktop"
-  elif command -v google-chrome-stable >/dev/null 2>&1; then
-    # Ubuntu focal's chromium-browser package requires snap in containers; use Chrome binary but keep the requested Chromium desktop label.
-    desktop_link "Chromium" "google-chrome-stable --no-sandbox --disable-gpu %U" "$(icon_for chromium)" "Chromium.desktop"
+  if [ -x /usr/local/bin/constructor-fabric-chromium ]; then
+    desktop_link "Chromium" "/usr/local/bin/constructor-fabric-chromium %U" "$(icon_for chromium)" "Chromium.desktop" "Network;WebBrowser;"
   fi
+  desktop_link "Terminal Emulator" "lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace" "utilities-terminal" "Terminal.desktop" "System;TerminalEmulator;"
   if command -v code >/dev/null 2>&1; then
     desktop_link "VS Code" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && exec code --no-sandbox --user-data-dir=/root/.config/Code .'" "$(icon_for vscode)" "VS-Code.desktop"
   fi

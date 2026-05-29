@@ -166,8 +166,11 @@ actions:
                 print(f"{name} did not become ready: {last}", file=sys.stderr); sys.exit(1)'
         test -f /root/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher missing' >&2; exit 1; }
         grep -q '^Name=Chromium$' /root/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher has wrong label' >&2; exit 1; }
+        grep -q '^Exec=/usr/local/bin/constructor-fabric-chromium' /root/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher has wrong Exec' >&2; exit 1; }
+        test -x /usr/local/bin/constructor-fabric-chromium || { echo 'Chromium wrapper missing' >&2; exit 1; }
+        test -f /root/Desktop/Terminal.desktop || { echo 'Terminal desktop launcher missing' >&2; exit 1; }
         if command -v firefox >/dev/null 2>&1 || command -v firefox-esr >/dev/null 2>&1; then echo 'Firefox is still installed' >&2; exit 1; fi
-        echo 'Chromium desktop launcher is present and Firefox is absent'
+        echo 'Chromium and Terminal desktop launchers are present and Firefox is absent'
         cd /root/cyber-constructor
         cfc --version
         cfc info --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "FOUND", data; assert data["relative_path"] == ".cf-constructor", data; print("cyber-constructor info is FOUND at .cf-constructor")'
@@ -190,8 +193,8 @@ success: |
     <li>noVNC opens the Constructor Fabric desktop at 1280x720.</li>
     <li>The bottom LXDE panel contains launchers, clock, tray, and task switcher.</li>
     <li>The Constructor Fabric Trainer opens as an Electron desktop app with copy-ready prompts.</li>
-    <li>The desktop is intentionally minimal: Trainer, Chromium, VS Code, Cursor, and Windsurf only.</li>
-    <li>Firefox is removed; the Chromium launcher opens the container-safe browser path.</li>
+    <li>The desktop is intentionally minimal: Trainer, Chromium, Terminal Emulator, VS Code, Cursor, and Windsurf only.</li>
+    <li>Firefox is removed; the Chromium launcher runs the container-safe browser directly.</li>
     <li>Claude/Codex integrations are generated inside the workspace for those IDEs; no misleading terminal-only IDE icons are shown.</li>
   </ul>
 
