@@ -35,7 +35,7 @@ RUN wget -qO- https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dear
     && xdg-settings set default-web-browser google-chrome.desktop || true \
     && update-alternatives --set x-www-browser /usr/bin/google-chrome-stable 2>/dev/null || true
 
-# Enable VNC clipboard via x11vnc + autocutsel
+# Configure native VNC through x11vnc; clipboard sync is handled by autocutsel at runtime
 COPY patch-x11vnc.py /tmp/patch-x11vnc.py
 RUN python3 /tmp/patch-x11vnc.py && rm /tmp/patch-x11vnc.py
 

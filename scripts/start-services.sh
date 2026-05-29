@@ -90,7 +90,7 @@ if [ -f /etc/supervisor/conf.d/supervisord.conf ]; then
 from pathlib import Path
 p = Path('/etc/supervisor/conf.d/supervisord.conf')
 text = p.read_text()
-text = text.replace('command=x11vnc -display :1 -xkb -forever -shared -repeat -rfbauth /.password2', 'command=x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2 -clipboard')
+text = text.replace('command=x11vnc -display :1 -xkb -forever -shared -repeat -rfbauth /.password2', 'command=x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2')
 p.write_text(text)
 PYCONF
 fi
@@ -366,9 +366,9 @@ for i in $(seq 1 30); do
   sleep 1
 done
 if [ -s /.password2 ]; then
-  setsid /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2 -clipboard </dev/null >/root/constructor-fabric/x11vnc.log 2>&1 &
+  setsid /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2 </dev/null >/root/constructor-fabric/x11vnc.log 2>&1 &
 else
-  setsid /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -nopw -clipboard </dev/null >/root/constructor-fabric/x11vnc.log 2>&1 &
+  setsid /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -nopw </dev/null >/root/constructor-fabric/x11vnc.log 2>&1 &
 fi
 # Enable VNC clipboard bidirectional sync via autocutsel
 if command -v autocutsel >/dev/null 2>&1; then
