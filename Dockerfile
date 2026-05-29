@@ -89,25 +89,18 @@ RUN chmod +x /root/constructor-fabric/scripts/*.sh 2>/dev/null || true \
     && command -v claude \
     && echo 'Constructor Fabric IDEs and agent CLIs are preinstalled'
 
-# Install Chromium browser and create desktop icons
-RUN set -eux; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends chromium-browser || \
-    echo "Chromium skipped (Google Chrome available)"; \
-    rm -rf /var/lib/apt/lists/*
-
-# Desktop icons for Chromium/Chrome and Terminal
+# Desktop icons for Chromium-labeled browser and Terminal.
+# On Ubuntu focal, chromium-browser is a snap wrapper and snap does not work in Docker; use Google Chrome stable but label the launcher Chromium.
 RUN python3 - <<'PY'
 from pathlib import Path
 d = Path('/root/Desktop')
 d.mkdir(parents=True, exist_ok=True)
 
-chrome = d / 'Chromium-Browser.desktop'
+chrome = d / 'Chromium.desktop'
 chrome_bin = '/usr/bin/chromium-browser'
 chrome_name = 'Chromium'
 if not Path(chrome_bin).exists():
     chrome_bin = '/usr/bin/google-chrome-stable'
-    chrome_name = 'Google Chrome'
 chrome.write_text(f'''[Desktop Entry]
 Version=1.0
 Type=Application
