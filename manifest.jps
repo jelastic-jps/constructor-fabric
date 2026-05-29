@@ -27,8 +27,8 @@ globals:
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-3-5-sonnet-latest
   RESOLUTION: 1280x720
-  SCRIPT_VERSION: chromium-launcher-firefox-remove-20260529-2
-  CF_SOURCE_REF: c5a6ac167e971f4fffe352947787d59146edf446
+  SCRIPT_VERSION: desktop-launcher-clipboard-20260529-1
+  CF_SOURCE_REF: c87e2a0c61414f8c503159fc3cf74054f916b707
 
 settings:
   fields:
