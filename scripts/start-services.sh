@@ -352,17 +352,42 @@ start_detached 'pcmanfm.*--desktop' /root/constructor-fabric/pcmanfm.log /usr/bi
 # Avoid a foreground wallpaper setter here: on dorowu/LXDE it can stay attached
 # and the Virtuozzo Cloud Scripting engine can eventually kill the whole cmd action with signal 9.
 # The desktop-items-0.conf written above is enough for pcmanfm to pick the wallpaper.
+# Restart native VNC deterministically. Do not use start_detached here: after
+# pkill, the old x11vnc can linger for a moment and make pgrep falsely report
+# that the target process is already running; then it exits and port 5900 stays
+# closed, causing JPS verify to fail with "native-vnc did not become ready".
 pkill -x x11vnc >/dev/null 2>&1 || true
-sleep 1
+for i in $(seq 1 20); do
+  pgrep -x x11vnc >/dev/null 2>&1 || break
+  sleep 0.5
+done
+for i in $(seq 1 30); do
+  xdpyinfo -display :1 >/dev/null 2>&1 && break
+  sleep 1
+done
 if [ -s /.password2 ]; then
-  start_detached 'x11vnc.*rfbport 5900' /root/constructor-fabric/x11vnc.log /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2 -clipboard
+  setsid /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2 -clipboard </dev/null >/root/constructor-fabric/x11vnc.log 2>&1 &
 else
-  start_detached 'x11vnc.*rfbport 5900' /root/constructor-fabric/x11vnc.log /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -nopw -clipboard
+  setsid /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -nopw -clipboard </dev/null >/root/constructor-fabric/x11vnc.log 2>&1 &
 fi
 # Enable VNC clipboard bidirectional sync via autocutsel
 if command -v autocutsel >/dev/null 2>&1; then
-  start_detached 'autocutsel' /root/constructor-fabric/autocutsel.log /usr/bin/autocutsel -fork
+  setsid /usr/bin/autocutsel -fork </dev/null >/root/constructor-fabric/autocutsel.log 2>&1 &
 fi
+for i in $(seq 1 20); do
+  if python3 - <<'PYVNC'
+import socket
+s=socket.create_connection(('127.0.0.1', 5900), timeout=1)
+b=s.recv(12)
+s.close()
+raise SystemExit(0 if b.startswith(b'RFB') else 1)
+PYVNC
+  then
+    echo 'native VNC is listening on 5900'
+    break
+  fi
+  sleep 1
+done
 # Bypass the base image's Vue noVNC wrapper: it can throw
 # `Vnc.vue:120 TypeError: this.$t is not a function` in some browsers.
 # Serve a tiny redirector to the upstream noVNC page directly, with the
