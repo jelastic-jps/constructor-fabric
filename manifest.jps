@@ -178,34 +178,37 @@ actions:
         cfc agents --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "OK", data; text=json.dumps(data).lower(); required=["windsurf","cursor","claude","copilot","openai"]; missing=[x for x in required if x not in text]; assert not missing, {"missing": missing, "data": data}; print("cyber-constructor agents are OK for "+", ".join(required))'
 
 success: |
-  <h3>Constructor Fabric is ready</h3>
+  ### Constructor Fabric is ready
 
-  <h4>Access</h4>
-  <p>
-    <a href="https://${env.domain}/" target="_blank">Open Constructor Fabric noVNC desktop</a>
-  </p>
-  <h4>VNC password</h4>
-  <p>Use this password if noVNC asks for it:</p>
-  <input type="text" readonly="readonly" value="${globals.VNC_PASSWORD}" style="width: 100%; max-width: 420px; font-family: monospace; padding: 6px;" onclick="this.select();" />
+  #### Access
 
-  <h4>Desktop contents</h4>
-  <ul>
-    <li>noVNC opens the Constructor Fabric desktop at 1280x720.</li>
-    <li>The bottom LXDE panel contains launchers, clock, tray, and task switcher.</li>
-    <li>The Constructor Fabric Trainer opens as an Electron desktop app with copy-ready prompts.</li>
-    <li>The desktop is intentionally minimal: Trainer, Chromium, Terminal Emulator, VS Code, Cursor, and Windsurf only.</li>
-    <li>Firefox is removed; the Chromium launcher runs the container-safe browser directly.</li>
-    <li>Claude/Codex integrations are generated inside the workspace for those IDEs; no misleading terminal-only IDE icons are shown.</li>
-  </ul>
+  [Open Constructor Fabric noVNC desktop](https://${env.domain}/)
 
-  <h4>Workspace</h4>
-  <p><code>/root/workspaces/constructor-fabric-workspace</code></p>
+  #### VNC password
 
-  <h4>Install options used</h4>
-  <table>
-    <tr><td>LLM provider</td><td><code>${settings.llm-provider}</code></td></tr>
-    <tr><td>Model</td><td><code>${settings.openai-model:}${settings.claude-model:}</code></td></tr>
-    <tr><td>API Token</td><td>configured from install form when provided</td></tr>
-  </table>
+  Use this password if noVNC asks for it:
 
-  <p>If you set an API Token in the install form, Constructor Fabric exports it into the generated workspace environment.</p>
+  `${globals.VNC_PASSWORD}`
+
+  #### Desktop contents
+
+  - noVNC opens the Constructor Fabric desktop at 1280x720.
+  - The bottom LXDE panel contains launchers, clock, tray, and task switcher.
+  - The Constructor Fabric Trainer opens as an Electron desktop app with copy-ready prompts.
+  - The desktop is intentionally minimal: Trainer, Chromium, Terminal Emulator, VS Code, Cursor, and Windsurf only.
+  - Firefox is removed; the Chromium launcher runs the container-safe browser directly.
+  - Claude/Codex integrations are generated inside the workspace for those IDEs; no misleading terminal-only IDE icons are shown.
+
+  #### Workspace
+
+  `/root/workspaces/constructor-fabric-workspace`
+
+  #### Install options used
+
+  | Setting | Value |
+  |---------|-------|
+  | LLM provider | `${settings.llm-provider}` |
+  | Model | `${settings.openai-model:}${settings.claude-model:}` |
+  | API Token | configured from install form when provided |
+
+  If you set an API Token in the install form, Constructor Fabric exports it into the generated workspace environment.
