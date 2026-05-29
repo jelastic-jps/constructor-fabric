@@ -28,11 +28,19 @@ if [ -f /etc/apt/sources.list.d/google.list ]; then
 fi
 
 apt-get update
+apt-get remove --purge -y firefox firefox-locale-en firefox-esr || true
 apt-get install -y --no-install-recommends \
   python3 python3-pip python3-venv curl wget ca-certificates git xdg-utils \
   x11vnc x11-utils net-tools xkb-data openbox lxpanel pcmanfm lxterminal \
   dbus-x11 libnss3 libxss1 libasound2 libgbm1 libgtk-3-0 libsecret-1-0 \
   jq pulseaudio pulseaudio-utils libasound2-plugins alsa-utils autocutsel
+if ! command -v google-chrome-stable >/dev/null 2>&1 && ! command -v chromium-browser >/dev/null 2>&1; then
+  wget -qO- https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor > /usr/share/keyrings/google-chrome.gpg 2>/dev/null || true
+  echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main' > /etc/apt/sources.list.d/google-chrome.list
+  apt-get update || true
+  apt-get install -y --no-install-recommends google-chrome-stable || true
+fi
+apt-get autoremove -y || true
 apt-get install -y --reinstall xkb-data
 
 curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/scripts/install-cyber-constructor.sh?v=${SCRIPT_VERSION}" -o /root/install-cyber-constructor.sh

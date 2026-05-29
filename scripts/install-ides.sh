@@ -44,6 +44,12 @@ icon_for(){
     trainer)
       [ -f /root/constructor-fabric/app/icon.png ] && printf '%s\n' /root/constructor-fabric/app/icon.png || printf '%s\n' applications-education
       ;;
+    chromium)
+      for f in /usr/share/icons/hicolor/256x256/apps/google-chrome.png /usr/share/pixmaps/google-chrome.png /usr/share/icons/hicolor/256x256/apps/chromium-browser.png /usr/share/pixmaps/chromium-browser.png; do
+        [ -f "$f" ] && { printf '%s\n' "$f"; return; }
+      done
+      printf '%s\n' web-browser
+      ;;
     *) printf '%s\n' applications-development ;;
   esac
 }
@@ -67,6 +73,12 @@ EOF
 create_gui_launchers(){
   clean_desktop_launchers
   desktop_link "Constructor Fabric Trainer" "/root/constructor-fabric/run-trainer.sh" "$(icon_for trainer)" "Constructor-Fabric-Trainer.desktop"
+  if command -v chromium-browser >/dev/null 2>&1; then
+    desktop_link "Chromium" "chromium-browser --no-sandbox --disable-gpu %U" "$(icon_for chromium)" "Chromium.desktop"
+  elif command -v google-chrome-stable >/dev/null 2>&1; then
+    # Ubuntu focal's chromium-browser package requires snap in containers; use Chrome binary but keep the requested Chromium desktop label.
+    desktop_link "Chromium" "google-chrome-stable --no-sandbox --disable-gpu %U" "$(icon_for chromium)" "Chromium.desktop"
+  fi
   if command -v code >/dev/null 2>&1; then
     desktop_link "VS Code" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && exec code --no-sandbox --user-data-dir=/root/.config/Code .'" "$(icon_for vscode)" "VS-Code.desktop"
   fi

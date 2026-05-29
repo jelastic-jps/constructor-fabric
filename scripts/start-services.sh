@@ -285,6 +285,9 @@ Plugin {
       id=/root/Desktop/Constructor-Fabric-Trainer.desktop
     }
     Button {
+      id=/root/Desktop/Chromium.desktop
+    }
+    Button {
       id=/root/Desktop/VS-Code.desktop
     }
     Button {
