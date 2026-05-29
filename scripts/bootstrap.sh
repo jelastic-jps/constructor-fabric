@@ -11,8 +11,9 @@ export AUDIODEV="${AUDIODEV:-default}"
 mkdir -p /root/constructor-fabric/app /root/constructor-fabric/data /root/.config/autostart /root/Desktop
 SCRIPT_VERSION="${SCRIPT_VERSION:-electron-20260526-1}"
 CF_SOURCE_REF="${CF_SOURCE_REF:-main}"
-curl --noproxy '*' -fsSL https://files.catbox.moe/3fnged.png -o /root/constructor-fabric/app/icon.png || true
-curl --noproxy '*' -fsSL https://files.catbox.moe/pnybix.png -o /root/constructor-fabric/app/wallpaper.png || true
+ASSET_BASE="https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/assets"
+curl --noproxy '*' -fsSL "${ASSET_BASE}/constructor-fabric-logo.png?v=${SCRIPT_VERSION}" -o /root/constructor-fabric/app/icon.png || true
+curl --noproxy '*' -fsSL "${ASSET_BASE}/constructor-fabric-wallpaper.png?v=${SCRIPT_VERSION}" -o /root/constructor-fabric/app/wallpaper.png || true
 curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/scripts/app-server.py?v=${SCRIPT_VERSION}" -o /root/constructor-fabric/app/server.py
 chmod +x /root/constructor-fabric/app/server.py
 

@@ -5,7 +5,9 @@ export PATH=/root/.local/bin:/usr/local/bin:$PATH
 mkdir -p /root/cyber-constructor /root/.cf-constructor/cache /root/cfc-install
 cd /root/cfc-install
 echo "Fetching Cyber Constructor local source archive"
-curl --noproxy '*' -fsSL "https://files.catbox.moe/qb6e6d.gz" -o cyber-constructor.tar.gz
+CF_SOURCE_REF="${CF_SOURCE_REF:-main}"
+SCRIPT_VERSION="${SCRIPT_VERSION:-electron-20260526-1}"
+curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/assets/cyber-constructor-v4.0.0.tar.gz?v=${SCRIPT_VERSION}" -o cyber-constructor.tar.gz
 echo "8ca1c8005097cb3bdca521888a61cc3f0c508601a199722d2585e3130703a626  cyber-constructor.tar.gz" | sha256sum -c -
 rm -rf /root/cyber-constructor
 mkdir -p /root/cyber-constructor
