@@ -69,7 +69,8 @@ StartupNotify=true
 EOF
   chmod 755 "/root/Desktop/$file" || true
   if command -v gio >/dev/null 2>&1; then
-    gio set "/root/Desktop/$file" metadata::trusted true >/dev/null 2>&1 || true
+    gio set "/root/Desktop/$file" metadata::trusted true >/dev/null 2>&1 || \
+      dbus-launch gio set "/root/Desktop/$file" metadata::trusted true >/dev/null 2>&1 || true
   fi
 }
 

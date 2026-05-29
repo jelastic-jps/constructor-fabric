@@ -352,6 +352,14 @@ configure_lxpanel
 start_detached 'Xvfb :1' /root/constructor-fabric/xvfb.log /usr/bin/Xvfb :1 -screen 0 ${RESOLUTION}x24 -ac +extension GLX +render -noreset
 sleep 3
 start_detached 'openbox.*lxde-rc.xml' /root/constructor-fabric/openbox.log /usr/bin/openbox --config-file /root/.config/openbox/lxde-rc.xml --replace
+# Mark desktop entries trusted before pcmanfm renders them; otherwise LXDE/PCManFM
+# may show an "Open With" dialog instead of executing the launcher.
+if command -v gio >/dev/null 2>&1; then
+  for f in /root/Desktop/*.desktop; do
+    [ -f "$f" ] || continue
+    gio set "$f" metadata::trusted true >/dev/null 2>&1 || dbus-launch gio set "$f" metadata::trusted true >/dev/null 2>&1 || true
+  done
+fi
 pkill -x lxpanel >/dev/null 2>&1 || true
 start_detached 'lxpanel.*--profile LXDE' /root/constructor-fabric/lxpanel.log /usr/bin/lxpanel --profile LXDE
 start_detached 'pcmanfm.*--desktop' /root/constructor-fabric/pcmanfm.log /usr/bin/pcmanfm --desktop --profile LXDE
