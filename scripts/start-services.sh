@@ -90,7 +90,7 @@ if [ -f /etc/supervisor/conf.d/supervisord.conf ]; then
 from pathlib import Path
 p = Path('/etc/supervisor/conf.d/supervisord.conf')
 text = p.read_text()
-text = text.replace('command=x11vnc -display :1 -xkb -forever -shared -repeat -rfbauth /.password2', 'command=x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2')
+text = text.replace('command=x11vnc -display :1 -xkb -forever -shared -repeat -rfbauth /.password2', 'command=x11vnc -display :1 -xkb -forever -shared -repeat -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2')
 p.write_text(text)
 PYCONF
 fi
@@ -288,6 +288,9 @@ Plugin {
       id=/root/Desktop/Chromium.desktop
     }
     Button {
+      id=/root/Desktop/Terminal.desktop
+    }
+    Button {
       id=/root/Desktop/VS-Code.desktop
     }
     Button {
@@ -369,13 +372,16 @@ for i in $(seq 1 30); do
   sleep 1
 done
 if [ -s /.password2 ]; then
-  setsid /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2 </dev/null >/root/constructor-fabric/x11vnc.log 2>&1 &
+  setsid /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2 </dev/null >/root/constructor-fabric/x11vnc.log 2>&1 &
 else
-  setsid /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxfixes -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -nopw </dev/null >/root/constructor-fabric/x11vnc.log 2>&1 &
+  setsid /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -nopw </dev/null >/root/constructor-fabric/x11vnc.log 2>&1 &
 fi
-# Enable VNC clipboard bidirectional sync via autocutsel
+# Enable VNC/noVNC clipboard sync. x11vnc 0.9.16 rejects its non-portable clipboard flag,
+# so keep x11vnc clipboard defaults enabled and bridge X selections with autocutsel.
 if command -v autocutsel >/dev/null 2>&1; then
-  setsid /usr/bin/autocutsel -fork </dev/null >/root/constructor-fabric/autocutsel.log 2>&1 &
+  pkill -x autocutsel >/dev/null 2>&1 || true
+  DISPLAY=:1 setsid /usr/bin/autocutsel -selection CLIPBOARD -fork </dev/null >/root/constructor-fabric/autocutsel-clipboard.log 2>&1 &
+  DISPLAY=:1 setsid /usr/bin/autocutsel -selection PRIMARY -fork </dev/null >/root/constructor-fabric/autocutsel-primary.log 2>&1 &
 fi
 for i in $(seq 1 20); do
   if python3 - <<'PYVNC'

@@ -96,19 +96,22 @@ from pathlib import Path
 d = Path('/root/Desktop')
 d.mkdir(parents=True, exist_ok=True)
 
+wrapper = Path('/usr/local/bin/constructor-fabric-chromium')
+wrapper.write_text('''#!/bin/sh
+exec /usr/bin/google-chrome-stable --no-sandbox --disable-gpu --disable-dev-shm-usage "$@"
+''')
+wrapper.chmod(0o755)
+
 chrome = d / 'Chromium.desktop'
-chrome_bin = '/usr/bin/chromium-browser'
-chrome_name = 'Chromium'
-if not Path(chrome_bin).exists():
-    chrome_bin = '/usr/bin/google-chrome-stable'
-chrome.write_text(f'''[Desktop Entry]
+chrome.write_text('''[Desktop Entry]
 Version=1.0
 Type=Application
-Name={chrome_name}
-Exec={chrome_bin} --no-sandbox --disable-gpu %U
+Name=Chromium
+Exec=/usr/local/bin/constructor-fabric-chromium %U
 Icon=web-browser
 Terminal=false
 Categories=Network;WebBrowser;
+StartupNotify=true
 ''')
 chrome.chmod(0o755)
 
@@ -116,15 +119,16 @@ term = d / 'Terminal.desktop'
 term.write_text('''[Desktop Entry]
 Version=1.0
 Type=Application
-Name=Terminal
+Name=Terminal Emulator
 Comment=Open a terminal emulator
-Exec=lxterminal
+Exec=lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace
 Icon=utilities-terminal
 Terminal=false
 Categories=System;TerminalEmulator;
+StartupNotify=true
 ''')
 term.chmod(0o755)
-print(f'Created desktop icons: {chrome_name}, Terminal')
+print('Created desktop icons: Chromium, Terminal Emulator')
 PY
 
 ENV CF_PREINSTALLED_IDES=1
