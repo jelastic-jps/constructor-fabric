@@ -27,7 +27,8 @@ globals:
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-3-5-sonnet-latest
   RESOLUTION: 1280x720
-  SCRIPT_VERSION: native-vnc-restart-20260529-2
+  SCRIPT_VERSION: native-vnc-restart-20260529-3
+  CF_SOURCE_REF: ba6fb1ff922654c1e45508b846e0b63a7f5a6e98
 
 settings:
   fields:
@@ -113,6 +114,7 @@ nodes:
       JELASTIC_PORTS: 80
       RESOLUTION: 1280x720
       SCRIPT_VERSION: ${globals.SCRIPT_VERSION}
+      CF_SOURCE_REF: ${globals.CF_SOURCE_REF}
 
 onInstall:
   - bootstrap
@@ -124,7 +126,7 @@ actions:
         set -euo pipefail
         export DEBIAN_FRONTEND=noninteractive
         mkdir -p /root/constructor-fabric
-        curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/scripts/bootstrap.sh?v=${globals.SCRIPT_VERSION}" -o /root/constructor-fabric/bootstrap.sh
+        curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/scripts/bootstrap.sh?v=${globals.SCRIPT_VERSION}" -o /root/constructor-fabric/bootstrap.sh
         chmod +x /root/constructor-fabric/bootstrap.sh
         /root/constructor-fabric/bootstrap.sh
 
