@@ -50,12 +50,15 @@ chmod +x /root/install-cyber-constructor.sh
 curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/scripts/install-ides.sh?v=${SCRIPT_VERSION}" -o /root/constructor-fabric/install-ides.sh
 chmod +x /root/constructor-fabric/install-ides.sh
 selected_ide_profile="$(printenv CF_IDE_PROFILE || true)"
+# Always normalize the visible desktop immediately. Some prebuilt images contain stale
+# launchers (for example Chromium-Browser.desktop or terminal-only Codex/Claude
+# shortcuts). The CLI profile only recreates the clean GUI launchers from binaries
+# already present, so it is safe and quick before JPS verify.
+CF_IDE_PROFILE=cli /root/constructor-fabric/install-ides.sh >/root/constructor-fabric/ide-install-wrapper.log 2>&1 || true
 if [ "$selected_ide_profile" != "cli" ] && [ -n "$selected_ide_profile" ]; then
   # Delay optional heavy IDE package installs until after JPS verify is done.
   # This prevents marketplace cmd[cp] from being killed by signal 9 on small nodes.
-  setsid sh -c 'sleep 180; /root/constructor-fabric/install-ides.sh' </dev/null >/root/constructor-fabric/ide-install-wrapper.log 2>&1 &
-else
-  /root/constructor-fabric/install-ides.sh >/root/constructor-fabric/ide-install-wrapper.log 2>&1 || true
+  setsid sh -c 'sleep 180; /root/constructor-fabric/install-ides.sh' </dev/null >>/root/constructor-fabric/ide-install-wrapper.log 2>&1 &
 fi
 
 curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/scripts/start-services.sh?v=${SCRIPT_VERSION}" -o /root/constructor-fabric/start-services.sh
