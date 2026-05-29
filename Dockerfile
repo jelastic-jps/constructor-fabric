@@ -2,7 +2,7 @@ FROM dorowu/ubuntu-desktop-lxde-vnc:focal
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG UV_INSTALL_DIR=/root/.local/bin
-ARG CYBER_CONSTRUCTOR_TARBALL_URL=https://files.catbox.moe/qb6e6d.gz
+ARG CYBER_CONSTRUCTOR_TARBALL_URL=https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/assets/cyber-constructor-v4.0.0.tar.gz
 ARG CYBER_CONSTRUCTOR_TARBALL_SHA256=8ca1c8005097cb3bdca521888a61cc3f0c508601a199722d2585e3130703a626
 
 ENV TZ=Europe/Kyiv \
@@ -71,7 +71,7 @@ RUN mkdir -p /root/constructor-fabric/app /root/constructor-fabric/data /root/.c
 
 # Pre-download edited wallpaper (without Powered by Virtuozzo on right)
 RUN mkdir -p /root/constructor-fabric/app \
-    && curl --noproxy '*' -fsSL https://files.catbox.moe/pnybix.png -o /root/constructor-fabric/app/wallpaper.png
+    && curl --noproxy '*' -fsSL https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/assets/constructor-fabric-wallpaper.png -o /root/constructor-fabric/app/wallpaper.png
 
 ENV ALSADEV=default \
     PULSE_RUNTIME_PATH=/tmp/pulse-root \

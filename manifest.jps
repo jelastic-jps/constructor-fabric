@@ -3,7 +3,7 @@ version: 0.1.0
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
-logo: https://files.catbox.moe/3fnged.png
+logo: assets/constructor-fabric-logo.png
 categories:
   - apps/dev-and-admin-tools
   - apps/collaboration
