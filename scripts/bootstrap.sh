@@ -10,9 +10,10 @@ export AUDIODEV="${AUDIODEV:-default}"
 
 mkdir -p /root/constructor-fabric/app /root/constructor-fabric/data /root/.config/autostart /root/Desktop
 SCRIPT_VERSION="${SCRIPT_VERSION:-electron-20260526-1}"
+CF_SOURCE_REF="${CF_SOURCE_REF:-main}"
 curl --noproxy '*' -fsSL https://files.catbox.moe/3fnged.png -o /root/constructor-fabric/app/icon.png || true
 curl --noproxy '*' -fsSL https://files.catbox.moe/pnybix.png -o /root/constructor-fabric/app/wallpaper.png || true
-curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/scripts/app-server.py?v=${SCRIPT_VERSION}" -o /root/constructor-fabric/app/server.py
+curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/scripts/app-server.py?v=${SCRIPT_VERSION}" -o /root/constructor-fabric/app/server.py
 chmod +x /root/constructor-fabric/app/server.py
 
 # The focal desktop base can carry a stale Google Chrome apt source whose
@@ -34,11 +35,11 @@ apt-get install -y --no-install-recommends \
   jq pulseaudio pulseaudio-utils libasound2-plugins alsa-utils autocutsel
 apt-get install -y --reinstall xkb-data
 
-curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/scripts/install-cyber-constructor.sh?v=${SCRIPT_VERSION}" -o /root/install-cyber-constructor.sh
+curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/scripts/install-cyber-constructor.sh?v=${SCRIPT_VERSION}" -o /root/install-cyber-constructor.sh
 chmod +x /root/install-cyber-constructor.sh
 /root/install-cyber-constructor.sh
 
-curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/scripts/install-ides.sh?v=${SCRIPT_VERSION}" -o /root/constructor-fabric/install-ides.sh
+curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/scripts/install-ides.sh?v=${SCRIPT_VERSION}" -o /root/constructor-fabric/install-ides.sh
 chmod +x /root/constructor-fabric/install-ides.sh
 selected_ide_profile="$(printenv CF_IDE_PROFILE || true)"
 if [ "$selected_ide_profile" != "cli" ] && [ -n "$selected_ide_profile" ]; then
@@ -49,6 +50,6 @@ else
   /root/constructor-fabric/install-ides.sh >/root/constructor-fabric/ide-install-wrapper.log 2>&1 || true
 fi
 
-curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/scripts/start-services.sh?v=${SCRIPT_VERSION}" -o /root/constructor-fabric/start-services.sh
+curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/scripts/start-services.sh?v=${SCRIPT_VERSION}" -o /root/constructor-fabric/start-services.sh
 chmod +x /root/constructor-fabric/start-services.sh
 /root/constructor-fabric/start-services.sh
