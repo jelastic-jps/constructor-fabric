@@ -83,6 +83,8 @@ COPY . /root/constructor-fabric/
 RUN chmod +x /root/constructor-fabric/scripts/*.sh 2>/dev/null || true \
     && CF_IDE_PROFILE=all CF_PREINSTALLED_IDES=0 /root/constructor-fabric/scripts/install-ides.sh \
     && command -v codium \
+    && test -x /usr/local/bin/codium-wrap \
+    && test -f /root/constructor-fabric/app/icons/codium.png \
     && command -v cursor \
     && command -v windsurf \
     && command -v codex \

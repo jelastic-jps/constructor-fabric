@@ -24,7 +24,7 @@ icon_for(){
   app="$1"
   case "$app" in
     vscode)
-      for f in /usr/share/pixmaps/codium.png /usr/share/icons/hicolor/256x256/apps/codium.png /usr/share/icons/hicolor/256x256/apps/vscodium.png /usr/share/codium/resources/app/resources/linux/code.png; do
+      for f in /root/constructor-fabric/app/icons/codium.png /usr/share/pixmaps/codium.png /usr/share/icons/hicolor/256x256/apps/codium.png /usr/share/icons/hicolor/256x256/apps/vscodium.png /usr/share/codium/resources/app/resources/linux/code.png; do
         [ -f "$f" ] && { printf '%s\n' "$f"; return; }
       done
       printf '%s\n' vscodium
@@ -98,7 +98,7 @@ create_gui_launchers(){
   fi
   desktop_link "Terminal Emulator" "lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace" "utilities-terminal" "Terminal.desktop" "System;TerminalEmulator;"
   if command -v codium >/dev/null 2>&1; then
-    desktop_link "VS Codium" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && exec codium --no-sandbox --user-data-dir=/root/.config/VSCodium .'" "$(icon_for vscode)" "VS-Codium.desktop"
+    desktop_link "VS Codium" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && exec /usr/local/bin/codium-wrap --user-data-dir=/root/.config/VSCodium .'" "$(icon_for vscode)" "VS-Codium.desktop"
   fi
   if command -v cursor >/dev/null 2>&1; then
     desktop_link "Cursor" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && exec cursor --no-sandbox .'" "$(icon_for cursor)" "Cursor.desktop"
@@ -130,16 +130,57 @@ install_node22(){
 install_vscode(){
   ensure_ide_prereqs
   log "Installing VS Codium"
+
+  # Purge any old Microsoft VS Code that may be preinstalled in the base image
+  if command -v code >/dev/null 2>&1 && ! command -v codium >/dev/null 2>&1; then
+    log "Removing old Microsoft VS Code"
+    apt-get purge -y code 2>>"$LOG" || true
+    apt-get autoremove -y 2>>"$LOG" || true
+    rm -f /usr/bin/code /usr/local/bin/code /usr/share/code 2>/dev/null || true
+    if [ -d /etc/apt/sources.list.d ]; then
+      rm -f /etc/apt/sources.list.d/vscode.list /etc/apt/sources.list.d/microsoft-prod.list 2>/dev/null || true
+    fi
+  fi
+
   if ! command -v codium >/dev/null 2>&1; then
     wget -qO- https://gitlab.com/paulcarroty/vscodium-deb-rpm-repo/raw/master/pub.gpg | gpg --dearmor > /usr/share/keyrings/vscodium-archive-keyring.gpg 2>>"$LOG" || true
     echo "deb [arch=amd64 signed-by=/usr/share/keyrings/vscodium-archive-keyring.gpg] https://download.vscodium.com/debs vscodium main" > /etc/apt/sources.list.d/vscodium.list
     apt_refresh
     timeout 300 apt-get install -y --no-install-recommends codium >> "$LOG" 2>&1 || log "VS Codium install failed; Constructor Fabric CLI remains available"
   fi
-  # Symlink code -> codium so agent CLIs (Copilot, etc.) that expect 'code' still work
-  if command -v codium >/dev/null 2>&1 && ! command -v code >/dev/null 2>&1; then
+
+  if command -v codium >/dev/null 2>&1; then
+    # Force symlink code -> codium so agent CLIs (Copilot, etc.) that expect 'code' still work.
+    # Remove any stale code binary first so the symlink always takes effect.
+    rm -f /usr/local/bin/code /usr/bin/code 2>/dev/null || true
     ln -sf "$(command -v codium)" /usr/local/bin/code || true
+
+    # Create a container-safe wrapper (like cursor has) so codium always
+    # runs with the flags required under root inside Docker.
+    cat > /usr/local/bin/codium-wrap <<'CODIUMWRAP'
+#!/bin/sh
+exec /usr/bin/codium --no-sandbox --disable-gpu --disable-dev-shm-usage "$@"
+CODIUMWRAP
+    chmod +x /usr/local/bin/codium-wrap
+
+    # Copy the codium icon to a guaranteed path so the desktop launcher icon always resolves
+    for candidate in \
+      /usr/share/pixmaps/codium.png \
+      /usr/share/icons/hicolor/256x256/apps/codium.png \
+      /usr/share/icons/hicolor/256x256/apps/vscodium.png \
+      /usr/share/codium/resources/app/resources/linux/code.png; do
+      if [ -f "$candidate" ]; then
+        cp -f "$candidate" /root/constructor-fabric/app/icons/codium.png 2>/dev/null || true
+        break
+      fi
+    done
+    # If no icon was found, download the official VSCodium logo as fallback
+    if [ ! -f /root/constructor-fabric/app/icons/codium.png ]; then
+      curl --noproxy '*' -fsSL https://raw.githubusercontent.com/VSCodium/vscodium/master/icons/stable.png \
+        -o /root/constructor-fabric/app/icons/codium.png 2>/dev/null || true
+    fi
   fi
+
   create_gui_launchers
 }
 install_cursor(){
@@ -234,8 +275,8 @@ install_copilot(){
   install_vscode
   log "Preparing GitHub Copilot in VS Codium"
   if command -v codium >/dev/null 2>&1; then
-    timeout 120 codium --no-sandbox --user-data-dir=/root/.config/VSCodium --install-extension GitHub.copilot >> "$LOG" 2>&1 || log "GitHub Copilot extension install failed; generated copilot integration files remain available"
-    timeout 120 codium --no-sandbox --user-data-dir=/root/.config/VSCodium --install-extension GitHub.copilot-chat >> "$LOG" 2>&1 || true
+    timeout 120 /usr/local/bin/codium-wrap --user-data-dir=/root/.config/VSCodium --install-extension GitHub.copilot >> "$LOG" 2>&1 || log "GitHub Copilot extension install failed; generated copilot integration files remain available"
+    timeout 120 /usr/local/bin/codium-wrap --user-data-dir=/root/.config/VSCodium --install-extension GitHub.copilot-chat >> "$LOG" 2>&1 || true
   fi
   create_gui_launchers
 }
