@@ -78,7 +78,7 @@ nodes:
   - image: ihorman/constructor-fabric:latest
     nodeType: docker
     displayName: Constructor Fabric
-    cloudlets: 16
+    cloudlets: 64
     nodeGroup: cp
     ports:
       - 80
