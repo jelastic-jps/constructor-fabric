@@ -1,11 +1,11 @@
 #!/bin/sh
 set -eu
 export DISPLAY=:1
-export HOME=/root
-export USER=root
+export HOME="${HOME:-/home/developer}"
+export USER="${USER:-developer}"
 export XDG_CURRENT_DESKTOP=LXDE
 export DESKTOP_SESSION=LXDE
-mkdir -p /tmp/.X11-unix /root/constructor-fabric /root/.config/pcmanfm/LXDE /root/.config/lxpanel/LXDE/panels /root/.config/libfm
+mkdir -p /tmp/.X11-unix "${HOME}/constructor-fabric" "${HOME}/.config/pcmanfm/LXDE" "${HOME}/.config/lxpanel/LXDE/panels" "${HOME}/.config/libfm"
 chmod 1777 /tmp/.X11-unix || true
 # Audio: provide a real PulseAudio endpoint for Electron/Chromium apps so they do
 # not emit the base-image "To support audio, please read README" warning. Browser
@@ -19,15 +19,15 @@ export AUDIODEV=default
 # For this marketplace desktop real sound is not required, but some launchers/apps
 # only check that ALSADEV and /dev/snd exist before printing the noisy warning.
 # Provide a harmless dummy /dev/snd directory plus Pulse/ALSA null routing.
-mkdir -p /dev/snd /tmp/pulse-root /root/.config/pulse
+mkdir -p /dev/snd /tmp/pulse-root "${HOME}/.config/pulse"
 chmod 755 /dev/snd || true
 chmod 700 /tmp/pulse-root || true
-cat > /root/.config/pulse/client.conf <<'PULSECLIENT'
+cat > "${HOME}/.config/pulse/client.conf" <<'PULSECLIENT'
 default-server = unix:/tmp/pulse-root/native
 autospawn = yes
 daemon-binary = /usr/bin/pulseaudio
 PULSECLIENT
-cat > /root/.asoundrc <<'ASOUNDRC'
+cat > "${HOME}/.asoundrc" <<'ASOUNDRC'
 pcm.!default {
   type pulse
   fallback "nullsink"
@@ -45,10 +45,10 @@ ctl.nullctl {
   card 0
 }
 ASOUNDRC
-cp /root/.asoundrc /etc/asound.conf 2>/dev/null || true
+cp "${HOME}/.asoundrc" /etc/asound.conf 2>/dev/null || true
 if command -v pulseaudio >/dev/null 2>&1; then
   pulseaudio --kill >/dev/null 2>&1 || true
-  pulseaudio --daemonize=yes --exit-idle-time=-1 --disallow-exit --log-target=file:/root/constructor-fabric/pulseaudio.log || true
+  pulseaudio --daemonize=yes --exit-idle-time=-1 --disallow-exit --log-target=file:"${HOME}/constructor-fabric/pulseaudio.log" || true
   if command -v pactl >/dev/null 2>&1; then
     for i in $(seq 1 20); do pactl info >/dev/null 2>&1 && break || sleep 0.2; done
     pactl load-module module-null-sink sink_name=virt_audio sink_properties=device.description=VirtualAudio >/dev/null 2>&1 || true
@@ -56,17 +56,17 @@ if command -v pulseaudio >/dev/null 2>&1; then
     pactl set-default-source virt_audio.monitor >/dev/null 2>&1 || true
   fi
 fi
-cat > /root/.config/libfm/libfm.conf <<'LIBFM'
+cat > "${HOME}/.config/libfm/libfm.conf" <<'LIBFM'
 [config]
 quick_exec=1
 single_click=0
 middle_click=0
 LIBFM
-if [ -f /root/constructor-fabric/app/wallpaper.png ]; then
-  cat > /root/.config/pcmanfm/LXDE/desktop-items-0.conf <<'WALLCONF'
+if [ -f "${HOME}/constructor-fabric/app/wallpaper.png" ]; then
+  cat > "${HOME}/.config/pcmanfm/LXDE/desktop-items-0.conf" <<'WALLCONF'
 [*]
 wallpaper_mode=fit
-wallpaper=/root/constructor-fabric/app/wallpaper.png
+wallpaper=${HOME}/constructor-fabric/app/wallpaper.png
 desktop_bg=#001838
 show_documents=0
 show_trash=0
@@ -96,7 +96,7 @@ PYCONF
 fi
 
 configure_openbox_theme() {
-  mkdir -p /usr/share/themes/ConstructorFabric/openbox-3 /root/.config/openbox /root/.config/gtk-3.0 /root/.config/gtk-2.0
+  mkdir -p /usr/share/themes/ConstructorFabric/openbox-3 "${HOME}/.config/openbox" "${HOME}/.config/gtk-3.0" "${HOME}/.config/gtk-2.0"
   cat > /usr/share/themes/ConstructorFabric/openbox-3/themerc <<'OBTHEME'
 border.width: 2
 padding.width: 6
@@ -201,7 +201,7 @@ candidates = [
   Path('/usr/share/openbox/rc.xml'),
   Path('/usr/share/lxde/openbox/rc.xml'),
 ]
-p=Path('/root/.config/openbox/lxde-rc.xml')
+p=Path('${HOME}/.config/openbox/lxde-rc.xml')
 for src in candidates:
   if src.exists():
     p.write_text(src.read_text())
@@ -211,13 +211,13 @@ else:
 s=p.read_text().replace('<name>Onyx</name>', '<name>ConstructorFabric</name>').replace('<size>11</size>', '<size>12</size>')
 p.write_text(s)
 PYOB
-  cat > /root/.config/gtk-3.0/settings.ini <<'GTK3'
+  cat > "${HOME}/.config/gtk-3.0/settings.ini" <<'GTK3'
 [Settings]
 gtk-theme-name=Adwaita-dark
 gtk-icon-theme-name=Adwaita
 gtk-font-name=Sans 11
 GTK3
-  cat > /root/.gtkrc-2.0 <<'GTK2'
+  cat > "${HOME}/.gtkrc-2.0" <<'GTK2'
 gtk-theme-name="Adwaita-dark"
 gtk-icon-theme-name="Adwaita"
 gtk-font-name="Sans 11"
@@ -225,8 +225,8 @@ GTK2
 }
 
 configure_lxpanel() {
-  mkdir -p /root/.config/lxpanel/LXDE/panels
-  cat > /root/.config/lxpanel/LXDE/panels/panel <<'LXPANEL'
+  mkdir -p "${HOME}/.config/lxpanel/LXDE/panels"
+  cat > "${HOME}/.config/lxpanel/LXDE/panels/panel" <<'LXPANEL'
 # Constructor Fabric bottom panel with task switcher for minimized windows.
 Global {
   edge=bottom
@@ -256,7 +256,7 @@ Plugin {
 Plugin {
   type=menu
   Config {
-    image=/root/constructor-fabric/app/icon.png
+    image=${HOME}/constructor-fabric/app/icon.png
     system {
     }
     separator {
@@ -269,12 +269,12 @@ Plugin {
     item {
       name=Terminal
       image=utilities-terminal
-      command=lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace
+      command=lxterminal --working-directory=${HOME}/workspaces/constructor-fabric-workspace
     }
     item {
       name=Workspace
       image=folder
-      command=pcmanfm /root/workspaces/constructor-fabric-workspace
+      command=pcmanfm ${HOME}/workspaces/constructor-fabric-workspace
     }
   }
 }
@@ -282,22 +282,22 @@ Plugin {
   type=launchbar
   Config {
     Button {
-      id=/root/Desktop/Constructor-Fabric-Trainer.desktop
+      id=${HOME}/Desktop/Constructor-Fabric-Trainer.desktop
     }
     Button {
-      id=/root/Desktop/Chromium.desktop
+      id=${HOME}/Desktop/Chromium.desktop
     }
     Button {
-      id=/root/Desktop/Terminal.desktop
+      id=${HOME}/Desktop/Terminal.desktop
     }
     Button {
-      id=/root/Desktop/VS-Codium.desktop
+      id=${HOME}/Desktop/VS-Codium.desktop
     }
     Button {
-      id=/root/Desktop/Cursor.desktop
+      id=${HOME}/Desktop/Cursor.desktop
     }
     Button {
-      id=/root/Desktop/Windsurf.desktop
+      id=${HOME}/Desktop/Windsurf.desktop
     }
   }
 }
@@ -339,7 +339,7 @@ Plugin {
   }
 }
 LXPANEL
-  cat > /root/.config/lxpanel/LXDE/config <<'LXCONF'
+  cat > "${HOME}/.config/lxpanel/LXDE/config" <<'LXCONF'
 [Command]
 FileManager=pcmanfm %s
 Terminal=lxterminal
@@ -349,20 +349,20 @@ LXCONF
 
 configure_openbox_theme
 configure_lxpanel
-start_detached 'Xvfb :1' /root/constructor-fabric/xvfb.log /usr/bin/Xvfb :1 -screen 0 ${RESOLUTION}x24 -ac +extension GLX +render -noreset
+start_detached 'Xvfb :1' "${HOME}/constructor-fabric/xvfb.log" /usr/bin/Xvfb :1 -screen 0 ${RESOLUTION}x24 -ac +extension GLX +render -noreset
 sleep 3
-start_detached 'openbox.*lxde-rc.xml' /root/constructor-fabric/openbox.log /usr/bin/openbox --config-file /root/.config/openbox/lxde-rc.xml --replace
+start_detached 'openbox.*lxde-rc.xml' "${HOME}/constructor-fabric/openbox.log" /usr/bin/openbox --config-file "${HOME}/.config/openbox/lxde-rc.xml" --replace
 # Mark desktop entries trusted before pcmanfm renders them; otherwise LXDE/PCManFM
 # may show an "Open With" dialog instead of executing the launcher.
 if command -v gio >/dev/null 2>&1; then
-  for f in /root/Desktop/*.desktop; do
+  for f in "${HOME}/Desktop/"*.desktop; do
     [ -f "$f" ] || continue
     gio set "$f" metadata::trusted true >/dev/null 2>&1 || dbus-launch gio set "$f" metadata::trusted true >/dev/null 2>&1 || true
   done
 fi
 pkill -x lxpanel >/dev/null 2>&1 || true
-start_detached 'lxpanel.*--profile LXDE' /root/constructor-fabric/lxpanel.log /usr/bin/lxpanel --profile LXDE
-start_detached 'pcmanfm.*--desktop' /root/constructor-fabric/pcmanfm.log /usr/bin/pcmanfm --desktop --profile LXDE
+start_detached 'lxpanel.*--profile LXDE' "${HOME}/constructor-fabric/lxpanel.log" /usr/bin/lxpanel --profile LXDE
+start_detached 'pcmanfm.*--desktop' "${HOME}/constructor-fabric/pcmanfm.log" /usr/bin/pcmanfm --desktop --profile LXDE
 # Avoid a foreground wallpaper setter here: on dorowu/LXDE it can stay attached
 # and the Virtuozzo Cloud Scripting engine can eventually kill the whole cmd action with signal 9.
 # The desktop-items-0.conf written above is enough for pcmanfm to pick the wallpaper.
@@ -380,16 +380,16 @@ for i in $(seq 1 30); do
   sleep 1
 done
 if [ -s /.password2 ]; then
-  setsid /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2 </dev/null >/root/constructor-fabric/x11vnc.log 2>&1 &
+  setsid /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2 </dev/null >"${HOME}/constructor-fabric/x11vnc.log" 2>&1 &
 else
-  setsid /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -nopw </dev/null >/root/constructor-fabric/x11vnc.log 2>&1 &
+  setsid /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -nopw </dev/null >"${HOME}/constructor-fabric/x11vnc.log" 2>&1 &
 fi
 # Enable VNC/noVNC clipboard sync. x11vnc 0.9.16 rejects its non-portable clipboard flag,
 # so keep x11vnc clipboard defaults enabled and bridge X selections with autocutsel.
 if command -v autocutsel >/dev/null 2>&1; then
   pkill -x autocutsel >/dev/null 2>&1 || true
-  DISPLAY=:1 setsid /usr/bin/autocutsel -selection CLIPBOARD -fork </dev/null >/root/constructor-fabric/autocutsel-clipboard.log 2>&1 &
-  DISPLAY=:1 setsid /usr/bin/autocutsel -selection PRIMARY -fork </dev/null >/root/constructor-fabric/autocutsel-primary.log 2>&1 &
+  DISPLAY=:1 setsid /usr/bin/autocutsel -selection CLIPBOARD -fork </dev/null >"${HOME}/constructor-fabric/autocutsel-clipboard.log" 2>&1 &
+  DISPLAY=:1 setsid /usr/bin/autocutsel -selection PRIMARY -fork </dev/null >"${HOME}/constructor-fabric/autocutsel-primary.log" 2>&1 &
 fi
 for i in $(seq 1 20); do
   if python3 - <<'PYVNC'
@@ -465,12 +465,12 @@ if 'location /websockify' not in s:
         s=s.replace('\n\tlocation / {\n', ws+'\n\tlocation / {\n', 1)
 if 'location = /health' not in s:
     insert="""
-	location = /health {
-		auth_basic off;
-		proxy_set_header Host $host;
-		proxy_set_header X-Real-IP $remote_addr;
-		proxy_pass http://127.0.0.1:8081/health;
-	}
+\tlocation = /health {
+\t\tauth_basic off;
+\t\tproxy_set_header Host $host;
+\t\tproxy_set_header X-Real-IP $remote_addr;
+\t\tproxy_pass http://127.0.0.1:8081/health;
+\t}
 """
     marker='\n\tlocation / {\n'
     if marker in s:
@@ -481,13 +481,13 @@ p.write_text(s)
 PY
   NGINX_BIN="$(command -v nginx || command -v /usr/sbin/nginx || true)"
   if [ -n "$NGINX_BIN" ]; then
-    "$NGINX_BIN" -t >/root/constructor-fabric/nginx-test.log 2>&1 && ("$NGINX_BIN" -s reload || service nginx reload || true) >/root/constructor-fabric/nginx-reload.log 2>&1 || true
+    "$NGINX_BIN" -t >"${HOME}/constructor-fabric/nginx-test.log" 2>&1 && ("$NGINX_BIN" -s reload || service nginx reload || true) >"${HOME}/constructor-fabric/nginx-reload.log" 2>&1 || true
   fi
 fi
-start_detached '/root/constructor-fabric/app/server.py' /root/constructor-fabric/app.log python3 /root/constructor-fabric/app/server.py
-if [ -x /root/cyber-constructor/auto-bootstrap.sh ]; then
-  start_detached '/root/cyber-constructor/auto-bootstrap.sh' /root/cyber-constructor/auto-bootstrap-launch.log /root/cyber-constructor/auto-bootstrap.sh
+start_detached "${HOME}/constructor-fabric/app/server.py" "${HOME}/constructor-fabric/app.log" python3 "${HOME}/constructor-fabric/app/server.py"
+if [ -x "${HOME}/cyber-constructor/auto-bootstrap.sh" ]; then
+  start_detached "${HOME}/cyber-constructor/auto-bootstrap.sh" "${HOME}/cyber-constructor/auto-bootstrap-launch.log" "${HOME}/cyber-constructor/auto-bootstrap.sh"
 fi
-if [ -x /root/constructor-fabric/run-trainer.sh ]; then
-  start_detached 'constructor-fabric/trainer' /root/constructor-fabric/electron-trainer-launch.log /root/constructor-fabric/run-trainer.sh
+if [ -x "${HOME}/constructor-fabric/run-trainer.sh" ]; then
+  start_detached 'constructor-fabric/trainer' "${HOME}/constructor-fabric/electron-trainer-launch.log" "${HOME}/constructor-fabric/run-trainer.sh"
 fi

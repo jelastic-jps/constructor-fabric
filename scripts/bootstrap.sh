@@ -8,14 +8,15 @@ export PULSE_SERVER="${PULSE_SERVER:-unix:/tmp/pulse-root/native}"
 export SDL_AUDIODRIVER="${SDL_AUDIODRIVER:-pulse}"
 export AUDIODEV="${AUDIODEV:-default}"
 
-mkdir -p /root/constructor-fabric/app /root/constructor-fabric/data /root/.config/autostart /root/Desktop
+# Use ${HOME} for user-specific paths
+mkdir -p "${HOME}/constructor-fabric/app" "${HOME}/constructor-fabric/data" "${HOME}/.config/autostart" "${HOME}/Desktop"
 SCRIPT_VERSION="${SCRIPT_VERSION:-electron-20260526-1}"
 CF_SOURCE_REF="${CF_SOURCE_REF:-main}"
 ASSET_BASE="https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/assets"
-curl --noproxy '*' -fsSL "${ASSET_BASE}/constructor-fabric-logo.png?v=${SCRIPT_VERSION}" -o /root/constructor-fabric/app/icon.png || true
-curl --noproxy '*' -fsSL "${ASSET_BASE}/constructor-fabric-wallpaper.png?v=${SCRIPT_VERSION}" -o /root/constructor-fabric/app/wallpaper.png || true
-curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/scripts/app-server.py?v=${SCRIPT_VERSION}" -o /root/constructor-fabric/app/server.py
-chmod +x /root/constructor-fabric/app/server.py
+curl --noproxy '*' -fsSL "${ASSET_BASE}/constructor-fabric-logo.png?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/app/icon.png" || true
+curl --noproxy '*' -fsSL "${ASSET_BASE}/constructor-fabric-wallpaper.png?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/app/wallpaper.png" || true
+curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/scripts/app-server.py?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/app/server.py"
+chmod +x "${HOME}/constructor-fabric/app/server.py"
 
 # The focal desktop base can carry a stale Google Chrome apt source whose
 # rotated signing key breaks every apt-get update before our packages install.
@@ -28,6 +29,7 @@ if [ -f /etc/apt/sources.list.d/google.list ]; then
   mv /etc/apt/sources.list.d/google.list /etc/apt/sources.list.d/google.list.disabled || true
 fi
 
+# System-level package installation (runs as root if needed, but scripts are designed for developer user)
 apt-get update
 apt-get remove --purge -y firefox firefox-locale-en firefox-esr || true
 apt-get install -y --no-install-recommends \
@@ -44,24 +46,27 @@ fi
 apt-get autoremove -y || true
 apt-get install -y --reinstall xkb-data
 
-curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/scripts/install-cyber-constructor.sh?v=${SCRIPT_VERSION}" -o /root/install-cyber-constructor.sh
-chmod +x /root/install-cyber-constructor.sh
-/root/install-cyber-constructor.sh
+# Install cyber-constructor under developer home
+curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/scripts/install-cyber-constructor.sh?v=${SCRIPT_VERSION}" -o "${HOME}/install-cyber-constructor.sh"
+chmod +x "${HOME}/install-cyber-constructor.sh"
+"${HOME}/install-cyber-constructor.sh"
 
-curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/scripts/install-ides.sh?v=${SCRIPT_VERSION}" -o /root/constructor-fabric/install-ides.sh
-chmod +x /root/constructor-fabric/install-ides.sh
+# Install IDEs under developer home
+curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/scripts/install-ides.sh?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/install-ides.sh"
+chmod +x "${HOME}/constructor-fabric/install-ides.sh"
 selected_ide_profile="$(printenv CF_IDE_PROFILE || true)"
 # Always normalize the visible desktop immediately. Some prebuilt images contain stale
 # launchers (for example Chromium-Browser.desktop or terminal-only Codex/Claude
 # shortcuts). The CLI profile only recreates the clean GUI launchers from binaries
 # already present, so it is safe and quick before JPS verify.
-CF_IDE_PROFILE=cli /root/constructor-fabric/install-ides.sh >/root/constructor-fabric/ide-install-wrapper.log 2>&1 || true
+CF_IDE_PROFILE=cli "${HOME}/constructor-fabric/install-ides.sh" >"${HOME}/constructor-fabric/ide-install-wrapper.log" 2>&1 || true
 if [ "$selected_ide_profile" != "cli" ] && [ -n "$selected_ide_profile" ]; then
   # Delay optional heavy IDE package installs until after JPS verify is done.
   # This prevents marketplace cmd[cp] from being killed by signal 9 on small nodes.
-  setsid sh -c 'sleep 180; /root/constructor-fabric/install-ides.sh' </dev/null >>/root/constructor-fabric/ide-install-wrapper.log 2>&1 &
+  setsid sh -c "sleep 180; ${HOME}/constructor-fabric/install-ides.sh" </dev/null >>"${HOME}/constructor-fabric/ide-install-wrapper.log" 2>&1 &
 fi
 
-curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/scripts/start-services.sh?v=${SCRIPT_VERSION}" -o /root/constructor-fabric/start-services.sh
-chmod +x /root/constructor-fabric/start-services.sh
-/root/constructor-fabric/start-services.sh
+# Start services under developer home
+curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/scripts/start-services.sh?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/start-services.sh"
+chmod +x "${HOME}/constructor-fabric/start-services.sh"
+"${HOME}/constructor-fabric/start-services.sh"
