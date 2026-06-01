@@ -1,5 +1,5 @@
 type: install
-version: 0.1.0
+version: 0.2.0
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -89,7 +89,7 @@ nodes:
         protocol: TCP
     env:
       TZ: Europe/Kyiv
-      USER: root
+      USER: developer
       PASSWORD: ${globals.VNC_PASSWORD}
       VNC_PASSWORD: ${globals.VNC_PASSWORD}
       HTTP_PASSWORD: ${globals.VNC_PASSWORD}
@@ -101,7 +101,7 @@ nodes:
       CLAUDE_MODEL: ${settings.claude-model:claude-3-5-sonnet-latest}
       CF_IDE_PROFILE: all
       CF_PREINSTALLED_IDES: 1
-      CF_HOME: /root/constructor-fabric
+      CF_HOME: /home/developer/constructor-fabric
       CF_PORT: ${globals.CF_PORT}
       ALSADEV: default
       PULSE_RUNTIME_PATH: /tmp/pulse-root
@@ -125,10 +125,13 @@ actions:
     - cmd[cp]: |-
         set -euo pipefail
         export DEBIAN_FRONTEND=noninteractive
-        mkdir -p /root/constructor-fabric
-        curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/scripts/bootstrap.sh?v=${globals.SCRIPT_VERSION}" -o /root/constructor-fabric/bootstrap.sh
-        chmod +x /root/constructor-fabric/bootstrap.sh
-        /root/constructor-fabric/bootstrap.sh
+        # Run bootstrap as developer user
+        su - developer -c "
+          mkdir -p /home/developer/constructor-fabric
+          curl --noproxy '*' -fsSL \"https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/scripts/bootstrap.sh?v=${globals.SCRIPT_VERSION}\" -o /home/developer/constructor-fabric/bootstrap.sh
+          chmod +x /home/developer/constructor-fabric/bootstrap.sh
+          /home/developer/constructor-fabric/bootstrap.sh
+        "
 
   verify:
     - cmd[cp]: |-
@@ -164,18 +167,21 @@ actions:
                     last=exc; time.sleep(2)
             else:
                 print(f"{name} did not become ready: {last}", file=sys.stderr); sys.exit(1)'
-        test -f /root/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher missing' >&2; exit 1; }
-        grep -q '^Name=Chromium$' /root/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher has wrong label' >&2; exit 1; }
-        grep -q '^Exec=/usr/local/bin/constructor-fabric-chromium' /root/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher has wrong Exec' >&2; exit 1; }
-        test -x /usr/local/bin/constructor-fabric-chromium || { echo 'Chromium wrapper missing' >&2; exit 1; }
-        test -f /root/Desktop/Terminal.desktop || { echo 'Terminal desktop launcher missing' >&2; exit 1; }
-        if command -v firefox >/dev/null 2>&1 || command -v firefox-esr >/dev/null 2>&1; then echo 'Firefox is still installed' >&2; exit 1; fi
-        echo 'Chromium and Terminal desktop launchers are present and Firefox is absent'
-        cd /root/cyber-constructor
-        cfc --version
-        cfc info --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "FOUND", data; assert data["relative_path"] == ".cf-constructor", data; print("cyber-constructor info is FOUND at .cf-constructor")'
-        cfc validate --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "PASS", data; print("cyber-constructor validate is PASS")'
-        cfc agents --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "OK", data; text=json.dumps(data).lower(); required=["windsurf","cursor","claude","copilot","openai"]; missing=[x for x in required if x not in text]; assert not missing, {"missing": missing, "data": data}; print("cyber-constructor agents are OK for "+", ".join(required))'
+        # Verify desktop launchers exist as developer user
+        su - developer -c "
+          test -f /home/developer/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher missing' >&2; exit 1; }
+          grep -q '^Name=Chromium$' /home/developer/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher has wrong label' >&2; exit 1; }
+          grep -q '^Exec=/usr/local/bin/constructor-fabric-chromium' /home/developer/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher has wrong Exec' >&2; exit 1; }
+          test -x /usr/local/bin/constructor-fabric-chromium || { echo 'Chromium wrapper missing' >&2; exit 1; }
+          test -f /home/developer/Desktop/Terminal.desktop || { echo 'Terminal desktop launcher missing' >&2; exit 1; }
+          if command -v firefox >/dev/null 2>&1 || command -v firefox-esr >/dev/null 2>&1; then echo 'Firefox is still installed' >&2; exit 1; fi
+          echo 'Chromium and Terminal desktop launchers are present and Firefox is absent'
+          cd /home/developer/cyber-constructor
+          cfc --version
+          cfc info --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "FOUND", data; assert data["relative_path"] == ".cf-constructor", data; print("cyber-constructor info is FOUND at .cf-constructor")'
+          cfc validate --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "PASS", data; print("cyber-constructor validate is PASS")'
+          cfc agents --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "OK", data; text=json.dumps(data).lower(); required=["windsurf","cursor","claude","copilot","openai"]; missing=[x for x in required if x not in text]; assert not missing, {"missing": missing, "data": data}; print("cyber-constructor agents are OK for "+", ".join(required))'
+        "
 
 success: |
   ### Constructor Fabric is ready
@@ -201,7 +207,7 @@ success: |
 
   #### Workspace
 
-  `/root/workspaces/constructor-fabric-workspace`
+  `/home/developer/workspaces/constructor-fabric-workspace`
 
   #### Install options used
 
