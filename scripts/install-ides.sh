@@ -24,10 +24,10 @@ icon_for(){
   app="$1"
   case "$app" in
     vscode)
-      for f in /usr/share/pixmaps/code.png /usr/share/code/resources/app/resources/linux/code.png /usr/share/icons/hicolor/256x256/apps/code.png; do
+      for f in /usr/share/pixmaps/codium.png /usr/share/icons/hicolor/256x256/apps/codium.png /usr/share/icons/hicolor/256x256/apps/vscodium.png /usr/share/codium/resources/app/resources/linux/code.png; do
         [ -f "$f" ] && { printf '%s\n' "$f"; return; }
       done
-      printf '%s\n' code
+      printf '%s\n' vscodium
       ;;
     cursor)
       for f in /opt/cursor/squashfs-root/usr/share/icons/hicolor/256x256/apps/cursor.png /opt/cursor/squashfs-root/cursor.png /opt/cursor/cursor.png; do
@@ -97,8 +97,8 @@ create_gui_launchers(){
     desktop_link "Chromium" "/usr/local/bin/constructor-fabric-chromium %U" "$(icon_for chromium)" "Chromium.desktop" "Network;WebBrowser;"
   fi
   desktop_link "Terminal Emulator" "lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace" "utilities-terminal" "Terminal.desktop" "System;TerminalEmulator;"
-  if command -v code >/dev/null 2>&1; then
-    desktop_link "VS Code" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && exec code --no-sandbox --user-data-dir=/root/.config/Code .'" "$(icon_for vscode)" "VS-Code.desktop"
+  if command -v codium >/dev/null 2>&1; then
+    desktop_link "VS Codium" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && exec codium --no-sandbox --user-data-dir=/root/.config/VSCodium .'" "$(icon_for vscode)" "VS-Codium.desktop"
   fi
   if command -v cursor >/dev/null 2>&1; then
     desktop_link "Cursor" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && exec cursor --no-sandbox .'" "$(icon_for cursor)" "Cursor.desktop"
@@ -129,12 +129,16 @@ install_node22(){
 }
 install_vscode(){
   ensure_ide_prereqs
-  log "Installing VS Code"
-  if ! command -v code >/dev/null 2>&1; then
-    wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/packages.microsoft.gpg 2>>"$LOG" || true
-    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list
+  log "Installing VS Codium"
+  if ! command -v codium >/dev/null 2>&1; then
+    wget -qO- https://gitlab.com/paulcarroty/vscodium-deb-rpm-repo/raw/master/pub.gpg | gpg --dearmor > /usr/share/keyrings/vscodium-archive-keyring.gpg 2>>"$LOG" || true
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/vscodium-archive-keyring.gpg] https://download.vscodium.com/debs vscodium main" > /etc/apt/sources.list.d/vscodium.list
     apt_refresh
-    timeout 300 apt-get install -y --no-install-recommends code >> "$LOG" 2>&1 || log "VS Code install failed; Constructor Fabric CLI remains available"
+    timeout 300 apt-get install -y --no-install-recommends codium >> "$LOG" 2>&1 || log "VS Codium install failed; Constructor Fabric CLI remains available"
+  fi
+  # Symlink code -> codium so agent CLIs (Copilot, etc.) that expect 'code' still work
+  if command -v codium >/dev/null 2>&1 && ! command -v code >/dev/null 2>&1; then
+    ln -sf "$(command -v codium)" /usr/local/bin/code || true
   fi
   create_gui_launchers
 }
@@ -228,10 +232,10 @@ CLAUDEWRAP
 }
 install_copilot(){
   install_vscode
-  log "Preparing GitHub Copilot in VS Code"
-  if command -v code >/dev/null 2>&1; then
-    timeout 120 code --no-sandbox --user-data-dir=/root/.config/Code --install-extension GitHub.copilot >> "$LOG" 2>&1 || log "GitHub Copilot extension install failed; generated copilot integration files remain available"
-    timeout 120 code --no-sandbox --user-data-dir=/root/.config/Code --install-extension GitHub.copilot-chat >> "$LOG" 2>&1 || true
+  log "Preparing GitHub Copilot in VS Codium"
+  if command -v codium >/dev/null 2>&1; then
+    timeout 120 codium --no-sandbox --user-data-dir=/root/.config/VSCodium --install-extension GitHub.copilot >> "$LOG" 2>&1 || log "GitHub Copilot extension install failed; generated copilot integration files remain available"
+    timeout 120 codium --no-sandbox --user-data-dir=/root/.config/VSCodium --install-extension GitHub.copilot-chat >> "$LOG" 2>&1 || true
   fi
   create_gui_launchers
 }

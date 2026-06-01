@@ -82,7 +82,7 @@ ENV ALSADEV=default \
 COPY . /root/constructor-fabric/
 RUN chmod +x /root/constructor-fabric/scripts/*.sh 2>/dev/null || true \
     && CF_IDE_PROFILE=all CF_PREINSTALLED_IDES=0 /root/constructor-fabric/scripts/install-ides.sh \
-    && command -v code \
+    && command -v codium \
     && command -v cursor \
     && command -v windsurf \
     && command -v codex \
