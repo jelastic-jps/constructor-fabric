@@ -1,14 +1,14 @@
 FROM dorowu/ubuntu-desktop-lxde-vnc:focal
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG UV_INSTALL_DIR=/root/.local/bin
+ARG UV_INSTALL_DIR=/home/developer/.local/bin
 ARG CYBER_CONSTRUCTOR_TARBALL_URL=https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/assets/cyber-constructor-v4.0.0.tar.gz
 ARG CYBER_CONSTRUCTOR_TARBALL_SHA256=8ca1c8005097cb3bdca521888a61cc3f0c508601a199722d2585e3130703a626
 
 ENV TZ=Europe/Kyiv \
-    HOME=/root \
+    HOME=/home/developer \
     USER=root \
-    PATH=/opt/node-current/bin:/root/.local/bin:/usr/local/bin:/usr/bin:/bin
+    PATH=/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -50,28 +50,28 @@ RUN mkdir -p /opt \
     && rm -f /tmp/node.tar.xz \
     && /opt/node-current/bin/npm install -g electron@latest
 
-RUN mkdir -p /root/.local/bin \
+RUN mkdir -p /home/developer/.local/bin \
     && wget -q https://astral.sh/uv/install.sh -O /tmp/install-uv.sh \
     && sh /tmp/install-uv.sh \
     && rm -f /tmp/install-uv.sh
 
-RUN mkdir -p /root/cfc-build /root/cyber-constructor /root/.cf-constructor/cache \
-    && cd /root/cfc-build \
+RUN mkdir -p /home/developer/cfc-build /home/developer/cyber-constructor /home/developer/.cf-constructor/cache \
+    && cd /home/developer/cfc-build \
     && curl --noproxy '*' -fsSL "${CYBER_CONSTRUCTOR_TARBALL_URL}" -o cyber-constructor.tar.gz \
     && echo "${CYBER_CONSTRUCTOR_TARBALL_SHA256}  cyber-constructor.tar.gz" | sha256sum -c - \
-    && tar -xzf cyber-constructor.tar.gz -C /root/cyber-constructor \
-    && find /root/cyber-constructor \( -name '._*' -o -name '.DS_Store' \) -delete \
-    && cp -a /root/cyber-constructor/skills /root/.cf-constructor/cache/ \
-    && if [ -d /root/cyber-constructor/config ]; then cp -a /root/cyber-constructor/config /root/.cf-constructor/cache/; fi \
-    && echo v4.0.0 > /root/.cf-constructor/cache/.version \
-    && rm -rf /root/cfc-build
+    && tar -xzf cyber-constructor.tar.gz -C /home/developer/cyber-constructor \
+    && find /home/developer/cyber-constructor \( -name '._*' -o -name '.DS_Store' \) -delete \
+    && cp -a /home/developer/cyber-constructor/skills /home/developer/.cf-constructor/cache/ \
+    && if [ -d /home/developer/cyber-constructor/config ]; then cp -a /home/developer/cyber-constructor/config /home/developer/.cf-constructor/cache/; fi \
+    && echo v4.0.0 > /home/developer/.cf-constructor/cache/.version \
+    && rm -rf /home/developer/cfc-build
 
-RUN mkdir -p /root/constructor-fabric/app /root/constructor-fabric/data /root/.config/autostart /root/Desktop /root/.config/lxpanel/LXDE/panels /root/.config/libfm /root/.config/pcmanfm/LXDE /tmp/.X11-unix \
+RUN mkdir -p /home/developer/constructor-fabric/app /home/developer/constructor-fabric/data /home/developer/.config/autostart /home/developer/Desktop /home/developer/.config/lxpanel/LXDE/panels /home/developer/.config/libfm /home/developer/.config/pcmanfm/LXDE /tmp/.X11-unix \
     && chmod 1777 /tmp/.X11-unix || true
 
 # Pre-download edited wallpaper (without Powered by Virtuozzo on right)
-RUN mkdir -p /root/constructor-fabric/app \
-    && curl --noproxy '*' -fsSL https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/assets/constructor-fabric-wallpaper.png -o /root/constructor-fabric/app/wallpaper.png
+RUN mkdir -p /home/developer/constructor-fabric/app \
+    && curl --noproxy '*' -fsSL https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/assets/constructor-fabric-wallpaper.png -o /home/developer/constructor-fabric/app/wallpaper.png
 
 ENV ALSADEV=default \
     PULSE_RUNTIME_PATH=/tmp/pulse-root \
@@ -79,12 +79,12 @@ ENV ALSADEV=default \
     SDL_AUDIODRIVER=pulse \
     AUDIODEV=default
 
-COPY . /root/constructor-fabric/
-RUN chmod +x /root/constructor-fabric/scripts/*.sh 2>/dev/null || true \
-    && CF_IDE_PROFILE=all CF_PREINSTALLED_IDES=0 /root/constructor-fabric/scripts/install-ides.sh \
+COPY . /home/developer/constructor-fabric/
+RUN chmod +x /home/developer/constructor-fabric/scripts/*.sh 2>/dev/null || true \
+    && CF_IDE_PROFILE=all CF_PREINSTALLED_IDES=0 /home/developer/constructor-fabric/scripts/install-ides.sh \
     && command -v codium \
     && test -x /usr/local/bin/codium-wrap \
-    && test -f /root/constructor-fabric/app/icons/codium.png \
+    && test -f /home/developer/constructor-fabric/app/icons/codium.png \
     && command -v cursor \
     && command -v windsurf \
     && command -v codex \
@@ -93,21 +93,21 @@ RUN chmod +x /root/constructor-fabric/scripts/*.sh 2>/dev/null || true \
 
 # Pre-create the Constructor Fabric workspace so cfc commands and IDE integrations
 # work immediately after the container starts — no waiting for auto-bootstrap.
-RUN mkdir -p /root/workspaces/constructor-fabric-workspace \
-    && /root/.local/bin/uv python install 3.11 \
-    && /root/.local/bin/uv venv --python 3.11 /root/cyber-constructor/.venv \
-    && /root/.local/bin/uv pip install --python /root/cyber-constructor/.venv/bin/python -e /root/cyber-constructor \
-    && ln -sf /root/cyber-constructor/.venv/bin/cfc /usr/local/bin/cfc \
-    && ln -sf /root/cyber-constructor/.venv/bin/cf-constructor /usr/local/bin/cf-constructor \
-    && printf 'd\n' | /usr/local/bin/cfc init --no-cache --project-root /root/workspaces/constructor-fabric-workspace --install-dir .cf-constructor --project-name "constructor-fabric-workspace" --force \
-    && /usr/local/bin/cfc generate-agents --root /root/workspaces/constructor-fabric-workspace -y \
+RUN mkdir -p /home/developer/workspaces/constructor-fabric-workspace \
+    && /home/developer/.local/bin/uv python install 3.11 \
+    && /home/developer/.local/bin/uv venv --python 3.11 /home/developer/cyber-constructor/.venv \
+    && /home/developer/.local/bin/uv pip install --python /home/developer/cyber-constructor/.venv/bin/python -e /home/developer/cyber-constructor \
+    && ln -sf /home/developer/cyber-constructor/.venv/bin/cfc /usr/local/bin/cfc \
+    && ln -sf /home/developer/cyber-constructor/.venv/bin/cf-constructor /usr/local/bin/cf-constructor \
+    && printf 'd\n' | /usr/local/bin/cfc init --no-cache --project-root /home/developer/workspaces/constructor-fabric-workspace --install-dir .cf-constructor --project-name "constructor-fabric-workspace" --force \
+    && /usr/local/bin/cfc generate-agents --root /home/developer/workspaces/constructor-fabric-workspace -y \
     && echo 'Constructor Fabric workspace is pre-initialized'
 
 # Desktop icons for Chromium-labeled browser and Terminal.
 # On Ubuntu focal, chromium-browser is a snap wrapper and snap does not work in Docker; use Google Chrome stable but label the launcher Chromium.
 RUN python3 - <<'PY'
 from pathlib import Path
-d = Path('/root/Desktop')
+d = Path('/home/developer/Desktop')
 d.mkdir(parents=True, exist_ok=True)
 
 wrapper = Path('/usr/local/bin/constructor-fabric-chromium')
@@ -135,7 +135,7 @@ Version=1.0
 Type=Application
 Name=Terminal Emulator
 Comment=Open a terminal emulator
-Exec=lxterminal --working-directory=${HOME}/workspaces/constructor-fabric-workspace
+Exec=lxterminal --working-directory=/home/developer/workspaces/constructor-fabric-workspace
 Icon=utilities-terminal
 Terminal=false
 Categories=System;TerminalEmulator;
@@ -147,21 +147,14 @@ PY
 
 ENV CF_PREINSTALLED_IDES=1
 
-# Create developer user and move everything from root home to developer home.
-# The base image's entrypoint respects the USER env var and starts the VNC
-# session as that user. Everything is built as root above; this final step
-# relocates it to the developer user's home directory.
-RUN useradd -m -s /bin/bash -G sudo developer \
+# Create developer user for the VNC session. Everything was built directly
+# under /home/developer/ (HOME=/home/developer during build above), so all
+# files are already in place — just create the user and chown.
+RUN useradd -d /home/developer -s /bin/bash -G sudo developer \
     && echo 'developer ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/developer \
     && chmod 0440 /etc/sudoers.d/developer \
-    && for dir in constructor-fabric cyber-constructor workspaces Desktop Downloads .config .local .cf-constructor .cf-constructor-cache; do \
-         if [ -e "/root/$dir" ]; then mv "/root/$dir" "/home/developer/$dir" 2>/dev/null || cp -a "/root/$dir" "/home/developer/$dir" && rm -rf "/root/$dir"; fi \
-       done \
-    && for f in .asoundrc .gtkrc-2.0; do \
-         if [ -f "/root/$f" ]; then mv "/root/$f" "/home/developer/$f" 2>/dev/null || true; fi \
-       done \
     && chown -R developer:developer /home/developer \
-    && echo 'developer user ready; all files relocated from /root'
+    && echo 'developer user ready; all files under /home/developer'
 
 ENV HOME=/home/developer \
     USER=developer \
