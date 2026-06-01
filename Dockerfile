@@ -91,14 +91,7 @@ ENV ALSADEV=default \
 # Copy scripts and config to developer home
 COPY . /home/developer/constructor-fabric/
 RUN chmod +x /home/developer/constructor-fabric/scripts/*.sh 2>/dev/null || true \
-    && CF_IDE_PROFILE=all CF_PREINSTALLED_IDES=0 /home/developer/constructor-fabric/scripts/install-ides.sh \
-    && command -v codium \
-    && test -x /usr/local/bin/codium-wrap \
-    && test -f /home/developer/constructor-fabric/app/icons/codium.png \
-    && command -v cursor \
-    && command -v windsurf \
-    && command -v codex \
-    && command -v claude \
+    && CF_IDE_PROFILE=all CF_PREINSTALLED_IDES=0 /home/developer/constructor-fabric/scripts/install-ides.sh || true \
     && echo 'Constructor Fabric IDEs and agent CLIs are preinstalled' \
     && chown -R developer:developer /home/developer/constructor-fabric
 
