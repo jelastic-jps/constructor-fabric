@@ -195,7 +195,7 @@ success: |
   - noVNC opens the Constructor Fabric desktop at 1280x720.
   - The bottom LXDE panel contains launchers, clock, tray, and task switcher.
   - The Constructor Fabric Trainer opens as an Electron desktop app with copy-ready prompts.
-  - The desktop is intentionally minimal: Trainer, Chromium, Terminal Emulator, VS Code, Cursor, and Windsurf only.
+  - The desktop is intentionally minimal: Trainer, Chromium, Terminal Emulator, VS Codium, Cursor, and Windsurf only.
   - Firefox is removed; the Chromium launcher runs the container-safe browser directly.
   - Claude/Codex integrations are generated inside the workspace for those IDEs; no misleading terminal-only IDE icons are shown.
 
