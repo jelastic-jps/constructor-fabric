@@ -21,8 +21,8 @@ fi
 cd "${HOME}/cyber-constructor"
 "${HOME}/.local/bin/uv" venv --python 3.11 "${HOME}/cyber-constructor/.venv" >"${HOME}/cfc-install/venv.log" 2>&1
 "${HOME}/.local/bin/uv" pip install --python "${HOME}/cyber-constructor/.venv/bin/python" -e "${HOME}/cyber-constructor" >"${HOME}/cfc-install/pip-install.log" 2>&1
-ln -sf "${HOME}/cyber-constructor/.venv/bin/cfc" /usr/local/bin/cfc
-ln -sf "${HOME}/cyber-constructor/.venv/bin/cf-constructor" /usr/local/bin/cf-constructor
+ln -sf "${HOME}/cyber-constructor/.venv/bin/cfc" "${HOME}/.local/bin/cfc"
+ln -sf "${HOME}/cyber-constructor/.venv/bin/cf-constructor" "${HOME}/.local/bin/cf-constructor"
 rm -rf "${HOME}/.cf-constructor/cache"
 mkdir -p "${HOME}/.cf-constructor/cache"
 cp -a "${HOME}/cyber-constructor/skills" "${HOME}/.cf-constructor/cache/"
