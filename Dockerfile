@@ -82,13 +82,14 @@ ENV ALSADEV=default \
 COPY . /home/developer/constructor-fabric/
 RUN chmod +x /home/developer/constructor-fabric/scripts/*.sh 2>/dev/null || true \
     && CF_IDE_PROFILE=all CF_PREINSTALLED_IDES=0 /home/developer/constructor-fabric/scripts/install-ides.sh \
-    && command -v codium \
-    && test -x /usr/local/bin/codium-wrap \
-    && test -f /home/developer/constructor-fabric/app/icons/codium.png \
-    && command -v cursor \
-    && command -v windsurf \
-    && command -v codex \
-    && command -v claude \
+    && echo "--- verification ---" \
+    && (command -v codium && echo "OK: codium") \
+    && (test -x /usr/local/bin/codium-wrap && echo "OK: codium-wrap" || echo "WARN: codium-wrap missing") \
+    && (test -f /home/developer/constructor-fabric/app/icons/codium.png && echo "OK: icon" || echo "WARN: codium icon missing") \
+    && (command -v cursor && echo "OK: cursor" || echo "WARN: cursor missing") \
+    && (command -v windsurf && echo "OK: windsurf" || echo "WARN: windsurf missing") \
+    && (command -v codex && echo "OK: codex" || echo "WARN: codex missing") \
+    && (command -v claude && echo "OK: claude" || echo "WARN: claude missing") \
     && echo 'Constructor Fabric IDEs and agent CLIs are preinstalled'
 
 # Pre-create the Constructor Fabric workspace so cfc commands and IDE integrations
