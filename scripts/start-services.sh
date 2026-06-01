@@ -291,7 +291,7 @@ Plugin {
       id=/root/Desktop/Terminal.desktop
     }
     Button {
-      id=/root/Desktop/VS-Code.desktop
+      id=/root/Desktop/VS-Codium.desktop
     }
     Button {
       id=/root/Desktop/Cursor.desktop

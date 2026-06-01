@@ -91,6 +91,18 @@ RUN chmod +x /root/constructor-fabric/scripts/*.sh 2>/dev/null || true \
     && command -v claude \
     && echo 'Constructor Fabric IDEs and agent CLIs are preinstalled'
 
+# Pre-create the Constructor Fabric workspace so cfc commands and IDE integrations
+# work immediately after the container starts — no waiting for auto-bootstrap.
+RUN mkdir -p /root/workspaces/constructor-fabric-workspace \
+    && /root/.local/bin/uv python install 3.11 \
+    && /root/.local/bin/uv venv --python 3.11 /root/cyber-constructor/.venv \
+    && /root/.local/bin/uv pip install --python /root/cyber-constructor/.venv/bin/python -e /root/cyber-constructor \
+    && ln -sf /root/cyber-constructor/.venv/bin/cfc /usr/local/bin/cfc \
+    && ln -sf /root/cyber-constructor/.venv/bin/cf-constructor /usr/local/bin/cf-constructor \
+    && printf 'd\n' | /usr/local/bin/cfc init --no-cache --project-root /root/workspaces/constructor-fabric-workspace --install-dir .cf-constructor --project-name "constructor-fabric-workspace" --force \
+    && /usr/local/bin/cfc generate-agents --root /root/workspaces/constructor-fabric-workspace -y \
+    && echo 'Constructor Fabric workspace is pre-initialized'
+
 # Desktop icons for Chromium-labeled browser and Terminal.
 # On Ubuntu focal, chromium-browser is a snap wrapper and snap does not work in Docker; use Google Chrome stable but label the launcher Chromium.
 RUN python3 - <<'PY'
