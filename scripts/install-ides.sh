@@ -98,7 +98,7 @@ create_gui_launchers(){
   fi
   desktop_link "Terminal Emulator" "lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace" "utilities-terminal" "Terminal.desktop" "System;TerminalEmulator;"
   if command -v codium >/dev/null 2>&1; then
-    desktop_link "VS Codium" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && exec /usr/local/bin/codium-wrap --user-data-dir=/root/.config/VSCodium .'" "$(icon_for vscode)" "VS-Codium.desktop"
+    desktop_link "VS Codium" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && exec /usr/local/bin/codium-wrap --user-data-dir=/root/.config/VSCodium --goto .vscode/cfc-commands.md .'" "$(icon_for vscode)" "VS-Codium.desktop"
   fi
   if command -v cursor >/dev/null 2>&1; then
     desktop_link "Cursor" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && exec cursor --no-sandbox .'" "$(icon_for cursor)" "Cursor.desktop"
@@ -275,9 +275,81 @@ install_copilot(){
   install_vscode
   log "Preparing GitHub Copilot in VS Codium"
   if command -v codium >/dev/null 2>&1; then
-    timeout 120 /usr/local/bin/codium-wrap --user-data-dir=/root/.config/VSCodium --install-extension GitHub.copilot >> "$LOG" 2>&1 || log "GitHub Copilot extension install failed; generated copilot integration files remain available"
-    timeout 120 /usr/local/bin/codium-wrap --user-data-dir=/root/.config/VSCodium --install-extension GitHub.copilot-chat >> "$LOG" 2>&1 || true
+    # VS Codium uses Open VSX registry by default, which doesn't carry
+    # Microsoft-proprietary extensions. Download .vsix directly from
+    # Microsoft marketplace and install from local files.
+    copilot_vsix=/root/Downloads/github-copilot.vsix
+    copilot_chat_vsix=/root/Downloads/github-copilot-chat.vsix
+    if [ ! -f "$copilot_vsix" ]; then
+      curl --noproxy '*' -fsSL \
+        'https://marketplace.visualstudio.com/_apis/public/gallery/publishers/GitHub/vsextensions/copilot/latest/vspackage' \
+        -o "$copilot_vsix" >> "$LOG" 2>&1 || true
+    fi
+    if [ ! -f "$copilot_chat_vsix" ]; then
+      curl --noproxy '*' -fsSL \
+        'https://marketplace.visualstudio.com/_apis/public/gallery/publishers/GitHub/vsextensions/copilot-chat/latest/vspackage' \
+        -o "$copilot_chat_vsix" >> "$LOG" 2>&1 || true
+    fi
+    if [ -f "$copilot_vsix" ] && [ -s "$copilot_vsix" ]; then
+      timeout 120 /usr/local/bin/codium-wrap --user-data-dir=/root/.config/VSCodium --install-extension "$copilot_vsix" >> "$LOG" 2>&1 \
+        && log "GitHub Copilot installed" \
+        || log "GitHub Copilot extension install failed; generated copilot integration files remain available"
+    else
+      log "GitHub Copilot .vsix download failed; skipping extension install"
+    fi
+    if [ -f "$copilot_chat_vsix" ] && [ -s "$copilot_chat_vsix" ]; then
+      timeout 120 /usr/local/bin/codium-wrap --user-data-dir=/root/.config/VSCodium --install-extension "$copilot_chat_vsix" >> "$LOG" 2>&1 \
+        && log "GitHub Copilot Chat installed" \
+        || log "GitHub Copilot Chat install failed"
+    fi
   fi
+
+  # Pre-configure VS Codium workspace settings for Constructor Fabric workflow.
+  # When the user opens VS Codium, Copilot Chat panel is the recommended place
+  # to paste /cf-constructor commands.
+  local ws=/root/workspaces/constructor-fabric-workspace
+  mkdir -p "$ws/.vscode"
+  cat > "$ws/.vscode/settings.json" <<'VSCODESETTINGS'
+{
+  "workbench.startupEditor": "none",
+  "chat.commandCenter.enabled": true,
+  "github.copilot.enable": {
+    "*": true
+  },
+  "github.copilot.chat.localeOverride": "auto",
+  "terminal.integrated.defaultLocation": "editor"
+}
+VSCODESETTINGS
+
+  cat > "$ws/.vscode/cfc-commands.md" <<'CFCHEATSHEET'
+# Constructor Fabric Quick Start
+
+Paste these commands into the Copilot Chat panel (Ctrl+Shift+I or Cmd+Shift+I):
+
+```
+/cf-constructor Create a PRD for [your product idea]
+```
+
+```
+/cf-constructor Decompose the PRD into feature artifacts
+```
+
+```
+/cf-constructor Create an implementation task backlog for these features
+```
+
+```
+/cf-constructor Produce implementation plans for the task backlog
+```
+
+## Validate your work
+```
+cfc validate
+cfc list-ids  
+cfc toc
+```
+CFCHEATSHEET
+
   create_gui_launchers
 }
 case "$PROFILE" in
