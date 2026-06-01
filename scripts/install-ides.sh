@@ -6,25 +6,25 @@ export DISPLAY=:1
 export PATH=/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin:$PATH
 PROFILE="$(printenv CF_IDE_PROFILE || true)"
 if [ -z "$PROFILE" ]; then PROFILE=cli; fi
-LOG=/root/constructor-fabric/ide-install.log
-mkdir -p /root/constructor-fabric /root/Desktop /root/Downloads /opt
+LOG=${HOME}/constructor-fabric/ide-install.log
+mkdir -p ${HOME}/constructor-fabric ${HOME}/Desktop ${HOME}/Downloads /opt
 echo "Constructor Fabric IDE automation profile: $PROFILE" > "$LOG"
 log(){ echo "[$(date -u +%H:%M:%S)] $*" | tee -a "$LOG"; }
-mkdir -p /root/constructor-fabric/app/icons
+mkdir -p ${HOME}/constructor-fabric/app/icons
 
 # Keep the visible desktop clean and useful: no fake letter icons and no terminal-only
 # agent shortcuts. Claude/Codex integrations are generated for the IDEs, but the
 # desktop must launch real GUI IDEs plus the trainer.
 clean_desktop_launchers(){
-  mkdir -p /root/Desktop
-  rm -f /root/Desktop/*.desktop 2>/dev/null || true
+  mkdir -p ${HOME}/Desktop
+  rm -f ${HOME}/Desktop/*.desktop 2>/dev/null || true
 }
 
 icon_for(){
   app="$1"
   case "$app" in
     vscode)
-      for f in /root/constructor-fabric/app/icons/codium.png /usr/share/pixmaps/codium.png /usr/share/icons/hicolor/256x256/apps/codium.png /usr/share/icons/hicolor/256x256/apps/vscodium.png /usr/share/codium/resources/app/resources/linux/code.png; do
+      for f in ${HOME}/constructor-fabric/app/icons/codium.png /usr/share/pixmaps/codium.png /usr/share/icons/hicolor/256x256/apps/codium.png /usr/share/icons/hicolor/256x256/apps/vscodium.png /usr/share/codium/resources/app/resources/linux/code.png; do
         [ -f "$f" ] && { printf '%s\n' "$f"; return; }
       done
       printf '%s\n' vscodium
@@ -42,7 +42,7 @@ icon_for(){
       printf '%s\n' applications-development
       ;;
     trainer)
-      [ -f /root/constructor-fabric/app/icon.png ] && printf '%s\n' /root/constructor-fabric/app/icon.png || printf '%s\n' applications-education
+      [ -f ${HOME}/constructor-fabric/app/icon.png ] && printf '%s\n' ${HOME}/constructor-fabric/app/icon.png || printf '%s\n' applications-education
       ;;
     chromium)
       for f in /usr/share/icons/hicolor/256x256/apps/google-chrome.png /usr/share/pixmaps/google-chrome.png /usr/share/icons/hicolor/256x256/apps/chromium-browser.png /usr/share/pixmaps/chromium-browser.png; do
@@ -56,7 +56,7 @@ icon_for(){
 
 desktop_link(){
   name="$1"; exec_cmd="$2"; icon_name="$3"; file="$4"; categories="${5:-Development;}"
-  cat > "/root/Desktop/$file" <<EOF
+  cat > "${HOME}/Desktop/$file" <<EOF
 [Desktop Entry]
 Version=1.0
 Type=Application
@@ -67,10 +67,10 @@ Terminal=false
 Categories=$categories
 StartupNotify=true
 EOF
-  chmod 755 "/root/Desktop/$file" || true
+  chmod 755 "${HOME}/Desktop/$file" || true
   if command -v gio >/dev/null 2>&1; then
-    gio set "/root/Desktop/$file" metadata::trusted true >/dev/null 2>&1 || \
-      dbus-launch gio set "/root/Desktop/$file" metadata::trusted true >/dev/null 2>&1 || true
+    gio set "${HOME}/Desktop/$file" metadata::trusted true >/dev/null 2>&1 || \
+      dbus-launch gio set "${HOME}/Desktop/$file" metadata::trusted true >/dev/null 2>&1 || true
   fi
 }
 
@@ -92,19 +92,19 @@ CHROMIUMWRAP
 create_gui_launchers(){
   clean_desktop_launchers
   ensure_chromium_wrapper
-  desktop_link "Constructor Fabric Trainer" "/root/constructor-fabric/run-trainer.sh" "$(icon_for trainer)" "Constructor-Fabric-Trainer.desktop"
+  desktop_link "Constructor Fabric Trainer" "${HOME}/constructor-fabric/run-trainer.sh" "$(icon_for trainer)" "Constructor-Fabric-Trainer.desktop"
   if [ -x /usr/local/bin/constructor-fabric-chromium ]; then
     desktop_link "Chromium" "/usr/local/bin/constructor-fabric-chromium %U" "$(icon_for chromium)" "Chromium.desktop" "Network;WebBrowser;"
   fi
-  desktop_link "Terminal Emulator" "lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace" "utilities-terminal" "Terminal.desktop" "System;TerminalEmulator;"
+  desktop_link "Terminal Emulator" "lxterminal --working-directory=${HOME}/workspaces/constructor-fabric-workspace" "utilities-terminal" "Terminal.desktop" "System;TerminalEmulator;"
   if command -v codium >/dev/null 2>&1; then
-    desktop_link "VS Codium" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && exec /usr/local/bin/codium-wrap --user-data-dir=/root/.config/VSCodium .'" "$(icon_for vscode)" "VS-Codium.desktop"
+    desktop_link "VS Codium" "sh -lc 'cd ${HOME}/workspaces/constructor-fabric-workspace && exec /usr/local/bin/codium-wrap --user-data-dir=${HOME}/.config/VSCodium .'" "$(icon_for vscode)" "VS-Codium.desktop"
   fi
   if command -v cursor >/dev/null 2>&1; then
-    desktop_link "Cursor" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && exec cursor --no-sandbox .'" "$(icon_for cursor)" "Cursor.desktop"
+    desktop_link "Cursor" "sh -lc 'cd ${HOME}/workspaces/constructor-fabric-workspace && exec cursor --no-sandbox .'" "$(icon_for cursor)" "Cursor.desktop"
   fi
   if command -v windsurf >/dev/null 2>&1; then
-    desktop_link "Windsurf" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && exec windsurf --no-sandbox .'" "$(icon_for windsurf)" "Windsurf.desktop"
+    desktop_link "Windsurf" "sh -lc 'cd ${HOME}/workspaces/constructor-fabric-workspace && exec windsurf --no-sandbox .'" "$(icon_for windsurf)" "Windsurf.desktop"
   fi
 }
 
@@ -118,9 +118,9 @@ install_node22(){
   log "Installing Node.js 22 for agent CLIs"
   arch="linux-x64"
   url="https://nodejs.org/dist/v22.16.0/node-v22.16.0-$arch.tar.xz"
-  curl --noproxy '*' -fL "$url" -o /root/Downloads/node.tar.xz >> "$LOG" 2>&1 \
+  curl --noproxy '*' -fL "$url" -o ${HOME}/Downloads/node.tar.xz >> "$LOG" 2>&1 \
     && rm -rf /opt/node-v22.16.0-linux-x64 /opt/node-current \
-    && tar -xJf /root/Downloads/node.tar.xz -C /opt \
+    && tar -xJf ${HOME}/Downloads/node.tar.xz -C /opt \
     && ln -s /opt/node-v22.16.0-linux-x64 /opt/node-current \
     && ln -sf /opt/node-current/bin/node /usr/local/bin/node \
     && ln -sf /opt/node-current/bin/npm /usr/local/bin/npm \
@@ -170,14 +170,14 @@ CODIUMWRAP
       /usr/share/icons/hicolor/256x256/apps/vscodium.png \
       /usr/share/codium/resources/app/resources/linux/code.png; do
       if [ -f "$candidate" ]; then
-        cp -f "$candidate" /root/constructor-fabric/app/icons/codium.png 2>/dev/null || true
+        cp -f "$candidate" ${HOME}/constructor-fabric/app/icons/codium.png 2>/dev/null || true
         break
       fi
     done
     # If no icon was found, download the official VSCodium logo as fallback
-    if [ ! -f /root/constructor-fabric/app/icons/codium.png ]; then
+    if [ ! -f ${HOME}/constructor-fabric/app/icons/codium.png ]; then
       curl --noproxy '*' -fsSL https://raw.githubusercontent.com/VSCodium/vscodium/master/icons/stable.png \
-        -o /root/constructor-fabric/app/icons/codium.png 2>/dev/null || true
+        -o ${HOME}/constructor-fabric/app/icons/codium.png 2>/dev/null || true
     fi
   fi
 
@@ -187,12 +187,13 @@ install_cursor(){
   ensure_ide_prereqs
   log "Installing Cursor"
   if ! command -v cursor >/dev/null 2>&1; then
-    api=/root/Downloads/cursor-download.json
+    api=${HOME}/Downloads/cursor-download.json
     curl --noproxy '*' -fsSL 'https://cursor.com/api/download?platform=linux-x64&releaseTrack=stable' -o "$api" >> "$LOG" 2>&1 || true
     url=$(python3 - <<'PYCURSOR' 2>>"$LOG"
-import json
+import json, os
 from pathlib import Path
-p=Path('/root/Downloads/cursor-download.json')
+home=os.environ.get('HOME','/root')
+p=Path(f'{home}/Downloads/cursor-download.json')
 data=json.loads(p.read_text()) if p.exists() else {}
 print(data.get('downloadUrl') or data.get('url') or '')
 PYCURSOR
@@ -220,10 +221,10 @@ install_windsurf(){
   ensure_ide_prereqs
   log "Installing Windsurf"
   if ! command -v windsurf >/dev/null 2>&1; then
-      timeout 300 curl --noproxy '*' -fsSL 'https://windsurf.com/api/windsurf/download-redirect?build=linux-x64&isNext=false' -o /root/Downloads/windsurf.tar.gz >> "$LOG" 2>&1 \
+      timeout 300 curl --noproxy '*' -fsSL 'https://windsurf.com/api/windsurf/download-redirect?build=linux-x64&isNext=false' -o ${HOME}/Downloads/windsurf.tar.gz >> "$LOG" 2>&1 \
       && rm -rf /opt/windsurf \
       && mkdir -p /opt/windsurf \
-      && tar -xzf /root/Downloads/windsurf.tar.gz -C /opt/windsurf --strip-components=1 \
+      && tar -xzf ${HOME}/Downloads/windsurf.tar.gz -C /opt/windsurf --strip-components=1 \
       && windsurf_bin="$(find /opt/windsurf -maxdepth 4 -type f -perm -111 \( -name windsurf -o -name Windsurf -o -name AppRun \) | head -1)" \
       && [ -n "$windsurf_bin" ] \
       && ln -sf "$windsurf_bin" /usr/local/bin/windsurf \
@@ -275,8 +276,8 @@ install_copilot(){
   install_vscode
   log "Preparing GitHub Copilot in VS Codium"
   if command -v codium >/dev/null 2>&1; then
-    timeout 120 /usr/local/bin/codium-wrap --user-data-dir=/root/.config/VSCodium --install-extension GitHub.copilot >> "$LOG" 2>&1 || log "GitHub Copilot extension install failed; generated copilot integration files remain available"
-    timeout 120 /usr/local/bin/codium-wrap --user-data-dir=/root/.config/VSCodium --install-extension GitHub.copilot-chat >> "$LOG" 2>&1 || true
+    timeout 120 /usr/local/bin/codium-wrap --user-data-dir=${HOME}/.config/VSCodium --install-extension GitHub.copilot >> "$LOG" 2>&1 || log "GitHub Copilot extension install failed; generated copilot integration files remain available"
+    timeout 120 /usr/local/bin/codium-wrap --user-data-dir=${HOME}/.config/VSCodium --install-extension GitHub.copilot-chat >> "$LOG" 2>&1 || true
   fi
   create_gui_launchers
 }

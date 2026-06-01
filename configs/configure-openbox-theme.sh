@@ -1,5 +1,5 @@
         configure_openbox_theme() {
-          mkdir -p /usr/share/themes/ConstructorFabric/openbox-3 /root/.config/openbox /root/.config/gtk-3.0 /root/.config/gtk-2.0
+          mkdir -p /usr/share/themes/ConstructorFabric/openbox-3 ${HOME}/.config/openbox ${HOME}/.config/gtk-3.0 ${HOME}/.config/gtk-2.0
           cat > /usr/share/themes/ConstructorFabric/openbox-3/themerc <<'OBTHEME'
         border.width: 2
         padding.width: 6
@@ -96,31 +96,33 @@
             cp "/usr/share/themes/ConstructorFabric/openbox-3/$n.xbm" "/usr/share/themes/ConstructorFabric/openbox-3/${n}_hover.xbm"
             cp "/usr/share/themes/ConstructorFabric/openbox-3/$n.xbm" "/usr/share/themes/ConstructorFabric/openbox-3/${n}_disabled.xbm"
           done
-          python3 - <<'PYOB'
-        from pathlib import Path
-        candidates = [
-          Path('/etc/xdg/openbox/LXDE/rc.xml'),
-          Path('/etc/xdg/openbox/rc.xml'),
-          Path('/usr/share/openbox/rc.xml'),
-          Path('/usr/share/lxde/openbox/rc.xml'),
-        ]
-        p=Path('/root/.config/openbox/lxde-rc.xml')
-        for src in candidates:
-          if src.exists():
-            p.write_text(src.read_text())
-            break
-        else:
-          p.write_text('<?xml version="1.0" encoding="UTF-8"?>\n<openbox_config xmlns="http://openbox.org/3.4/rc"><theme><name>Onyx</name></theme><font><name>Sans</name><size>11</size></font></openbox_config>\n')
-        s=p.read_text().replace('<name>Onyx</name>', '<name>ConstructorFabric</name>').replace('<size>11</size>', '<size>12</size>')
-        p.write_text(s)
-        PYOB
-          cat > /root/.config/gtk-3.0/settings.ini <<'GTK3'
+      python3 - <<'PYOB'
+import os
+from pathlib import Path
+home=os.environ.get('HOME','/root')
+candidates = [
+  Path('/etc/xdg/openbox/LXDE/rc.xml'),
+  Path('/etc/xdg/openbox/rc.xml'),
+  Path('/usr/share/openbox/rc.xml'),
+  Path('/usr/share/lxde/openbox/rc.xml'),
+]
+p=Path(f'{home}/.config/openbox/lxde-rc.xml')
+for src in candidates:
+  if src.exists():
+    p.write_text(src.read_text())
+    break
+else:
+  p.write_text('<?xml version="1.0" encoding="UTF-8"?>\n<openbox_config xmlns="http://openbox.org/3.4/rc"><theme><name>Onyx</name></theme><font><name>Sans</name><size>11</size></font></openbox_config>\n')
+s=p.read_text().replace('<name>Onyx</name>', '<name>ConstructorFabric</name>').replace('<size>11</size>', '<size>12</size>')
+p.write_text(s)
+PYOB
+          cat > ${HOME}/.config/gtk-3.0/settings.ini <<'GTK3'
         [Settings]
         gtk-theme-name=Adwaita-dark
         gtk-icon-theme-name=Adwaita
         gtk-font-name=Sans 11
         GTK3
-          cat > /root/.gtkrc-2.0 <<'GTK2'
+          cat > ${HOME}/.gtkrc-2.0 <<'GTK2'
         gtk-theme-name="Adwaita-dark"
         gtk-icon-theme-name="Adwaita"
         gtk-font-name="Sans 11"

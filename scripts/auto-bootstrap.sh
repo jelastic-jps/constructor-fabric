@@ -1,8 +1,8 @@
         #!/bin/bash
         set -euo pipefail
         export HOME=/root
-        export PATH=/root/cyber-constructor/.venv/bin:/root/.local/bin:/usr/local/bin:/opt/node-current/bin:$PATH
-        LOG=/root/cyber-constructor/auto-bootstrap.log
+        export PATH=${HOME}/cyber-constructor/.venv/bin:${HOME}/.local/bin:/usr/local/bin:/opt/node-current/bin:$PATH
+        LOG=${HOME}/cyber-constructor/auto-bootstrap.log
         exec >>"$LOG" 2>&1
         echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Constructor Fabric auto-bootstrap started"
 
@@ -22,7 +22,7 @@
 
         project_name="Constructor Fabric Workspace"
         slug="constructor-fabric-workspace"
-        root="/root/workspaces/$slug"
+        root="${HOME}/workspaces/$slug"
         mkdir -p "$root"
         cat > "$root/.constructor-fabric.json" <<JSON
         {
@@ -92,9 +92,10 @@
           printf 'd\n' | cfc init --no-cache --project-root "$root" --install-dir .cf-constructor --project-name "$slug" --force
         fi
         cfc generate-agents --root "$root" -y
-        (cd "$root" && cfc agents --json > /root/cyber-constructor/workspace-agents.json && python3 - <<'PYAGENTS'
-        import json, sys
-        text=json.dumps(json.load(open('/root/cyber-constructor/workspace-agents.json'))).lower()
+        (cd "$root" && cfc agents --json > ${HOME}/cyber-constructor/workspace-agents.json && python3 - <<'PYAGENTS'
+        import json, sys, os
+        home=os.environ.get('HOME','/root')
+        text=json.dumps(json.load(open(f'{home}/cyber-constructor/workspace-agents.json'))).lower()
         required=['windsurf','cursor','claude','copilot','openai']
         missing=[name for name in required if name not in text]
         if missing:

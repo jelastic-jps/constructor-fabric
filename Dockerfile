@@ -135,7 +135,7 @@ Version=1.0
 Type=Application
 Name=Terminal Emulator
 Comment=Open a terminal emulator
-Exec=lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace
+Exec=lxterminal --working-directory=${HOME}/workspaces/constructor-fabric-workspace
 Icon=utilities-terminal
 Terminal=false
 Categories=System;TerminalEmulator;
@@ -147,4 +147,24 @@ PY
 
 ENV CF_PREINSTALLED_IDES=1
 
-WORKDIR /root/constructor-fabric
+# Create developer user and move everything from root home to developer home.
+# The base image's entrypoint respects the USER env var and starts the VNC
+# session as that user. Everything is built as root above; this final step
+# relocates it to the developer user's home directory.
+RUN useradd -m -s /bin/bash -G sudo developer \
+    && echo 'developer ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/developer \
+    && chmod 0440 /etc/sudoers.d/developer \
+    && for dir in constructor-fabric cyber-constructor workspaces Desktop Downloads .config .local .cf-constructor .cf-constructor-cache; do \
+         if [ -e "/root/$dir" ]; then mv "/root/$dir" "/home/developer/$dir" 2>/dev/null || cp -a "/root/$dir" "/home/developer/$dir" && rm -rf "/root/$dir"; fi \
+       done \
+    && for f in .asoundrc .gtkrc-2.0; do \
+         if [ -f "/root/$f" ]; then mv "/root/$f" "/home/developer/$f" 2>/dev/null || true; fi \
+       done \
+    && chown -R developer:developer /home/developer \
+    && echo 'developer user ready; all files relocated from /root'
+
+ENV HOME=/home/developer \
+    USER=developer \
+    PATH=/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+WORKDIR /home/developer/constructor-fabric
