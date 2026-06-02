@@ -1,6 +1,6 @@
 #!/bin/sh
 set -eu
-export DISPLAY=:1
+export DISPLAY=:2
 export HOME="${HOME:-/home/developer}"
 export USER="${USER:-developer}"
 export XDG_CURRENT_DESKTOP=LXDE
@@ -368,21 +368,21 @@ mkdir -p "$VNC_LOG_DIR"
 # Bring up the X display deterministically. Stale Xvfb/x11vnc processes from the
 # base image can remain after startup.sh; kill them and own the display/port.
 pkill -x x11vnc >/dev/null 2>&1 || true
-pkill -f 'Xvfb :1' >/dev/null 2>&1 || true
-rm -f /tmp/.X1-lock /tmp/.X11-unix/X1 2>/dev/null || true
-setsid /usr/bin/Xvfb :1 -screen 0 ${RESOLUTION}x24 -ac +extension GLX +render -noreset </dev/null >"${VNC_LOG_DIR}/xvfb.log" 2>&1 &
+pkill -f "Xvfb ${DISPLAY}" >/dev/null 2>&1 || true
+rm -f /tmp/.X2-lock /tmp/.X11-unix/X2 2>/dev/null || true
+setsid /usr/bin/Xvfb ${DISPLAY} -screen 0 ${RESOLUTION}x24 -ac +extension GLX +render -noreset </dev/null >"${VNC_LOG_DIR}/xvfb.log" 2>&1 &
 sleep 1
 
 x_ready=0
 for i in $(seq 1 60); do
-  if xdpyinfo -display :1 >/dev/null 2>&1; then
+  if xdpyinfo -display "${DISPLAY}" >/dev/null 2>&1; then
     x_ready=1
     break
   fi
   sleep 1
 done
 if [ "$x_ready" != "1" ]; then
-  echo 'Xvfb display :1 did not become ready; xvfb.log:' >&2
+  echo "Xvfb display ${DISPLAY} did not become ready; xvfb.log:" >&2
   tail -80 "${VNC_LOG_DIR}/xvfb.log" >&2 2>/dev/null || true
 fi
 
@@ -411,7 +411,7 @@ if [ -n "${VNC_PASSWORD:-${PASSWORD:-}}" ] && command -v x11vnc >/dev/null 2>&1;
   fi
 fi
 pkill -x x11vnc >/dev/null 2>&1 || true
-setsid /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -listen 0.0.0.0 -rfbport 5900 $VNC_AUTH_ARGS </dev/null >"${VNC_LOG_DIR}/x11vnc.log" 2>&1 &
+setsid /usr/bin/x11vnc -display ${DISPLAY} -xkb -forever -shared -repeat -listen 0.0.0.0 -rfbport 5900 $VNC_AUTH_ARGS </dev/null >"${VNC_LOG_DIR}/x11vnc.log" 2>&1 &
 
 vnc_ready=0
 for i in $(seq 1 60); do
@@ -441,8 +441,8 @@ fi
 # so keep x11vnc clipboard defaults enabled and bridge X selections with autocutsel.
 if command -v autocutsel >/dev/null 2>&1; then
   pkill -x autocutsel >/dev/null 2>&1 || true
-  DISPLAY=:1 setsid /usr/bin/autocutsel -selection CLIPBOARD -fork </dev/null >"${HOME}/constructor-fabric/autocutsel-clipboard.log" 2>&1 &
-  DISPLAY=:1 setsid /usr/bin/autocutsel -selection PRIMARY -fork </dev/null >"${HOME}/constructor-fabric/autocutsel-primary.log" 2>&1 &
+  DISPLAY=${DISPLAY} setsid /usr/bin/autocutsel -selection CLIPBOARD -fork </dev/null >"${HOME}/constructor-fabric/autocutsel-clipboard.log" 2>&1 &
+  DISPLAY=${DISPLAY} setsid /usr/bin/autocutsel -selection PRIMARY -fork </dev/null >"${HOME}/constructor-fabric/autocutsel-primary.log" 2>&1 &
 fi
 for i in $(seq 1 40); do
   if ! pgrep -x x11vnc >/dev/null 2>&1; then

@@ -152,24 +152,36 @@ actions:
           echo 'Constructor Fabric app did not become ready in time' >&2
           exit 1
         fi
-        python3 -c 'import socket,sys; checks=[("127.0.0.1",5900,"native-vnc"),("127.0.0.1",6081,"websockify")];
-        import time
-        for host,port,name in checks:
-            last=None
-            for _ in range(30):
-                try:
-                    s=socket.create_connection((host,port),timeout=2)
-                    if port==5900:
-                        banner=s.recv(12).decode(errors="replace").strip()
-                        assert banner.startswith("RFB"), banner
-                    s.close(); print(f"{name} is up on {host}:{port}"); break
-                except Exception as exc:
-                    last=exc; time.sleep(2)
-            else:
-                import subprocess, os
-                print(f"{name} did not become ready: {last}", file=sys.stderr)
-                subprocess.run('echo process list: >&2; ps aux | grep -E \"Xvfb|x11vnc|websockify|supervisord\" | grep -v grep >&2 || true; echo x11vnc.log: >&2; tail -120 /home/developer/constructor-fabric/x11vnc.log >&2 2>/dev/null || true; echo xvfb.log: >&2; tail -80 /home/developer/constructor-fabric/xvfb.log >&2 2>/dev/null || true', shell=True)
-                sys.exit(1)'
+        check_port() {
+          host="$1"; port="$2"; name="$3"; want_rfb="${4:-0}"
+          last=''
+          for i in $(seq 1 30); do
+            if python3 - "$host" "$port" "$want_rfb" <<'PYPORT'
+import socket, sys
+host=sys.argv[1]; port=int(sys.argv[2]); want_rfb=sys.argv[3] == '1'
+s=socket.create_connection((host, port), timeout=2)
+if want_rfb:
+    banner=s.recv(12).decode(errors='replace').strip()
+    assert banner.startswith('RFB'), banner
+s.close()
+PYPORT
+            then
+              echo "$name is up on $host:$port"
+              return 0
+            fi
+            sleep 2
+          done
+          echo "$name did not become ready" >&2
+          echo 'process list:' >&2
+          ps aux | grep -E 'Xvfb|x11vnc|websockify|supervisord' | grep -v grep >&2 || true
+          echo 'x11vnc.log:' >&2
+          tail -120 /home/developer/constructor-fabric/x11vnc.log >&2 2>/dev/null || true
+          echo 'xvfb.log:' >&2
+          tail -80 /home/developer/constructor-fabric/xvfb.log >&2 2>/dev/null || true
+          return 1
+        }
+        check_port 127.0.0.1 5900 native-vnc 1
+        check_port 127.0.0.1 6081 websockify 0
         # Verify desktop launchers exist as developer user
         su - developer -c "
           test -f /home/developer/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher missing' >&2; exit 1; }
