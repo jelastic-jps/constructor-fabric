@@ -125,6 +125,15 @@ actions:
     - cmd[cp]: |-
         set -euo pipefail
         export DEBIAN_FRONTEND=noninteractive
+        # The currently published latest image can contain a stale Cursor apt source
+        # and can be missing XKB files even when dpkg says xkb-data is installed.
+        # Repair that root-level image state before the developer-only bootstrap starts.
+        if [ ! -d /usr/share/X11/xkb/keycodes ] || [ ! -d /usr/share/X11/xkb/symbols ]; then
+          find /etc/apt -type f \( -name '*.list' -o -name '*.sources' \) -print0 | xargs -0 grep -l 'api.cursor.com/apt' 2>/dev/null | xargs -r rm -f
+          apt-get update
+          apt-get install --reinstall -y --no-install-recommends xkb-data
+          rm -rf /var/lib/apt/lists/*
+        fi
         # The base VNC startup may leave /home/developer owned by root. Fix it
         # before downloading runtime scripts, then execute bootstrap as developer.
         chown -R developer:developer /home/developer
