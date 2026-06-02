@@ -355,7 +355,7 @@ install_continue_ai_chat(){
   case "$continue_provider" in
     claude|anthropic)
       continue_provider="anthropic"
-      continue_model="$(printenv CLAUDE_MODEL || echo claude-3-5-sonnet-latest)"
+      continue_model="$(printenv CLAUDE_MODEL || echo claude-sonnet-4-6)"
       if [ -z "$continue_api_key" ]; then continue_api_key="$(printenv ANTHROPIC_API_KEY || true)"; fi
       ;;
     *)
