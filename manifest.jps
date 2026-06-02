@@ -1,5 +1,5 @@
 type: install
-version: 0.4.45
+version: 0.4.46
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -27,8 +27,8 @@ globals:
   OPENAI_MODEL: gpt-4o-mini
   CLAUDE_MODEL: claude-3-5-sonnet-latest
   RESOLUTION: 1280x720
-  SCRIPT_VERSION: cf-source-ref-fix-20260602-1
-  CF_SOURCE_REF: ce5fef0ec2dd491b426cbdb81dae1939de7c4c1b
+  SCRIPT_VERSION: mandatory-codium-continue-20260602-1
+  CF_SOURCE_REF: 3ff870428449a5c6a3370f20f32dbdff076e8ab7
 
 settings:
   fields:
