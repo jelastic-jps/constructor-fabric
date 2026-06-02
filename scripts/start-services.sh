@@ -360,9 +360,33 @@ LXCONF
 
 configure_openbox_theme
 configure_lxpanel
-start_detached 'Xvfb :1' "${HOME}/constructor-fabric/xvfb.log" /usr/bin/Xvfb :1 -screen 0 ${RESOLUTION}x24 -ac +extension GLX +render -noreset
-sleep 3
-start_detached 'openbox.*lxde-rc.xml' "${HOME}/constructor-fabric/openbox.log" /usr/bin/openbox --config-file "${HOME}/.config/openbox/lxde-rc.xml" --replace
+
+RESOLUTION="${RESOLUTION:-1280x720}"
+VNC_LOG_DIR="${HOME}/constructor-fabric"
+mkdir -p "$VNC_LOG_DIR"
+
+# Bring up the X display deterministically. Stale Xvfb/x11vnc processes from the
+# base image can remain after startup.sh; kill them and own the display/port.
+pkill -x x11vnc >/dev/null 2>&1 || true
+pkill -f 'Xvfb :1' >/dev/null 2>&1 || true
+rm -f /tmp/.X1-lock /tmp/.X11-unix/X1 2>/dev/null || true
+setsid /usr/bin/Xvfb :1 -screen 0 ${RESOLUTION}x24 -ac +extension GLX +render -noreset </dev/null >"${VNC_LOG_DIR}/xvfb.log" 2>&1 &
+sleep 1
+
+x_ready=0
+for i in $(seq 1 60); do
+  if xdpyinfo -display :1 >/dev/null 2>&1; then
+    x_ready=1
+    break
+  fi
+  sleep 1
+done
+if [ "$x_ready" != "1" ]; then
+  echo 'Xvfb display :1 did not become ready; xvfb.log:' >&2
+  tail -80 "${VNC_LOG_DIR}/xvfb.log" >&2 2>/dev/null || true
+fi
+
+start_detached 'openbox.*lxde-rc.xml' "${VNC_LOG_DIR}/openbox.log" /usr/bin/openbox --config-file "${HOME}/.config/openbox/lxde-rc.xml" --replace
 # Mark desktop entries trusted before pcmanfm renders them; otherwise LXDE/PCManFM
 # may show an "Open With" dialog instead of executing the launcher.
 if command -v gio >/dev/null 2>&1; then
@@ -372,36 +396,47 @@ if command -v gio >/dev/null 2>&1; then
   done
 fi
 pkill -x lxpanel >/dev/null 2>&1 || true
-start_detached 'lxpanel.*--profile LXDE' "${HOME}/constructor-fabric/lxpanel.log" /usr/bin/lxpanel --profile LXDE
-start_detached 'pcmanfm.*--desktop' "${HOME}/constructor-fabric/pcmanfm.log" /usr/bin/pcmanfm --desktop --profile LXDE
-# Avoid a foreground wallpaper setter here: on dorowu/LXDE it can stay attached
-# and the Virtuozzo Cloud Scripting engine can eventually kill the whole cmd action with signal 9.
-# The desktop-items-0.conf written above is enough for pcmanfm to pick the wallpaper.
-# Restart native VNC deterministically. Do not use start_detached here: after
-# pkill, the old x11vnc can linger for a moment and make pgrep falsely report
-# that the target process is already running; then it exits and port 5900 stays
-# closed, causing JPS verify to fail with "native-vnc did not become ready".
-pkill -x x11vnc >/dev/null 2>&1 || true
-for i in $(seq 1 20); do
-  pgrep -x x11vnc >/dev/null 2>&1 || break
-  sleep 0.5
-done
-for i in $(seq 1 30); do
-  xdpyinfo -display :1 >/dev/null 2>&1 && break
-  sleep 1
-done
+start_detached 'lxpanel.*--profile LXDE' "${VNC_LOG_DIR}/lxpanel.log" /usr/bin/lxpanel --profile LXDE
+start_detached 'pcmanfm.*--desktop' "${VNC_LOG_DIR}/pcmanfm.log" /usr/bin/pcmanfm --desktop --profile LXDE
+
+# Start native VNC with a developer-readable auth file. Avoid the base image
+# /.password2 and avoid fragile x11vnc flags that can make it exit on older builds.
 VNC_AUTH_ARGS="-nopw"
 if [ -n "${VNC_PASSWORD:-${PASSWORD:-}}" ] && command -v x11vnc >/dev/null 2>&1; then
   mkdir -p "${HOME}/.vnc"
-  # Do not use /.password2 here: in developer-user mode it is root-owned in the
-  # base image and x11vnc exits immediately when it cannot read it.
   x11vnc -storepasswd "${VNC_PASSWORD:-${PASSWORD:-}}" "${HOME}/.vnc/passwd" >/dev/null 2>&1 || true
   chmod 600 "${HOME}/.vnc/passwd" 2>/dev/null || true
   if [ -s "${HOME}/.vnc/passwd" ]; then
     VNC_AUTH_ARGS="-rfbauth ${HOME}/.vnc/passwd"
   fi
 fi
-setsid /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 $VNC_AUTH_ARGS </dev/null >"${HOME}/constructor-fabric/x11vnc.log" 2>&1 &
+pkill -x x11vnc >/dev/null 2>&1 || true
+setsid /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -listen 0.0.0.0 -rfbport 5900 $VNC_AUTH_ARGS </dev/null >"${VNC_LOG_DIR}/x11vnc.log" 2>&1 &
+
+vnc_ready=0
+for i in $(seq 1 60); do
+  if python3 - <<'PYVNC'
+import socket
+s=socket.create_connection(('127.0.0.1', 5900), timeout=1)
+b=s.recv(12)
+s.close()
+raise SystemExit(0 if b.startswith(b'RFB') else 1)
+PYVNC
+  then
+    echo 'native VNC is listening on 5900'
+    vnc_ready=1
+    break
+  fi
+  sleep 1
+done
+if [ "$vnc_ready" != "1" ]; then
+  echo 'native VNC did not become ready in start-services; process list:' >&2
+  ps aux | grep -E 'Xvfb|x11vnc|websockify|supervisord' | grep -v grep >&2 || true
+  echo 'xvfb.log:' >&2
+  tail -80 "${VNC_LOG_DIR}/xvfb.log" >&2 2>/dev/null || true
+  echo 'x11vnc.log:' >&2
+  tail -120 "${VNC_LOG_DIR}/x11vnc.log" >&2 2>/dev/null || true
+fi
 # Enable VNC/noVNC clipboard sync. x11vnc 0.9.16 rejects its non-portable clipboard flag,
 # so keep x11vnc clipboard defaults enabled and bridge X selections with autocutsel.
 if command -v autocutsel >/dev/null 2>&1; then

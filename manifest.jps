@@ -166,7 +166,10 @@ actions:
                 except Exception as exc:
                     last=exc; time.sleep(2)
             else:
-                print(f"{name} did not become ready: {last}", file=sys.stderr); sys.exit(1)'
+                import subprocess, os
+                print(f"{name} did not become ready: {last}", file=sys.stderr)
+                subprocess.run('echo process list: >&2; ps aux | grep -E \"Xvfb|x11vnc|websockify|supervisord\" | grep -v grep >&2 || true; echo x11vnc.log: >&2; tail -120 /home/developer/constructor-fabric/x11vnc.log >&2 2>/dev/null || true; echo xvfb.log: >&2; tail -80 /home/developer/constructor-fabric/xvfb.log >&2 2>/dev/null || true', shell=True)
+                sys.exit(1)'
         # Verify desktop launchers exist as developer user
         su - developer -c "
           test -f /home/developer/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher missing' >&2; exit 1; }
