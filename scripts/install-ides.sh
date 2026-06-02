@@ -208,15 +208,24 @@ fi
 codium_pid=$!
 if command -v xdotool >/dev/null 2>&1; then
   for i in $(seq 1 40); do
-    win="$(xdotool search --onlyvisible --class codium 2>/dev/null | head -1 || true)"
+    win="$(xdotool search --onlyvisible --class codium 2>/dev/null | tail -1 || true)"
     if [ -n "$win" ]; then
-      xdotool windowactivate "$win" 2>/dev/null || true
+      xdotool windowactivate --sync "$win" 2>/dev/null || xdotool windowactivate "$win" 2>/dev/null || true
       sleep 1
-      xdotool key ctrl+shift+p 2>/dev/null || true
+      # First open the Continue activity view, then focus the chat input. Use
+      # explicit --window targeting because noVNC/LXDE sometimes leaves focus
+      # on the editor or on Chromium even after windowactivate.
+      xdotool key --window "$win" ctrl+shift+p 2>/dev/null || true
       sleep 1
-      xdotool type --delay 2 "Continue: Focus Continue Chat" 2>/dev/null || true
+      xdotool type --window "$win" --delay 5 "View: Show Continue" 2>/dev/null || true
       sleep 1
-      xdotool key Return 2>/dev/null || true
+      xdotool key --window "$win" Return 2>/dev/null || true
+      sleep 4
+      xdotool key --window "$win" ctrl+shift+p 2>/dev/null || true
+      sleep 1
+      xdotool type --window "$win" --delay 5 "Focus Continue Chat" 2>/dev/null || true
+      sleep 1
+      xdotool key --window "$win" Return 2>/dev/null || true
       break
     fi
     sleep 1
