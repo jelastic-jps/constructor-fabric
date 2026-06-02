@@ -24,7 +24,7 @@
         if [ -z "$existing_anthropic_key" ] && [ -n "$install_api_token" ]; then export ANTHROPIC_API_KEY="$install_api_token"; fi
         clear
         cat <<'WELCOME'
-        Constructor Fabric Showcase
+        Constructor Fabric AI Fabric Trainer
         
         Use this agent to drive the product flow with the generated /cf-constructor workflow.
         
