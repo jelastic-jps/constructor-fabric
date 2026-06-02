@@ -127,7 +127,8 @@ fi
 cfc generate-agents --root "$root" -y
 (cd "$root" && cfc agents --json > "${HOME}/cyber-constructor/workspace-agents.json" && python3 - <<'PYAGENTS'
 import json, sys
-text=json.dumps(json.load(open('${HOME}/cyber-constructor/workspace-agents.json'))).lower()
+from pathlib import Path
+text=json.dumps(json.loads((Path.home()/'cyber-constructor/workspace-agents.json').read_text())).lower()
 required=['windsurf','cursor','claude','copilot','openai']
 missing=[name for name in required if name not in text]
 if missing:
@@ -238,15 +239,15 @@ cat > "${HOME}/.config/autostart/constructor-fabric.desktop" <<'DESK'
 [Desktop Entry]
 Type=Application
 Name=Constructor Fabric Trainer
-Exec=sh -lc 'sleep 12; ${HOME}/constructor-fabric/run-trainer.sh || true'
+Exec=sh -lc 'sleep 12; $HOME/constructor-fabric/run-trainer.sh || true'
 X-GNOME-Autostart-enabled=true
 DESK
 cat > "${HOME}/Desktop/Constructor-Fabric-Trainer.desktop" <<'DESK'
 [Desktop Entry]
 Type=Application
 Name=Constructor Fabric Trainer
-Exec=${HOME}/constructor-fabric/run-trainer.sh
-Icon=${HOME}/constructor-fabric/app/icon.png
+Exec=/home/developer/constructor-fabric/run-trainer.sh
+Icon=/home/developer/constructor-fabric/app/icon.png
 Terminal=false
 Categories=Development;
 DESK
