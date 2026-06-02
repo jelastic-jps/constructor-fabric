@@ -187,6 +187,28 @@ CHROMIUMWRAP
   sudo chmod 755 /usr/local/bin/constructor-fabric-chromium 2>/dev/null || chmod 755 "${HOME}/.local/bin/constructor-fabric-chromium" 2>/dev/null || true
 }
 
+ensure_vscodium_chat_wrapper(){
+  mkdir -p "${HOME}/constructor-fabric"
+  cat > "${HOME}/constructor-fabric/open-vscodium-chat.sh" <<'OPENCHAT'
+#!/bin/sh
+set -u
+export HOME="${HOME:-/home/developer}"
+export PATH="${HOME}/.local/bin:/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+workspace="${HOME}/workspaces/constructor-fabric-workspace"
+mkdir -p "$workspace"
+cd "$workspace" || exit 0
+launcher=codium-wrap
+if ! command -v "$launcher" >/dev/null 2>&1; then
+  launcher=codium
+fi
+# Open the workspace and command file, then focus Continue chat. Running the
+# command in the same invocation is supported by VS Code/Codium CLI and makes
+# the AI chat visible immediately after clicking the desktop launcher.
+exec "$launcher" --user-data-dir="${HOME}/.config/VSCodium" --reuse-window --goto .vscode/cfc-commands.md . --command continue.focusContinueInput
+OPENCHAT
+  chmod +x "${HOME}/constructor-fabric/open-vscodium-chat.sh" 2>/dev/null || true
+}
+
 create_gui_launchers(){
   clean_desktop_launchers
   ensure_chromium_wrapper
@@ -201,6 +223,7 @@ create_gui_launchers(){
   desktop_link "Terminal Emulator" "lxterminal --working-directory=${HOME}/workspaces/constructor-fabric-workspace" "utilities-terminal" "Terminal.desktop" "System;TerminalEmulator;"
   
   if command -v codium >/dev/null 2>&1; then
+    ensure_vscodium_chat_wrapper
     desktop_link "VS Codium" "${HOME}/constructor-fabric/open-vscodium-chat.sh" "$(icon_for vscode)" "VS-Codium.desktop"
   fi
   
@@ -267,20 +290,7 @@ WRAP
   sudo cp /tmp/codium-wrap /usr/local/bin/codium-wrap 2>/dev/null || cp /tmp/codium-wrap "${HOME}/.local/bin/codium-wrap" 2>/dev/null || true
   sudo chmod +x /usr/local/bin/codium-wrap 2>/dev/null || chmod +x "${HOME}/.local/bin/codium-wrap" 2>/dev/null || true
 
-  cat > "${HOME}/constructor-fabric/open-vscodium-chat.sh" <<'OPENCHAT'
-#!/bin/sh
-set -u
-export HOME="${HOME:-/home/developer}"
-export PATH="${HOME}/.local/bin:/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
-workspace="${HOME}/workspaces/constructor-fabric-workspace"
-mkdir -p "$workspace"
-cd "$workspace" || exit 0
-# Open the workspace and command file, then focus Continue chat. Running the
-# command in the same invocation is supported by VS Code/Codium CLI and makes
-# the AI chat visible immediately after clicking the desktop launcher.
-exec codium-wrap --user-data-dir="${HOME}/.config/VSCodium" --reuse-window --goto .vscode/cfc-commands.md . --command continue.focusContinueInput
-OPENCHAT
-  chmod +x "${HOME}/constructor-fabric/open-vscodium-chat.sh" 2>/dev/null || true
+  ensure_vscodium_chat_wrapper
 
   # Copy icon to guaranteed path for desktop launcher
   mkdir -p "${HOME}/constructor-fabric/app/icons"
@@ -348,6 +358,7 @@ install_continue_ai_chat(){
   fi
 
   mkdir -p "${HOME}/.continue" "${HOME}/.config/VSCodium/User"
+  ensure_vscodium_chat_wrapper
   continue_provider="$(printenv LLM_PROVIDER || echo openai)"
   continue_api_key="$(printenv API_TOKEN || true)"
   case "$continue_provider" in
