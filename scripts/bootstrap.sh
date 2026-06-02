@@ -44,6 +44,9 @@ selected_ide_profile="$(printenv CF_IDE_PROFILE || true)"
 # shortcuts). The CLI profile only recreates the clean GUI launchers from binaries
 # already present, so it is safe and quick before JPS verify.
 CF_IDE_PROFILE=cli "${HOME}/constructor-fabric/install-ides.sh" >"${HOME}/constructor-fabric/ide-install-wrapper.log" 2>&1 || true
+if [ -s "${HOME}/constructor-fabric/assets/vscode-logo.png" ]; then
+  cp "${HOME}/constructor-fabric/assets/vscode-logo.png" "${HOME}/constructor-fabric/app/icons/codium.png" 2>/dev/null || true
+fi
 if [ "$selected_ide_profile" != "cli" ] && [ -n "$selected_ide_profile" ]; then
   # Delay optional heavy IDE package installs until after JPS verify is done.
   # This prevents marketplace cmd[cp] from being killed by signal 9 on small nodes.

@@ -391,4 +391,11 @@ case "$PROFILE" in
     ;;
 esac
 
+# Final launcher/icon normalization: always replace stale 1x1 Codium placeholder
+# with the vendored VS Code icon requested for VS Codium.
+if [ -s "${HOME}/constructor-fabric/assets/vscode-logo.png" ]; then
+  mkdir -p "${HOME}/constructor-fabric/app/icons"
+  cp "${HOME}/constructor-fabric/assets/vscode-logo.png" "${HOME}/constructor-fabric/app/icons/codium.png" 2>/dev/null || true
+fi
+
 log "IDE installation complete"
