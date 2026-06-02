@@ -360,9 +360,12 @@ actions:
         grep -q "open-vscodium-chat.sh" /home/developer/Desktop/VS-Codium.desktop || { echo "VS Codium desktop launcher does not open AI chat wrapper" >&2; exit 1; }
         test -f /home/developer/constructor-fabric/open-vscodium-chat.sh || { echo "VS Codium AI chat wrapper missing" >&2; exit 1; }
         command -v xdotool >/dev/null 2>&1 || { echo "xdotool missing for Codium chat focus" >&2; exit 1; }
+        command -v codium >/dev/null 2>&1 || { echo "VS Codium binary missing" >&2; exit 1; }
         test -f /home/developer/.continue/config.yaml || { echo "Continue config missing" >&2; exit 1; }
         grep -q "provider: " /home/developer/.continue/config.yaml || { echo "Continue provider missing" >&2; exit 1; }
         grep -q "model: " /home/developer/.continue/config.yaml || { echo "Continue model missing" >&2; exit 1; }
+        grep -q "name: cf-constructor" /home/developer/.continue/config.yaml || { echo "Continue cf-constructor prompt missing" >&2; exit 1; }
+        codium --list-extensions 2>/dev/null | grep -qi "^continue\.continue$" || { echo "Continue extension missing in VS Codium" >&2; tail -80 /tmp/continue-install.log /home/developer/constructor-fabric/ide-install.log >&2 2>/dev/null || true; exit 1; }
         if command -v firefox >/dev/null 2>&1 || command -v firefox-esr >/dev/null 2>&1; then echo "Firefox is still installed" >&2; exit 1; fi
         echo "Chromium, Terminal, Constructor, and VS Codium AI chat desktop launchers are present and Firefox is absent"
         cd /home/developer/cyber-constructor
