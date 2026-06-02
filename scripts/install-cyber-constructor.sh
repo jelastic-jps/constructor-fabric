@@ -226,17 +226,23 @@ export PATH="${HOME}/constructor-fabric/trainer/node_modules/.bin:/opt/node-curr
 LOG="${HOME}/constructor-fabric/electron-trainer.log"
 mkdir -p "${HOME}/constructor-fabric/trainer"
 printf "[%s] starting trainer\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$LOG"
-if ! command -v electron >/dev/null 2>&1; then
+ensure_electron(){
+  if command -v electron >/dev/null 2>&1 && electron --no-sandbox --version >>"$LOG" 2>&1; then
+    return 0
+  fi
   if [ -x /opt/node-current/bin/npm ]; then
+    rm -rf "${HOME}/constructor-fabric/trainer/node_modules/electron"
     /opt/node-current/bin/npm install --prefix "${HOME}/constructor-fabric/trainer" electron@latest >>"$LOG" 2>&1 || true
   fi
-fi
-if command -v electron >/dev/null 2>&1 && electron --no-sandbox --version >>"$LOG" 2>&1; then
+  command -v electron >/dev/null 2>&1 && electron --no-sandbox --version >>"$LOG" 2>&1
+}
+if ensure_electron; then
   exec electron --no-sandbox --disable-gpu "${HOME}/constructor-fabric/trainer"
 fi
 echo "Electron is required for the Constructor Fabric Trainer but is not available or failed to start." >&2
 echo "Electron is required for the Constructor Fabric Trainer but is not available or failed to start." >>"$LOG"
 exit 1
+
 RUNTRAINER
 chmod +x "${HOME}/cyber-constructor/auto-bootstrap.sh"
 chmod +x "${HOME}/cyber-constructor/run-cfc.sh"

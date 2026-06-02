@@ -131,17 +131,14 @@ def create_placeholder_icon(target_path):
     except:
         pass
 
-# Use the VS Code icon for VS Codium as requested.
+# Use the vendored VS Code icon for VS Codium as requested.
 codium_icon = icon_dir / 'codium.png'
-if not codium_icon.exists():
-    import urllib.request
-    try:
-        urllib.request.urlretrieve(
-            'https://raw.githubusercontent.com/microsoft/vscode/main/resources/linux/code.png',
-            str(codium_icon)
-        )
-    except:
-        create_placeholder_icon(str(codium_icon))
+vscode_asset_icon = Path('/home/developer/constructor-fabric/assets/vscode-logo.png')
+if vscode_asset_icon.exists():
+    import shutil
+    shutil.copy2(str(vscode_asset_icon), str(codium_icon))
+elif not codium_icon.exists():
+    create_placeholder_icon(str(codium_icon))
 
 # Download Cursor icon if not present
 cursor_icon = icon_dir / 'cursor.png'
