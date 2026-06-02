@@ -28,7 +28,7 @@ globals:
   CLAUDE_MODEL: claude-sonnet-4-6
   RESOLUTION: 1280x720
   SCRIPT_VERSION: trainer-cf-constructor-copy-20260602-1
-  CF_SOURCE_REF: c1cf27d280d1b46dc515c621f3b18234d78e1886
+  CF_SOURCE_REF: 9c02ce9feddc368c36d0b754c5ef98e8b350c655
 
 settings:
   fields:
