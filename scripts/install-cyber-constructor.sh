@@ -147,7 +147,11 @@ export PATH="${HOME}/cyber-constructor/.venv/bin:${HOME}/.local/bin:/usr/local/b
 exec "${HOME}/cyber-constructor/auto-bootstrap.sh"
 CFCRUN
 
-mkdir -p "${HOME}/constructor-fabric/trainer"
+mkdir -p "${HOME}/constructor-fabric/trainer" "${HOME}/constructor-fabric/app/icons"
+if [ -f "${HOME}/constructor-fabric/assets/constructor-fabric-logo.png" ]; then
+  cp "${HOME}/constructor-fabric/assets/constructor-fabric-logo.png" "${HOME}/constructor-fabric/app/icon.png" 2>/dev/null || true
+  cp "${HOME}/constructor-fabric/assets/constructor-fabric-logo.png" "${HOME}/constructor-fabric/app/icons/trainer.png" 2>/dev/null || true
+fi
 cat > "${HOME}/constructor-fabric/trainer/package.json" <<'PKG'
 {"name":"constructor-fabric-trainer","version":"1.0.0","main":"main.js","private":true,"description":"Constructor Fabric Electron Trainer"}
 PKG
@@ -217,18 +221,21 @@ cat > "${HOME}/constructor-fabric/run-trainer.sh" <<'RUNTRAINER'
 #!/bin/sh
 set -u
 export HOME="${HOME:-/home/developer}"
-export DISPLAY=:1
-export PATH=/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin:$PATH
+export DISPLAY="${DISPLAY:-:1}"
+export PATH="${HOME}/constructor-fabric/trainer/node_modules/.bin:/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 LOG="${HOME}/constructor-fabric/electron-trainer.log"
+mkdir -p "${HOME}/constructor-fabric/trainer"
+printf "[%s] starting trainer\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$LOG"
 if ! command -v electron >/dev/null 2>&1; then
   if [ -x /opt/node-current/bin/npm ]; then
-    /opt/node-current/bin/npm install -g electron@latest >>"$LOG" 2>&1 || true
+    /opt/node-current/bin/npm install --prefix "${HOME}/constructor-fabric/trainer" electron@latest >>"$LOG" 2>&1 || true
   fi
 fi
 if command -v electron >/dev/null 2>&1 && electron --no-sandbox --version >>"$LOG" 2>&1; then
-  exec electron --no-sandbox "${HOME}/constructor-fabric/trainer"
+  exec electron --no-sandbox --disable-gpu "${HOME}/constructor-fabric/trainer"
 fi
 echo "Electron is required for the Constructor Fabric Trainer but is not available or failed to start." >&2
+echo "Electron is required for the Constructor Fabric Trainer but is not available or failed to start." >>"$LOG"
 exit 1
 RUNTRAINER
 chmod +x "${HOME}/cyber-constructor/auto-bootstrap.sh"
@@ -239,7 +246,8 @@ cat > "${HOME}/.config/autostart/constructor-fabric.desktop" <<'DESK'
 [Desktop Entry]
 Type=Application
 Name=Constructor Fabric Trainer
-Exec=sh -lc 'sleep 12; $HOME/constructor-fabric/run-trainer.sh || true'
+Exec=/home/developer/constructor-fabric/run-trainer.sh
+Icon=/home/developer/constructor-fabric/app/icons/trainer.png
 X-GNOME-Autostart-enabled=true
 DESK
 cat > "${HOME}/Desktop/Constructor-Fabric-Trainer.desktop" <<'DESK'
@@ -247,7 +255,7 @@ cat > "${HOME}/Desktop/Constructor-Fabric-Trainer.desktop" <<'DESK'
 Type=Application
 Name=Constructor Fabric Trainer
 Exec=/home/developer/constructor-fabric/run-trainer.sh
-Icon=/home/developer/constructor-fabric/app/icon.png
+Icon=/home/developer/constructor-fabric/app/icons/trainer.png
 Terminal=false
 Categories=Development;
 DESK
