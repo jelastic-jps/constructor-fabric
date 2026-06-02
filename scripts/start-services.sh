@@ -5,9 +5,9 @@ export HOME="${HOME:-/home/developer}"
 export USER="${USER:-developer}"
 export XDG_CURRENT_DESKTOP=LXDE
 export DESKTOP_SESSION=LXDE
-mkdir -p "${HOME}/constructor-fabric" "${HOME}/.config/pcmanfm/LXDE" "${HOME}/.config/lxpanel/LXDE/panels" "${HOME}/.config/libfm" 2>/dev/null || true
-mkdir -p /tmp/.X11-unix 2>/dev/null || true
-chmod 1777 /tmp/.X11-unix 2>/dev/null || true
+mkdir -p "${HOME}/constructor-fabric" "${HOME}/.config/pcmanfm/LXDE" "${HOME}/.config/lxpanel/LXDE/panels" "${HOME}/.config/libfm"
+sudo mkdir -p /tmp/.X11-unix 2>/dev/null || mkdir -p /tmp/.X11-unix 2>/dev/null || true
+sudo chmod 1777 /tmp/.X11-unix 2>/dev/null || chmod 1777 /tmp/.X11-unix 2>/dev/null || true
 # Audio: provide a real PulseAudio endpoint for Electron/Chromium apps so they do
 # not emit the base-image "To support audio, please read README" warning. Browser
 # audio forwarding is platform-dependent, but apps must at least see a working sink.
@@ -20,9 +20,9 @@ export AUDIODEV=default
 # For this marketplace desktop real sound is not required, but some launchers/apps
 # only check that ALSADEV and /dev/snd exist before printing the noisy warning.
 # Provide a harmless dummy /dev/snd directory plus Pulse/ALSA null routing.
-mkdir -p /tmp/pulse-root "${HOME}/.config/pulse" 2>/dev/null || true
-mkdir -p /dev/snd 2>/dev/null || true
-chmod 755 /dev/snd 2>/dev/null || true
+mkdir -p /tmp/pulse-root "${HOME}/.config/pulse"
+sudo mkdir -p /dev/snd 2>/dev/null || mkdir -p /dev/snd 2>/dev/null || true
+sudo chmod 755 /dev/snd 2>/dev/null || chmod 755 /dev/snd 2>/dev/null || true
 chmod 700 /tmp/pulse-root || true
 cat > "${HOME}/.config/pulse/client.conf" <<'PULSECLIENT'
 default-server = unix:/tmp/pulse-root/native
@@ -47,7 +47,7 @@ ctl.nullctl {
   card 0
 }
 ASOUNDRC
-cp "${HOME}/.asoundrc" /etc/asound.conf 2>/dev/null || true
+sudo cp "${HOME}/.asoundrc" /etc/asound.conf 2>/dev/null || cp "${HOME}/.asoundrc" /etc/asound.conf 2>/dev/null || true
 if command -v pulseaudio >/dev/null 2>&1; then
   pulseaudio --kill >/dev/null 2>&1 || true
   pulseaudio --daemonize=yes --exit-idle-time=-1 --disallow-exit --log-target=file:"${HOME}/constructor-fabric/pulseaudio.log" || true
@@ -88,7 +88,7 @@ start_detached() {
 }
 
 if [ -f /etc/supervisor/conf.d/supervisord.conf ]; then
-  python3 - <<'PYCONF'
+  sudo python3 - <<'PYCONF'
 from pathlib import Path
 p = Path('/etc/supervisor/conf.d/supervisord.conf')
 text = p.read_text()
@@ -438,8 +438,8 @@ p.write_text(s)
 PY
 fi
 if [ -f /etc/nginx/sites-enabled/default ]; then
-  rm -f /etc/nginx/sites-enabled/default.bak.*
-  python3 - <<'PY'
+  sudo rm -f /etc/nginx/sites-enabled/default.bak.*
+  sudo python3 - <<'PY'
 from pathlib import Path
 p=Path('/etc/nginx/sites-enabled/default')
 s=p.read_text()
@@ -483,7 +483,7 @@ p.write_text(s)
 PY
   NGINX_BIN="$(command -v nginx || command -v /usr/sbin/nginx || true)"
   if [ -n "$NGINX_BIN" ]; then
-    "$NGINX_BIN" -t >"${HOME}/constructor-fabric/nginx-test.log" 2>&1 && ("$NGINX_BIN" -s reload || service nginx reload || true) >"${HOME}/constructor-fabric/nginx-reload.log" 2>&1 || true
+    sudo "$NGINX_BIN" -t >"${HOME}/constructor-fabric/nginx-test.log" 2>&1 && (sudo "$NGINX_BIN" -s reload || sudo service nginx reload || true) >"${HOME}/constructor-fabric/nginx-reload.log" 2>&1 || true
   fi
 fi
 start_detached "${HOME}/constructor-fabric/app/server.py" "${HOME}/constructor-fabric/app.log" python3 "${HOME}/constructor-fabric/app/server.py"
