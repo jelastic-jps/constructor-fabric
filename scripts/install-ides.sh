@@ -40,14 +40,14 @@ ensure_icon(){
   
   # Try to find and copy the icon from system locations
   case "$icon_name" in
-    codium|vscodium)
-      for src in /usr/share/pixmaps/codium.png /usr/share/icons/hicolor/256x256/apps/codium.png /usr/share/icons/hicolor/256x256/apps/vscodium.png; do
+    codium|vscode|vscodium)
+      for src in /usr/share/pixmaps/code.png /usr/share/icons/hicolor/256x256/apps/code.png /usr/share/pixmaps/codium.png /usr/share/icons/hicolor/256x256/apps/codium.png /usr/share/icons/hicolor/256x256/apps/vscodium.png; do
         if [ -f "$src" ]; then
           cp "$src" "$target_path" 2>/dev/null && return 0
         fi
       done
-      # Download from GitHub if not found
-      curl -fsSL https://raw.githubusercontent.com/VSCodium/vscodium/master/icons/stable.png -o "$target_path" 2>/dev/null && return 0
+      # Use the VS Code icon for VS Codium as requested. The old VSCodium URL is 404.
+      curl --noproxy "*" -fsSL https://raw.githubusercontent.com/microsoft/vscode/main/resources/linux/code.png -o "$target_path" 2>/dev/null && return 0
       ;;
     cursor)
       for src in /opt/cursor/squashfs-root/usr/share/icons/hicolor/256x256/apps/cursor.png /opt/cursor/squashfs-root/cursor.png /opt/cursor/cursor.png; do
@@ -64,9 +64,11 @@ ensure_icon(){
       done
       ;;
     trainer)
-      if [ -f "${HOME}/constructor-fabric/app/icon.png" ]; then
-        cp "${HOME}/constructor-fabric/app/icon.png" "$target_path" 2>/dev/null && return 0
-      fi
+      for src in "${HOME}/constructor-fabric/app/icon.png" "${HOME}/constructor-fabric/assets/constructor-fabric-logo.png"; do
+        if [ -f "$src" ]; then
+          cp "$src" "$target_path" 2>/dev/null && return 0
+        fi
+      done
       ;;
     chromium|chrome)
       for src in /usr/share/icons/hicolor/256x256/apps/google-chrome.png /usr/share/pixmaps/google-chrome.png /usr/share/icons/hicolor/256x256/apps/chromium-browser.png /usr/share/pixmaps/chromium-browser.png; do
@@ -91,7 +93,7 @@ icon_for(){
   case "$app" in
     vscode)
       target="$icon_dir/codium.png"
-      ensure_icon codium "$target"
+      ensure_icon vscode "$target"
       if [ -f "$target" ]; then
         printf '%s\n' "$target"
       else

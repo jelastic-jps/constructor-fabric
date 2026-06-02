@@ -52,7 +52,8 @@ RUN mkdir -p /opt \
     && ln -sf /opt/node-current/bin/npm /usr/local/bin/npm \
     && ln -sf /opt/node-current/bin/npx /usr/local/bin/npx \
     && rm -f /tmp/node.tar.xz \
-    && /opt/node-current/bin/npm install -g electron@latest
+    && /opt/node-current/bin/npm install -g electron@latest \
+    && ln -sf /opt/node-current/bin/electron /usr/local/bin/electron
 
 # Install uv for developer user
 RUN mkdir -p /home/developer/.local/bin \
@@ -130,13 +131,13 @@ def create_placeholder_icon(target_path):
     except:
         pass
 
-# Download VS Codium icon if not present
+# Use the VS Code icon for VS Codium as requested.
 codium_icon = icon_dir / 'codium.png'
 if not codium_icon.exists():
     import urllib.request
     try:
         urllib.request.urlretrieve(
-            'https://raw.githubusercontent.com/VSCodium/vscodium/master/icons/stable.png',
+            'https://raw.githubusercontent.com/microsoft/vscode/main/resources/linux/code.png',
             str(codium_icon)
         )
     except:
@@ -164,16 +165,17 @@ if not chrome_icon.exists():
     except:
         create_placeholder_icon(str(chrome_icon))
 
-# Download Trainer icon if not present
+# Use the Constructor Fabric logo for the Trainer icon.
 trainer_icon = icon_dir / 'trainer.png'
-if not trainer_icon.exists():
-    # Use the constructor-fabric icon if available, otherwise create placeholder
-    cf_icon = Path('/home/developer/constructor-fabric/app/icon.png')
-    if cf_icon.exists():
-        import shutil
-        shutil.copy2(str(cf_icon), str(trainer_icon))
-    else:
-        create_placeholder_icon(str(trainer_icon))
+cf_asset_icon = Path('/home/developer/constructor-fabric/assets/constructor-fabric-logo.png')
+cf_app_icon = Path('/home/developer/constructor-fabric/app/icon.png')
+if cf_asset_icon.exists():
+    import shutil
+    cf_app_icon.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(str(cf_asset_icon), str(cf_app_icon))
+    shutil.copy2(str(cf_asset_icon), str(trainer_icon))
+elif not trainer_icon.exists():
+    create_placeholder_icon(str(trainer_icon))
 
 # Create desktop directory
 desktop_dir = Path('/home/developer/Desktop')
