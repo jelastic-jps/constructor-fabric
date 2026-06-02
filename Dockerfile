@@ -6,7 +6,8 @@ ARG CYBER_CONSTRUCTOR_TARBALL_URL=https://raw.githubusercontent.com/jelastic-jps
 ARG CYBER_CONSTRUCTOR_TARBALL_SHA256=8ca1c8005097cb3bdca521888a61cc3f0c508601a199722d2585e3130703a626
 
 # Create developer user early in the build
-RUN useradd -m -u 1000 -s /bin/bash developer
+RUN useradd -m -u 1000 -s /bin/bash developer \
+    && echo "developer ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 ENV TZ=Europe/Kyiv \
     HOME=/home/developer \
