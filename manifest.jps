@@ -192,21 +192,25 @@ actions:
         }
         check_port 127.0.0.1 5900 native-vnc 1
         check_port 127.0.0.1 6081 websockify 0
-        # Verify desktop launchers exist as developer user
-        su - developer -c "
-          test -f /home/developer/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher missing' >&2; exit 1; }
-          grep -q '^Name=Chromium$' /home/developer/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher has wrong label' >&2; exit 1; }
-          grep -Eq '^Exec=(/usr/local/bin/)?constructor-fabric-chromium' /home/developer/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher has wrong Exec' >&2; exit 1; }
-          command -v constructor-fabric-chromium >/dev/null 2>&1 || { echo 'Chromium wrapper missing' >&2; exit 1; }
-          test -f /home/developer/Desktop/Terminal.desktop || { echo 'Terminal desktop launcher missing' >&2; exit 1; }
-          if command -v firefox >/dev/null 2>&1 || command -v firefox-esr >/dev/null 2>&1; then echo 'Firefox is still installed' >&2; exit 1; fi
-          echo 'Chromium and Terminal desktop launchers are present and Firefox is absent'
-          cd /home/developer/cyber-constructor
-          cfc --version
-          cfc info --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "FOUND", data; assert data["relative_path"] == ".cf-constructor", data; print("cyber-constructor info is FOUND at .cf-constructor")'
-          cfc validate --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "PASS", data; print("cyber-constructor validate is PASS")'
-          cfc agents --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "OK", data; text=json.dumps(data).lower(); required=["windsurf","cursor","claude","copilot","openai"]; missing=[x for x in required if x not in text]; assert not missing, {"missing": missing, "data": data}; print("cyber-constructor agents are OK for "+", ".join(required))'
-        "
+        # Verify desktop launchers and cyber-constructor as developer user.
+        cat >/tmp/constructor-fabric-verify-developer.sh <<'VERIFYDEV'
+        set -euo pipefail
+        test -f /home/developer/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher missing' >&2; exit 1; }
+        grep -q '^Name=Chromium$' /home/developer/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher has wrong label' >&2; exit 1; }
+        grep -Eq '^Exec=(/usr/local/bin/)?constructor-fabric-chromium' /home/developer/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher has wrong Exec' >&2; exit 1; }
+        command -v constructor-fabric-chromium >/dev/null 2>&1 || { echo 'Chromium wrapper missing' >&2; exit 1; }
+        test -f /home/developer/Desktop/Terminal.desktop || { echo 'Terminal desktop launcher missing' >&2; exit 1; }
+        if command -v firefox >/dev/null 2>&1 || command -v firefox-esr >/dev/null 2>&1; then echo 'Firefox is still installed' >&2; exit 1; fi
+        echo 'Chromium and Terminal desktop launchers are present and Firefox is absent'
+        cd /home/developer/cyber-constructor
+        cfc --version
+        cfc info --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "FOUND", data; assert data["relative_path"] == ".cf-constructor", data; print("cyber-constructor info is FOUND at .cf-constructor")'
+        cfc validate --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "PASS", data; print("cyber-constructor validate is PASS")'
+        cfc agents --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "OK", data; text=json.dumps(data).lower(); required=["windsurf","cursor","claude","copilot","openai"]; missing=[x for x in required if x not in text]; assert not missing, {"missing": missing, "data": data}; print("cyber-constructor agents are OK for "+", ".join(required))'
+        VERIFYDEV
+        chmod +x /tmp/constructor-fabric-verify-developer.sh
+        chown developer:developer /tmp/constructor-fabric-verify-developer.sh
+        su - developer -c /tmp/constructor-fabric-verify-developer.sh
 
 success: |
   ### Constructor Fabric is ready
