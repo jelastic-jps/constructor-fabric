@@ -211,7 +211,7 @@ candidates = [
   Path('/usr/share/openbox/rc.xml'),
   Path('/usr/share/lxde/openbox/rc.xml'),
 ]
-p=Path('${HOME}/.config/openbox/lxde-rc.xml')
+p=Path('$HOME/.config/openbox/lxde-rc.xml')
 for src in candidates:
   if src.exists():
     p.write_text(src.read_text())
