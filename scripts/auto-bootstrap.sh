@@ -11,7 +11,7 @@ if [ -z "$provider" ]; then provider=openai; fi
 case "$provider" in openai|claude) ;; *) provider=openai ;; esac
 if [ "$provider" = "claude" ]; then
   model="$(printenv CLAUDE_MODEL || true)"
-  if [ -z "$model" ]; then model=claude-3-5-sonnet-latest; fi
+  if [ -z "$model" ]; then model=claude-sonnet-4-6; fi
 else
   model="$(printenv OPENAI_MODEL || true)"
   if [ -z "$model" ]; then model=gpt-5.5; fi

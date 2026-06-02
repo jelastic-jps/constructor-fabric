@@ -25,7 +25,7 @@ globals:
   APP_PORT: 8081
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
-  CLAUDE_MODEL: claude-3-5-sonnet-latest
+  CLAUDE_MODEL: claude-sonnet-4-6
   RESOLUTION: 1280x720
   SCRIPT_VERSION: trainer-cf-constructor-copy-20260602-1
   CF_SOURCE_REF: c1cf27d280d1b46dc515c621f3b18234d78e1886
@@ -57,12 +57,11 @@ settings:
             type: list
             inputType: string
             name: claude-model
-            default: claude-3-5-sonnet-latest
+            default: claude-sonnet-4-6
             values:
-              claude-3-5-sonnet-latest: Claude 3.5 Sonnet latest
-              claude-3-7-sonnet-latest: Claude 3.7 Sonnet latest
-              claude-sonnet-4-20250514: Claude Sonnet 4
-              claude-opus-4-20250514: Claude Opus 4
+              claude-sonnet-4-6: Claude Sonnet 4.6
+              claude-opus-4-8: Claude Opus 4.8
+              claude-haiku-4-5: Claude Haiku 4.5
             tooltip: Select the Anthropic Claude model used by the Constructor Fabric workflow.
     - caption: API Token
       type: string
@@ -96,7 +95,7 @@ nodes:
       OPENAI_API_KEY: ${settings.api-token}
       ANTHROPIC_API_KEY: ${settings.api-token}
       OPENAI_MODEL: ${settings.openai-model}
-      CLAUDE_MODEL: ${settings.claude-model:claude-3-5-sonnet-latest}
+      CLAUDE_MODEL: ${settings.claude-model:claude-sonnet-4-6}
       CF_IDE_PROFILE: all
       CF_PREINSTALLED_IDES: 1
       CF_HOME: /home/developer/constructor-fabric
@@ -171,7 +170,7 @@ actions:
         if [ -z "$continue_model" ]; then continue_model="gpt-5.5"; fi
         if [ "$continue_provider" = "anthropic" ]; then
           continue_model="$(printenv CLAUDE_MODEL || true)"
-          if [ -z "$continue_model" ]; then continue_model="claude-3-5-sonnet-latest"; fi
+          if [ -z "$continue_model" ]; then continue_model="claude-sonnet-4-6"; fi
         fi
         cat >/home/developer/.continue/config.yaml <<CONTINUECFG
         name: Constructor Fabric
