@@ -149,30 +149,29 @@ actions:
         export no_proxy=$NO_PROXY
         app_ready=0
         for i in $(seq 1 60); do
-          if curl --noproxy '*' -fsS http://127.0.0.1:8081/health >/dev/null; then
-            echo 'Constructor Fabric app is up'
-            curl --noproxy '*' -fsS http://127.0.0.1:8081/health
+          if curl --noproxy "*" -fsS http://127.0.0.1:8081/health >/dev/null; then
+            echo "Constructor Fabric app is up"
+            curl --noproxy "*" -fsS http://127.0.0.1:8081/health
             app_ready=1
             break
           fi
           sleep 2
         done
         if [ "$app_ready" != "1" ]; then
-          echo 'Constructor Fabric app did not become ready in time' >&2
+          echo "Constructor Fabric app did not become ready in time" >&2
           exit 1
         fi
         check_port() {
           host="$1"; port="$2"; name="$3"; want_rfb="$4"
           if [ -z "$want_rfb" ]; then want_rfb=0; fi
-          last=''
           for i in $(seq 1 30); do
-            if python3 - "$host" "$port" "$want_rfb" <<'PYPORT'
+            if python3 - "$host" "$port" "$want_rfb" <<PYPORT
         import socket, sys
-        host=sys.argv[1]; port=int(sys.argv[2]); want_rfb=sys.argv[3] == '1'
+        host=sys.argv[1]; port=int(sys.argv[2]); want_rfb=sys.argv[3] == "1"
         s=socket.create_connection((host, port), timeout=2)
         if want_rfb:
-            banner=s.recv(12).decode(errors='replace').strip()
-            assert banner.startswith('RFB'), banner
+            banner=s.recv(12).decode(errors="replace").strip()
+            assert banner.startswith("RFB"), banner
         s.close()
         PYPORT
             then
@@ -182,36 +181,51 @@ actions:
             sleep 2
           done
           echo "$name did not become ready" >&2
-          echo 'process list:' >&2
-          ps aux | grep -E 'Xvfb|x11vnc|websockify|supervisord' | grep -v grep >&2 || true
-          echo 'x11vnc.log:' >&2
+          echo "process list:" >&2
+          ps aux | grep -E "Xvfb|x11vnc|websockify|supervisord" | grep -v grep >&2 || true
+          echo "x11vnc.log:" >&2
           tail -120 /home/developer/constructor-fabric/x11vnc.log >&2 2>/dev/null || true
-          echo 'xvfb.log:' >&2
+          echo "xvfb.log:" >&2
           tail -80 /home/developer/constructor-fabric/xvfb.log >&2 2>/dev/null || true
           return 1
         }
         check_port 127.0.0.1 5900 native-vnc 1
         check_port 127.0.0.1 6081 websockify 0
-        # Verify desktop launchers and cyber-constructor as developer user.
-        cat >/tmp/constructor-fabric-verify-developer.sh <<'VERIFYDEV'
+        cat >/tmp/constructor-fabric-verify-developer.sh <<VERIFYDEV
         set -euo pipefail
-        test -f /home/developer/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher missing' >&2; exit 1; }
-        grep -q '^Name=Chromium$' /home/developer/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher has wrong label' >&2; exit 1; }
-        grep -Eq '^Exec=(/usr/local/bin/)?constructor-fabric-chromium' /home/developer/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher has wrong Exec' >&2; exit 1; }
-        command -v constructor-fabric-chromium >/dev/null 2>&1 || { echo 'Chromium wrapper missing' >&2; exit 1; }
-        test -f /home/developer/Desktop/Terminal.desktop || { echo 'Terminal desktop launcher missing' >&2; exit 1; }
-        if command -v firefox >/dev/null 2>&1 || command -v firefox-esr >/dev/null 2>&1; then echo 'Firefox is still installed' >&2; exit 1; fi
-        echo 'Chromium and Terminal desktop launchers are present and Firefox is absent'
+        test -f /home/developer/Desktop/Chromium.desktop || { echo "Chromium desktop launcher missing" >&2; exit 1; }
+        grep -q "^Name=Chromium$" /home/developer/Desktop/Chromium.desktop || { echo "Chromium desktop launcher has wrong label" >&2; exit 1; }
+        grep -Eq "^Exec=(/usr/local/bin/)?constructor-fabric-chromium" /home/developer/Desktop/Chromium.desktop || { echo "Chromium desktop launcher has wrong Exec" >&2; exit 1; }
+        command -v constructor-fabric-chromium >/dev/null 2>&1 || { echo "Chromium wrapper missing" >&2; exit 1; }
+        test -f /home/developer/Desktop/Terminal.desktop || { echo "Terminal desktop launcher missing" >&2; exit 1; }
+        if command -v firefox >/dev/null 2>&1 || command -v firefox-esr >/dev/null 2>&1; then echo "Firefox is still installed" >&2; exit 1; fi
+        echo "Chromium and Terminal desktop launchers are present and Firefox is absent"
         cd /home/developer/cyber-constructor
         cfc --version
-        cfc info --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "FOUND", data; assert data["relative_path"] == ".cf-constructor", data; print("cyber-constructor info is FOUND at .cf-constructor")'
-        cfc validate --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "PASS", data; print("cyber-constructor validate is PASS")'
-        cfc agents --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "OK", data; text=json.dumps(data).lower(); required=["windsurf","cursor","claude","copilot","openai"]; missing=[x for x in required if x not in text]; assert not missing, {"missing": missing, "data": data}; print("cyber-constructor agents are OK for "+", ".join(required))'
+        cfc info --json >/tmp/cfc-info.json
+        cfc validate --json >/tmp/cfc-validate.json
+        cfc agents --json >/tmp/cfc-agents.json
+        python3 <<PYCHECK
+        import json
+        info=json.load(open("/tmp/cfc-info.json"))
+        assert info["status"] == "FOUND", info
+        assert info["relative_path"] == ".cf-constructor", info
+        validate=json.load(open("/tmp/cfc-validate.json"))
+        assert validate["status"] == "PASS", validate
+        agents=json.load(open("/tmp/cfc-agents.json"))
+        assert agents["status"] == "OK", agents
+        text=json.dumps(agents).lower()
+        required=["windsurf","cursor","claude","copilot","openai"]
+        missing=[x for x in required if x not in text]
+        assert not missing, {"missing": missing, "data": agents}
+        print("cyber-constructor info is FOUND at .cf-constructor")
+        print("cyber-constructor validate is PASS")
+        print("cyber-constructor agents are OK for " + ", ".join(required))
+        PYCHECK
         VERIFYDEV
         chmod +x /tmp/constructor-fabric-verify-developer.sh
         chown developer:developer /tmp/constructor-fabric-verify-developer.sh
         su - developer -c /tmp/constructor-fabric-verify-developer.sh
-
 success: |
   ### Constructor Fabric is ready
 
