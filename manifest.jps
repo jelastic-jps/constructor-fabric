@@ -1,5 +1,5 @@
 type: install
-version: 0.4.42
+version: 0.4.43
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -27,7 +27,7 @@ globals:
   OPENAI_MODEL: gpt-4o-mini
   CLAUDE_MODEL: claude-3-5-sonnet-latest
   RESOLUTION: 1280x720
-  SCRIPT_VERSION: trainer-title-token-20260602-2
+  SCRIPT_VERSION: continue-cf-constructor-20260602-1
   CF_SOURCE_REF: 3983d4faa378ab7282d60d4d3452ca6b8b097279
 
 settings:
@@ -188,8 +188,8 @@ actions:
             provider: ${continue_provider}
             model: ${continue_model}
         CONTINUECFG
-        if [ -n "${API_TOKEN:-}" ]; then
-          printf "    apiKey: %s\n" "${API_TOKEN}" >> /home/developer/.continue/config.yaml
+        if [ -n "$ai_token" ]; then
+          printf "    apiKey: %s\n" "$ai_token" >> /home/developer/.continue/config.yaml
         fi
         cat >>/home/developer/.continue/config.yaml <<CONTINUECFG
             roles:
@@ -200,6 +200,23 @@ actions:
         context:
           - provider: code
           - provider: docs
+        customCommands:
+          - name: cf-constructor
+            description: Run the Constructor Fabric SDLC workflow using the generated .cf-constructor workspace, cfc CLI, and traceability rules.
+            prompt: |
+              You are Constructor Fabric inside the pre-initialized workspace.
+
+              User request:
+              {{{ input }}}
+
+              Use the local Constructor Fabric setup in this workspace:
+              - Read AGENTS.md and .cf-constructor/.gen/AGENTS.md before making changes.
+              - Use .cf-constructor as the Constructor Fabric adapter path.
+              - Use the generated agents and skills under .cf-constructor/.core/skills/cypilot when relevant.
+              - Use cfc/cf-constructor CLI commands for info, validation, artifacts, traceability, and generated agent workflow checks.
+              - Preserve traceability across PRD, ADR, DESIGN, DECOMPOSITION, FEATURE, CODE, tasks, tests, and review artifacts.
+              - When generating artifacts, write them into the workspace using Constructor Fabric conventions and run validation commands when possible.
+              - If validation fails, explain the failing checks and propose or apply fixes.
         CONTINUECFG
         cat >/home/developer/.config/VSCodium/User/settings.json <<VSCODESETTINGS
         {
