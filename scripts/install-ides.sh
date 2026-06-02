@@ -201,7 +201,7 @@ create_gui_launchers(){
   desktop_link "Terminal Emulator" "lxterminal --working-directory=${HOME}/workspaces/constructor-fabric-workspace" "utilities-terminal" "Terminal.desktop" "System;TerminalEmulator;"
   
   if command -v codium >/dev/null 2>&1; then
-    desktop_link "VS Codium" "sh -lc 'cd ${HOME}/workspaces/constructor-fabric-workspace && exec codium-wrap --user-data-dir=${HOME}/.config/VSCodium --goto .vscode/cfc-commands.md .'" "$(icon_for vscode)" "VS-Codium.desktop"
+    desktop_link "VS Codium" "${HOME}/constructor-fabric/open-vscodium-chat.sh" "$(icon_for vscode)" "VS-Codium.desktop"
   fi
   
   if command -v cursor >/dev/null 2>&1; then
@@ -266,6 +266,21 @@ WRAP
   mkdir -p "${HOME}/.local/bin"
   sudo cp /tmp/codium-wrap /usr/local/bin/codium-wrap 2>/dev/null || cp /tmp/codium-wrap "${HOME}/.local/bin/codium-wrap" 2>/dev/null || true
   sudo chmod +x /usr/local/bin/codium-wrap 2>/dev/null || chmod +x "${HOME}/.local/bin/codium-wrap" 2>/dev/null || true
+
+  cat > "${HOME}/constructor-fabric/open-vscodium-chat.sh" <<'OPENCHAT'
+#!/bin/sh
+set -u
+export HOME="${HOME:-/home/developer}"
+export PATH="${HOME}/.local/bin:/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+workspace="${HOME}/workspaces/constructor-fabric-workspace"
+mkdir -p "$workspace"
+cd "$workspace" || exit 0
+# Open the workspace and command file, then focus Continue chat. Running the
+# command in the same invocation is supported by VS Code/Codium CLI and makes
+# the AI chat visible immediately after clicking the desktop launcher.
+exec codium-wrap --user-data-dir="${HOME}/.config/VSCodium" --reuse-window --goto .vscode/cfc-commands.md . --command continue.focusContinueInput
+OPENCHAT
+  chmod +x "${HOME}/constructor-fabric/open-vscodium-chat.sh" 2>/dev/null || true
 
   # Copy icon to guaranteed path for desktop launcher
   mkdir -p "${HOME}/constructor-fabric/app/icons"
@@ -334,14 +349,17 @@ install_continue_ai_chat(){
 
   mkdir -p "${HOME}/.continue" "${HOME}/.config/VSCodium/User"
   continue_provider="$(printenv LLM_PROVIDER || echo openai)"
+  continue_api_key="$(printenv API_TOKEN || true)"
   case "$continue_provider" in
     claude|anthropic)
       continue_provider="anthropic"
       continue_model="$(printenv CLAUDE_MODEL || echo claude-3-5-sonnet-latest)"
+      if [ -z "$continue_api_key" ]; then continue_api_key="$(printenv ANTHROPIC_API_KEY || true)"; fi
       ;;
     *)
       continue_provider="openai"
       continue_model="$(printenv OPENAI_MODEL || echo gpt-5.5)"
+      if [ -z "$continue_api_key" ]; then continue_api_key="$(printenv OPENAI_API_KEY || true)"; fi
       ;;
   esac
 
@@ -353,6 +371,11 @@ models:
   - name: Constructor Fabric Chat
     provider: ${continue_provider}
     model: ${continue_model}
+CONTINUECFG
+  if [ -n "$continue_api_key" ]; then
+    printf "    apiKey: %s\n" "$continue_api_key" >> "${HOME}/.continue/config.yaml"
+  fi
+  cat >> "${HOME}/.continue/config.yaml" <<CONTINUECFG
     roles:
       - chat
       - edit
@@ -362,6 +385,14 @@ context:
   - provider: code
   - provider: docs
 CONTINUECFG
+
+  cat > "${HOME}/.config/VSCodium/User/settings.json" <<'VSCODESETTINGS'
+{
+  "workbench.startupEditor": "none",
+  "continue.telemetryEnabled": false,
+  "continue.showInlineTip": false
+}
+VSCODESETTINGS
 
   # Make the Continue chat extension available out of the box in VS Codium.
   # Open VSX is the native registry for Codium and is more reliable than
