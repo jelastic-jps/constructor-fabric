@@ -157,14 +157,14 @@ actions:
           last=''
           for i in $(seq 1 30); do
             if python3 - "$host" "$port" "$want_rfb" <<'PYPORT'
-import socket, sys
-host=sys.argv[1]; port=int(sys.argv[2]); want_rfb=sys.argv[3] == '1'
-s=socket.create_connection((host, port), timeout=2)
-if want_rfb:
-    banner=s.recv(12).decode(errors='replace').strip()
-    assert banner.startswith('RFB'), banner
-s.close()
-PYPORT
+        import socket, sys
+        host=sys.argv[1]; port=int(sys.argv[2]); want_rfb=sys.argv[3] == '1'
+        s=socket.create_connection((host, port), timeout=2)
+        if want_rfb:
+            banner=s.recv(12).decode(errors='replace').strip()
+            assert banner.startswith('RFB'), banner
+        s.close()
+        PYPORT
             then
               echo "$name is up on $host:$port"
               return 0
