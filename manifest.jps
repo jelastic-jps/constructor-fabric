@@ -227,9 +227,15 @@ actions:
           "continue.showInlineTip": false
         }
         VSCODESETTINGS
+        cat >/home/developer/.config/VSCodium/User/keybindings.json <<VSCODEKEYS
+        [
+          { "key": "ctrl+alt+c", "command": "continue.focusContinueInput" }
+        ]
+        VSCODEKEYS
         cat >/home/developer/workspaces/constructor-fabric-workspace/.vscode/cfc-commands.md <<CFCMDS
-        View: Show Continue
+        Continue: Focus Continue Chat
         Focus Continue Chat
+        View: Show Continue
         CFCMDS
         cat >/home/developer/constructor-fabric/open-vscodium-chat.sh <<'OPENCHAT'
         #!/bin/sh
@@ -258,18 +264,18 @@ actions:
             win="$(xdotool search --onlyvisible --class codium 2>/dev/null | tail -1 || true)"
             if [ -n "$win" ]; then
               xdotool windowactivate --sync "$win" 2>/dev/null || xdotool windowactivate "$win" 2>/dev/null || true
-              sleep 1
-              xdotool key --window "$win" ctrl+shift+p 2>/dev/null || true
-              sleep 1
-              xdotool type --window "$win" --delay 5 "View: Show Continue" 2>/dev/null || true
-              sleep 1
-              xdotool key --window "$win" Return 2>/dev/null || true
-              sleep 4
-              xdotool key --window "$win" ctrl+shift+p 2>/dev/null || true
-              sleep 1
-              xdotool type --window "$win" --delay 5 "Focus Continue Chat" 2>/dev/null || true
-              sleep 1
-              xdotool key --window "$win" Return 2>/dev/null || true
+              sleep 12
+              xdotool key --window "$win" ctrl+alt+c 2>/dev/null || true
+              sleep 3
+              for cmd in "Continue: Focus Continue Chat" "Focus Continue Chat" "View: Show Continue"; do
+                xdotool key --window "$win" ctrl+shift+p 2>/dev/null || true
+                sleep 1
+                xdotool type --window "$win" --delay 5 "$cmd" 2>/dev/null || true
+                sleep 1
+                xdotool key --window "$win" Return 2>/dev/null || true
+                sleep 4
+              done
+              xdotool key --window "$win" ctrl+alt+c 2>/dev/null || true
               break
             fi
             sleep 1

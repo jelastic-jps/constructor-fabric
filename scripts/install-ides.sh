@@ -211,21 +211,20 @@ if command -v xdotool >/dev/null 2>&1; then
     win="$(xdotool search --onlyvisible --class codium 2>/dev/null | tail -1 || true)"
     if [ -n "$win" ]; then
       xdotool windowactivate --sync "$win" 2>/dev/null || xdotool windowactivate "$win" 2>/dev/null || true
-      sleep 1
-      # First open the Continue activity view, then focus the chat input. Use
-      # explicit --window targeting because noVNC/LXDE sometimes leaves focus
-      # on the editor or on Chromium even after windowactivate.
-      xdotool key --window "$win" ctrl+shift+p 2>/dev/null || true
-      sleep 1
-      xdotool type --window "$win" --delay 5 "View: Show Continue" 2>/dev/null || true
-      sleep 1
-      xdotool key --window "$win" Return 2>/dev/null || true
-      sleep 4
-      xdotool key --window "$win" ctrl+shift+p 2>/dev/null || true
-      sleep 1
-      xdotool type --window "$win" --delay 5 "Focus Continue Chat" 2>/dev/null || true
-      sleep 1
-      xdotool key --window "$win" Return 2>/dev/null || true
+      sleep 12
+      # Continue activates on startup/view. Give it time, then try the direct
+      # keybinding and several palette labels used across Continue versions.
+      xdotool key --window "$win" ctrl+alt+c 2>/dev/null || true
+      sleep 3
+      for cmd in "Continue: Focus Continue Chat" "Focus Continue Chat" "View: Show Continue"; do
+        xdotool key --window "$win" ctrl+shift+p 2>/dev/null || true
+        sleep 1
+        xdotool type --window "$win" --delay 5 "$cmd" 2>/dev/null || true
+        sleep 1
+        xdotool key --window "$win" Return 2>/dev/null || true
+        sleep 4
+      done
+      xdotool key --window "$win" ctrl+alt+c 2>/dev/null || true
       break
     fi
     sleep 1
@@ -443,6 +442,11 @@ CONTINUECFG
   "continue.showInlineTip": false
 }
 VSCODESETTINGS
+  cat > "${HOME}/.config/VSCodium/User/keybindings.json" <<'VSCODEKEYS'
+[
+  { "key": "ctrl+alt+c", "command": "continue.focusContinueInput" }
+]
+VSCODEKEYS
 
   # Make the Continue chat extension available out of the box in VS Codium.
   # Open VSX is the native registry for Codium and is more reliable than
