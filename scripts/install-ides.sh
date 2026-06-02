@@ -201,10 +201,28 @@ launcher=codium-wrap
 if ! command -v "$launcher" >/dev/null 2>&1; then
   launcher=codium
 fi
-# Open the workspace and command file, then focus Continue chat. Running the
-# command in the same invocation is supported by VS Code/Codium CLI and makes
-# the AI chat visible immediately after clicking the desktop launcher.
-exec "$launcher" --user-data-dir="${HOME}/.config/VSCodium" --reuse-window --goto .vscode/cfc-commands.md . --command continue.focusContinueInput
+# Open the workspace and command file, then focus Continue chat. This VSCodium
+# build does not support a --command CLI flag, so use xdotool when available to
+# invoke the command palette exactly like a user would.
+"$launcher" --user-data-dir="${HOME}/.config/VSCodium" --reuse-window --goto .vscode/cfc-commands.md . &
+codium_pid=$!
+if command -v xdotool >/dev/null 2>&1; then
+  for i in $(seq 1 40); do
+    win="$(xdotool search --onlyvisible --class codium 2>/dev/null | head -1 || true)"
+    if [ -n "$win" ]; then
+      xdotool windowactivate "$win" 2>/dev/null || true
+      sleep 1
+      xdotool key ctrl+shift+p 2>/dev/null || true
+      sleep 1
+      xdotool type --delay 2 "Continue: Focus Continue Chat" 2>/dev/null || true
+      sleep 1
+      xdotool key Return 2>/dev/null || true
+      break
+    fi
+    sleep 1
+  done
+fi
+wait "$codium_pid"
 OPENCHAT
   chmod +x "${HOME}/constructor-fabric/open-vscodium-chat.sh" 2>/dev/null || true
 }
