@@ -96,7 +96,7 @@ cfc generate-agents --root "$root" -y
 import json, sys
 from pathlib import Path
 text=json.dumps(json.loads((Path.home()/'cyber-constructor/workspace-agents.json').read_text())).lower()
-required=['windsurf','cursor','claude','copilot','openai']
+required=['windsurf','claude','copilot','openai']
 missing=[name for name in required if name not in text]
 if missing:
     raise SystemExit('Missing generated IDE/agent integrations: '+', '.join(missing))

@@ -50,13 +50,6 @@ ensure_icon(){
       # Use the VS Code icon for VS Codium as requested. The old VSCodium URL is 404.
       curl --noproxy "*" -fsSL https://raw.githubusercontent.com/microsoft/vscode/main/resources/linux/code.png -o "$target_path" 2>/dev/null && return 0
       ;;
-    cursor)
-      for src in /opt/cursor/squashfs-root/usr/share/icons/hicolor/256x256/apps/cursor.png /opt/cursor/squashfs-root/cursor.png /opt/cursor/cursor.png; do
-        if [ -f "$src" ]; then
-          cp "$src" "$target_path" 2>/dev/null && return 0
-        fi
-      done
-      ;;
     windsurf)
       for src in /opt/windsurf/resources/app/resources/linux/code.png /opt/windsurf/resources/app/resources/linux/windsurf.png /usr/share/pixmaps/windsurf.png; do
         if [ -f "$src" ]; then
@@ -99,15 +92,6 @@ icon_for(){
         printf '%s\n' "$target"
       else
         printf '%s\n' vscodium
-      fi
-      ;;
-    cursor)
-      target="$icon_dir/cursor.png"
-      ensure_icon cursor "$target"
-      if [ -f "$target" ]; then
-        printf '%s\n' "$target"
-      else
-        printf '%s\n' applications-development
       fi
       ;;
     windsurf)
@@ -253,10 +237,7 @@ create_gui_launchers(){
     desktop_link "VS Codium" "${HOME}/constructor-fabric/open-vscodium-chat.sh" "$(icon_for vscode)" "VS-Codium.desktop"
   fi
   
-  if command -v cursor >/dev/null 2>&1; then
-    desktop_link "Cursor" "sh -lc 'cd ${HOME}/workspaces/constructor-fabric-workspace && exec cursor --no-sandbox .'" "$(icon_for cursor)" "Cursor.desktop"
-  fi
-  
+
   if command -v windsurf >/dev/null 2>&1; then
     desktop_link "Windsurf" "sh -lc 'cd ${HOME}/workspaces/constructor-fabric-workspace && exec windsurf --no-sandbox .'" "$(icon_for windsurf)" "Windsurf.desktop"
   fi
@@ -321,22 +302,6 @@ WRAP
   # Copy icon to guaranteed path for desktop launcher
   mkdir -p "${HOME}/constructor-fabric/app/icons"
   ensure_icon codium "${HOME}/constructor-fabric/app/icons/codium.png"
-}
-
-install_cursor(){
-  if command -v cursor >/dev/null 2>&1; then log "Cursor already installed"; return 0; fi
-  ensure_ide_prereqs
-  log "Installing Cursor"
-  sudo mkdir -p /opt/cursor
-  curl --noproxy '*' -fsSL "https://cursor.com/api/download?platform=linux-x64" -o /tmp/cursor.tar.gz >> "$LOG" 2>&1 \
-    && sudo tar -xzf /tmp/cursor.tar.gz -C /opt/cursor >> "$LOG" 2>&1 \
-    && sudo ln -sf /opt/cursor/cursor /usr/local/bin/cursor 2>/dev/null \
-    || log "Cursor install failed"
-  rm -f /tmp/cursor.tar.gz 2>/dev/null || true
-  
-  # Ensure icon is available
-  mkdir -p "${HOME}/constructor-fabric/app/icons"
-  ensure_icon cursor "${HOME}/constructor-fabric/app/icons/cursor.png"
 }
 
 install_windsurf(){
@@ -526,7 +491,6 @@ case "$PROFILE" in
     log "All profile: installing all IDEs and agent CLIs"
     install_node22
     install_vscode
-    install_cursor
     install_windsurf
     install_codex
     install_claude

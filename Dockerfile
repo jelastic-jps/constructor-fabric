@@ -140,11 +140,6 @@ if vscode_asset_icon.exists():
 elif not codium_icon.exists():
     create_placeholder_icon(str(codium_icon))
 
-# Download Cursor icon if not present
-cursor_icon = icon_dir / 'cursor.png'
-if not cursor_icon.exists():
-    create_placeholder_icon(str(cursor_icon))
-
 # Download Windsurf icon if not present
 windsurf_icon = icon_dir / 'windsurf.png'
 if not windsurf_icon.exists():
