@@ -1,5 +1,5 @@
 type: install
-version: 0.4.34
+version: 0.4.35
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -27,7 +27,7 @@ globals:
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-3-5-sonnet-latest
   RESOLUTION: 1280x720
-  SCRIPT_VERSION: ai-chat-inline-20260602-1
+  SCRIPT_VERSION: ai-chat-inline-20260602-2
   CF_SOURCE_REF: e4f3856637cb162bae4724825c9dae7cc1809a2c
 
 settings:
@@ -236,17 +236,7 @@ actions:
         OPENCHAT
         chmod +x /home/developer/constructor-fabric/open-vscodium-chat.sh
         if [ -f /home/developer/Desktop/VS-Codium.desktop ]; then
-          python3 - <<PYDESK
-        from pathlib import Path
-        p = Path("/home/developer/Desktop/VS-Codium.desktop")
-        s = p.read_text()
-        lines = []
-        for line in s.splitlines():
-            if line.startswith("Exec="):
-        line = "Exec=/home/developer/constructor-fabric/open-vscodium-chat.sh"
-            lines.append(line)
-        p.write_text("\n".join(lines) + "\n")
-        PYDESK
+          sed -i "s|^Exec=.*|Exec=/home/developer/constructor-fabric/open-vscodium-chat.sh|" /home/developer/Desktop/VS-Codium.desktop
         else
           cat >/home/developer/Desktop/VS-Codium.desktop <<VSCODIUMDESK
         [Desktop Entry]
