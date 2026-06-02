@@ -5,8 +5,9 @@ export HOME="${HOME:-/home/developer}"
 export USER="${USER:-developer}"
 export XDG_CURRENT_DESKTOP=LXDE
 export DESKTOP_SESSION=LXDE
-mkdir -p /tmp/.X11-unix "${HOME}/constructor-fabric" "${HOME}/.config/pcmanfm/LXDE" "${HOME}/.config/lxpanel/LXDE/panels" "${HOME}/.config/libfm"
-chmod 1777 /tmp/.X11-unix || true
+mkdir -p "${HOME}/constructor-fabric" "${HOME}/.config/pcmanfm/LXDE" "${HOME}/.config/lxpanel/LXDE/panels" "${HOME}/.config/libfm" 2>/dev/null || true
+mkdir -p /tmp/.X11-unix 2>/dev/null || true
+chmod 1777 /tmp/.X11-unix 2>/dev/null || true
 # Audio: provide a real PulseAudio endpoint for Electron/Chromium apps so they do
 # not emit the base-image "To support audio, please read README" warning. Browser
 # audio forwarding is platform-dependent, but apps must at least see a working sink.
@@ -19,8 +20,9 @@ export AUDIODEV=default
 # For this marketplace desktop real sound is not required, but some launchers/apps
 # only check that ALSADEV and /dev/snd exist before printing the noisy warning.
 # Provide a harmless dummy /dev/snd directory plus Pulse/ALSA null routing.
-mkdir -p /dev/snd /tmp/pulse-root "${HOME}/.config/pulse"
-chmod 755 /dev/snd || true
+mkdir -p /tmp/pulse-root "${HOME}/.config/pulse" 2>/dev/null || true
+mkdir -p /dev/snd 2>/dev/null || true
+chmod 755 /dev/snd 2>/dev/null || true
 chmod 700 /tmp/pulse-root || true
 cat > "${HOME}/.config/pulse/client.conf" <<'PULSECLIENT'
 default-server = unix:/tmp/pulse-root/native
