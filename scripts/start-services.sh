@@ -99,7 +99,8 @@ fi
 
 configure_openbox_theme() {
   sudo mkdir -p /usr/share/themes/ConstructorFabric/openbox-3 "${HOME}/.config/openbox" "${HOME}/.config/gtk-3.0" "${HOME}/.config/gtk-2.0"
-  sudo tee /usr/share/themes/ConstructorFabric/openbox-3/themerc > /dev/null <<'OBTHEME'
+  sudo mkdir -p /usr/share/themes/ConstructorFabric/openbox-3
+  cat > /tmp/themerc <<'OBTHEME'
 border.width: 2
 padding.width: 6
 padding.height: 5
@@ -165,37 +166,44 @@ osd.border.width: 1
 osd.border.color: #2dd4bf
 osd.label.text.color: #eef6ff
 OBTHEME
-  sudo tee /usr/share/themes/ConstructorFabric/openbox-3/close.xbm > /dev/null <<'OBXBM'
+  sudo cp /tmp/themerc /usr/share/themes/ConstructorFabric/openbox-3/themerc
+
+  cat > /tmp/close.xbm <<'OBXBM'
 #define close_width 8
 #define close_height 8
 static unsigned char close_bits[] = { 0xc3,0xe7,0x7e,0x3c,0x3c,0x7e,0xe7,0xc3 };
 OBXBM
-  sudo tee /usr/share/themes/ConstructorFabric/openbox-3/max.xbm > /dev/null <<'OBXBM'
+  sudo cp /tmp/close.xbm /usr/share/themes/ConstructorFabric/openbox-3/close.xbm
+
+  cat > /tmp/max.xbm <<'OBXBM'
 #define max_width 8
 #define max_height 8
 static unsigned char max_bits[] = { 0xff,0x81,0x81,0x81,0x81,0x81,0x81,0xff };
 OBXBM
-  sudo tee /usr/share/themes/ConstructorFabric/openbox-3/iconify.xbm > /dev/null <<'OBXBM'
+  sudo cp /tmp/max.xbm /usr/share/themes/ConstructorFabric/openbox-3/max.xbm
+
+  cat > /tmp/iconify.xbm <<'OBXBM'
 #define iconify_width 8
 #define iconify_height 8
 static unsigned char iconify_bits[] = { 0x00,0x00,0x00,0x00,0x00,0x00,0xff,0xff };
 OBXBM
-  sudo tee /usr/share/themes/ConstructorFabric/openbox-3/shade.xbm > /dev/null <<'OBXBM'
+  sudo cp /tmp/iconify.xbm /usr/share/themes/ConstructorFabric/openbox-3/iconify.xbm
+
+  cat > /tmp/shade.xbm <<'OBXBM'
 #define shade_width 8
 #define shade_height 8
 static unsigned char shade_bits[] = { 0x18,0x3c,0x7e,0xff,0x00,0x00,0x00,0x00 };
 OBXBM
-  sudo tee /usr/share/themes/ConstructorFabric/openbox-3/desk.xbm > /dev/null <<'OBXBM'
+  sudo cp /tmp/shade.xbm /usr/share/themes/ConstructorFabric/openbox-3/shade.xbm
+
+  cat > /tmp/desk.xbm <<'OBXBM'
 #define desk_width 8
 #define desk_height 8
 static unsigned char desk_bits[] = { 0xff,0x81,0xbd,0xa5,0xa5,0xbd,0x81,0xff };
 OBXBM
-  for n in close max iconify shade desk; do
-    sudo cp "/usr/share/themes/ConstructorFabric/openbox-3/$n.xbm" "/usr/share/themes/ConstructorFabric/openbox-3/${n}_pressed.xbm"
-    sudo cp "/usr/share/themes/ConstructorFabric/openbox-3/$n.xbm" "/usr/share/themes/ConstructorFabric/openbox-3/${n}_hover.xbm"
-    sudo cp "/usr/share/themes/ConstructorFabric/openbox-3/$n.xbm" "/usr/share/themes/ConstructorFabric/openbox-3/${n}_disabled.xbm"
-  done
-  python3 - <<'PYOB'
+  sudo cp /tmp/desk.xbm /usr/share/themes/ConstructorFabric/openbox-3/desk.xbm
+
+python3 - <<'PYOB'
 from pathlib import Path
 candidates = [
   Path('/etc/xdg/openbox/LXDE/rc.xml'),
