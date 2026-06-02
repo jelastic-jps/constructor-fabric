@@ -88,7 +88,7 @@ start_detached() {
 }
 
 if [ -f /etc/supervisor/conf.d/supervisord.conf ]; then
-  sudo python3 - <<'PYCONF'
+  sudo python3 <<'PYCONF'
 from pathlib import Path
 p = Path('/etc/supervisor/conf.d/supervisord.conf')
 text = p.read_text()
@@ -99,7 +99,7 @@ fi
 
 configure_openbox_theme() {
   sudo mkdir -p /usr/share/themes/ConstructorFabric/openbox-3 "${HOME}/.config/openbox" "${HOME}/.config/gtk-3.0" "${HOME}/.config/gtk-2.0"
-  sudo cat > /usr/share/themes/ConstructorFabric/openbox-3/themerc <<'OBTHEME'
+  sudo tee /usr/share/themes/ConstructorFabric/openbox-3/themerc > /dev/null <<'OBTHEME'
 border.width: 2
 padding.width: 6
 padding.height: 5
@@ -165,27 +165,27 @@ osd.border.width: 1
 osd.border.color: #2dd4bf
 osd.label.text.color: #eef6ff
 OBTHEME
-  sudo cat > /usr/share/themes/ConstructorFabric/openbox-3/close.xbm <<'OBXBM'
+  sudo tee /usr/share/themes/ConstructorFabric/openbox-3/close.xbm > /dev/null <<'OBXBM'
 #define close_width 8
 #define close_height 8
 static unsigned char close_bits[] = { 0xc3,0xe7,0x7e,0x3c,0x3c,0x7e,0xe7,0xc3 };
 OBXBM
-  sudo cat > /usr/share/themes/ConstructorFabric/openbox-3/max.xbm <<'OBXBM'
+  sudo tee /usr/share/themes/ConstructorFabric/openbox-3/max.xbm > /dev/null <<'OBXBM'
 #define max_width 8
 #define max_height 8
 static unsigned char max_bits[] = { 0xff,0x81,0x81,0x81,0x81,0x81,0x81,0xff };
 OBXBM
-  sudo cat > /usr/share/themes/ConstructorFabric/openbox-3/iconify.xbm <<'OBXBM'
+  sudo tee /usr/share/themes/ConstructorFabric/openbox-3/iconify.xbm > /dev/null <<'OBXBM'
 #define iconify_width 8
 #define iconify_height 8
 static unsigned char iconify_bits[] = { 0x00,0x00,0x00,0x00,0x00,0x00,0xff,0xff };
 OBXBM
-  sudo cat > /usr/share/themes/ConstructorFabric/openbox-3/shade.xbm <<'OBXBM'
+  sudo tee /usr/share/themes/ConstructorFabric/openbox-3/shade.xbm > /dev/null <<'OBXBM'
 #define shade_width 8
 #define shade_height 8
 static unsigned char shade_bits[] = { 0x18,0x3c,0x7e,0xff,0x00,0x00,0x00,0x00 };
 OBXBM
-  sudo cat > /usr/share/themes/ConstructorFabric/openbox-3/desk.xbm <<'OBXBM'
+  sudo tee /usr/share/themes/ConstructorFabric/openbox-3/desk.xbm > /dev/null <<'OBXBM'
 #define desk_width 8
 #define desk_height 8
 static unsigned char desk_bits[] = { 0xff,0x81,0xbd,0xa5,0xa5,0xbd,0x81,0xff };
@@ -439,7 +439,7 @@ PY
 fi
 if [ -f /etc/nginx/sites-enabled/default ]; then
   sudo rm -f /etc/nginx/sites-enabled/default.bak.*
-  sudo python3 - <<'PY'
+  sudo python3 <<'PY'
 from pathlib import Path
 p=Path('/etc/nginx/sites-enabled/default')
 s=p.read_text()
