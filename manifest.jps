@@ -27,8 +27,8 @@ globals:
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-3-5-sonnet-latest
   RESOLUTION: 1280x720
-  SCRIPT_VERSION: ai-chat-20260602-5
-  CF_SOURCE_REF: 7dc5c0dceac6bf77d7749b2056ffbff6b45926f0
+  SCRIPT_VERSION: ai-chat-20260602-6
+  CF_SOURCE_REF: af2d679e94881648b7c3438656edf4c93d34c2a2
 
 settings:
   fields:
@@ -138,6 +138,11 @@ actions:
           /opt/node-current/bin/npm install -g electron@latest
           ln -sf /opt/node-current/bin/electron /usr/local/bin/electron 2>/dev/null || true
         fi
+        if ! command -v xdotool >/dev/null 2>&1; then
+          apt-get update
+          apt-get install -y --no-install-recommends xdotool
+          rm -rf /var/lib/apt/lists/*
+        fi
         # The base VNC startup may leave /home/developer owned by root. Fix it
         # before downloading runtime scripts, then execute bootstrap as developer.
         chown -R developer:developer /home/developer
@@ -208,6 +213,7 @@ actions:
         test -f /home/developer/Desktop/VS-Codium.desktop || { echo "VS Codium desktop launcher missing" >&2; exit 1; }
         grep -q "open-vscodium-chat.sh" /home/developer/Desktop/VS-Codium.desktop || { echo "VS Codium desktop launcher does not open AI chat wrapper" >&2; exit 1; }
         test -f /home/developer/constructor-fabric/open-vscodium-chat.sh || { echo "VS Codium AI chat wrapper missing" >&2; exit 1; }
+        command -v xdotool >/dev/null 2>&1 || { echo "xdotool missing for Codium chat focus" >&2; exit 1; }
         test -f /home/developer/.continue/config.yaml || { echo "Continue config missing" >&2; exit 1; }
         grep -q "provider: " /home/developer/.continue/config.yaml || { echo "Continue provider missing" >&2; exit 1; }
         grep -q "model: " /home/developer/.continue/config.yaml || { echo "Continue model missing" >&2; exit 1; }
