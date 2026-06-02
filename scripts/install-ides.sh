@@ -324,6 +324,63 @@ install_claude(){
   /opt/node-current/bin/npm install -g @anthropic-ai/claude-code >> "$LOG" 2>&1 || log "Claude Code install failed"
 }
 
+install_continue_ai_chat(){
+  if ! command -v codium >/dev/null 2>&1; then
+    log "VS Codium not installed; skipping Continue AI chat extension"
+    return 0
+  fi
+
+  mkdir -p "${HOME}/.continue" "${HOME}/.config/VSCodium/User"
+  continue_provider="$(printenv LLM_PROVIDER || echo openai)"
+  case "$continue_provider" in
+    claude|anthropic)
+      continue_provider="anthropic"
+      continue_model="$(printenv CLAUDE_MODEL || echo claude-3-5-sonnet-latest)"
+      ;;
+    *)
+      continue_provider="openai"
+      continue_model="$(printenv OPENAI_MODEL || echo gpt-5.5)"
+      ;;
+  esac
+
+  cat > "${HOME}/.continue/config.yaml" <<CONTINUECFG
+name: Constructor Fabric
+version: 1.0.0
+schema: v1
+models:
+  - name: Constructor Fabric Chat
+    provider: ${continue_provider}
+    model: ${continue_model}
+    roles:
+      - chat
+      - edit
+      - apply
+      - autocomplete
+context:
+  - provider: code
+  - provider: docs
+CONTINUECFG
+
+  # Make the Continue chat extension available out of the box in VS Codium.
+  # Open VSX is the native registry for Codium and is more reliable than
+  # proprietary Marketplace-only Copilot Chat in this image.
+  if codium --list-extensions 2>/dev/null | grep -qi '^continue\.continue$'; then
+    log "Continue AI chat extension already installed"
+    return 0
+  fi
+
+  log "Installing Continue AI chat extension for VS Codium"
+  timeout 360 codium --install-extension Continue.continue --force >> "$LOG" 2>&1 || {
+    log "Continue registry install failed; trying direct Open VSX linux-x64 VSIX"
+    curl --noproxy '*' -fsSL \
+      'https://open-vsx.org/api/Continue/continue/linux-x64/1.3.38/file/Continue.continue-1.3.38@linux-x64.vsix' \
+      -o /tmp/continue.vsix >> "$LOG" 2>&1 \
+      && timeout 360 codium --install-extension /tmp/continue.vsix --force >> "$LOG" 2>&1 \
+      || log "Continue AI chat extension install failed"
+    rm -f /tmp/continue.vsix 2>/dev/null || true
+  }
+}
+
 install_copilot(){
   if ! command -v codium >/dev/null 2>&1; then
     log "VS Codium not installed; skipping Copilot extension"
@@ -368,6 +425,7 @@ case "$PROFILE" in
     install_node22
     install_codex
     install_claude
+    install_continue_ai_chat
     create_gui_launchers
     ;;
   all)
@@ -378,6 +436,7 @@ case "$PROFILE" in
     install_windsurf
     install_codex
     install_claude
+    install_continue_ai_chat
     install_copilot
     install_copilot_chat
     create_gui_launchers
@@ -387,6 +446,7 @@ case "$PROFILE" in
     install_node22
     install_codex
     install_claude
+    install_continue_ai_chat
     create_gui_launchers
     ;;
 esac
