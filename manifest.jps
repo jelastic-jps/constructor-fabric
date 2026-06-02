@@ -27,8 +27,8 @@ globals:
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-3-5-sonnet-latest
   RESOLUTION: 1280x720
-  SCRIPT_VERSION: ai-chat-20260602-3
-  CF_SOURCE_REF: 294f3f7650306096878c701e863c241d2bdbff5e
+  SCRIPT_VERSION: ai-chat-20260602-4
+  CF_SOURCE_REF: 64b2fb4b7e79860070213c84082b73c80491f770
 
 settings:
   fields:
@@ -202,8 +202,17 @@ actions:
         grep -Eq "^Exec=(/usr/local/bin/)?constructor-fabric-chromium" /home/developer/Desktop/Chromium.desktop || { echo "Chromium desktop launcher has wrong Exec" >&2; exit 1; }
         command -v constructor-fabric-chromium >/dev/null 2>&1 || { echo "Chromium wrapper missing" >&2; exit 1; }
         test -f /home/developer/Desktop/Terminal.desktop || { echo "Terminal desktop launcher missing" >&2; exit 1; }
+        test -f /home/developer/Desktop/Constructor-Fabric-Trainer.desktop || { echo "Constructor desktop launcher missing" >&2; exit 1; }
+        grep -q "^Name=Constructor Fabric Trainer$" /home/developer/Desktop/Constructor-Fabric-Trainer.desktop || { echo "Constructor desktop launcher has wrong label" >&2; exit 1; }
+        grep -q "run-trainer.sh" /home/developer/Desktop/Constructor-Fabric-Trainer.desktop || { echo "Constructor desktop launcher has wrong Exec" >&2; exit 1; }
+        test -f /home/developer/Desktop/VS-Codium.desktop || { echo "VS Codium desktop launcher missing" >&2; exit 1; }
+        grep -q "open-vscodium-chat.sh" /home/developer/Desktop/VS-Codium.desktop || { echo "VS Codium desktop launcher does not open AI chat wrapper" >&2; exit 1; }
+        test -f /home/developer/constructor-fabric/open-vscodium-chat.sh || { echo "VS Codium AI chat wrapper missing" >&2; exit 1; }
+        test -f /home/developer/.continue/config.yaml || { echo "Continue config missing" >&2; exit 1; }
+        grep -q "provider: " /home/developer/.continue/config.yaml || { echo "Continue provider missing" >&2; exit 1; }
+        grep -q "model: " /home/developer/.continue/config.yaml || { echo "Continue model missing" >&2; exit 1; }
         if command -v firefox >/dev/null 2>&1 || command -v firefox-esr >/dev/null 2>&1; then echo "Firefox is still installed" >&2; exit 1; fi
-        echo "Chromium and Terminal desktop launchers are present and Firefox is absent"
+        echo "Chromium, Terminal, Constructor, and VS Codium AI chat desktop launchers are present and Firefox is absent"
         cd /home/developer/cyber-constructor
         cfc --version
         cfc info --json >/tmp/cfc-info.json
