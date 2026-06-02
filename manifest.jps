@@ -1,5 +1,5 @@
 type: install
-version: 0.4.37
+version: 0.4.38
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -24,10 +24,10 @@ globals:
   CF_PORT: 8081
   APP_PORT: 8081
   LLM_PROVIDER: openai
-  OPENAI_MODEL: gpt-5.5
+  OPENAI_MODEL: gpt-4o-mini
   CLAUDE_MODEL: claude-3-5-sonnet-latest
   RESOLUTION: 1280x720
-  SCRIPT_VERSION: ai-chat-inline-20260602-5
+  SCRIPT_VERSION: ai-chat-token-trainer-20260602-1
   CF_SOURCE_REF: 2f3727daa7cf6dfaf56ab8267b90c1d3c43cc743
 
 settings:
@@ -47,12 +47,12 @@ settings:
             type: list
             inputType: string
             name: openai-model
-            default: gpt-5.5
+            default: gpt-4o-mini
             values:
-              gpt-5.5: OpenAI GPT-5.5
-              gpt-5.4: OpenAI GPT-5.4
-              gpt-5.4-mini: OpenAI GPT-5.4 mini
-              gpt-5.4-nano: OpenAI GPT-5.4 nano
+              gpt-4o-mini: OpenAI GPT-4o mini
+              gpt-4o: OpenAI GPT-4o
+              gpt-4.1-mini: OpenAI GPT-4.1 mini
+              gpt-4.1: OpenAI GPT-4.1
             tooltip: Select the OpenAI model used by the Constructor Fabric workflow.
         claude:
           - caption: Anthropic model
@@ -97,7 +97,7 @@ nodes:
       API_TOKEN: ${settings.api-token}
       OPENAI_API_KEY: ${settings.api-token}
       ANTHROPIC_API_KEY: ${settings.api-token}
-      OPENAI_MODEL: ${settings.openai-model:gpt-5.5}
+      OPENAI_MODEL: ${settings.openai-model:gpt-4o-mini}
       CLAUDE_MODEL: ${settings.claude-model:claude-3-5-sonnet-latest}
       CF_IDE_PROFILE: all
       CF_PREINSTALLED_IDES: 1
@@ -156,8 +156,14 @@ actions:
         # updater owns CF_SOURCE_REF; this block only wires VS Codium to open
         # Continue chat with the token passed via JPS settings.
         mkdir -p /home/developer/.continue /home/developer/.config/VSCodium/User /home/developer/constructor-fabric /home/developer/workspaces/constructor-fabric-workspace/.vscode
+        cat >/home/developer/.constructor-fabric-ai.env <<AIENV
+        API_TOKEN=${API_TOKEN:-}
+        OPENAI_API_KEY=${OPENAI_API_KEY:-${API_TOKEN:-}}
+        ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-${API_TOKEN:-}}
+        AIENV
+        chmod 600 /home/developer/.constructor-fabric-ai.env
         continue_provider="${LLM_PROVIDER:-openai}"
-        continue_model="${OPENAI_MODEL:-gpt-5.5}"
+        continue_model="${OPENAI_MODEL:-gpt-4o-mini}"
         if [ "$continue_provider" = "anthropic" ]; then
           continue_model="${CLAUDE_MODEL:-claude-3-5-sonnet-latest}"
         fi
@@ -165,6 +171,10 @@ actions:
         name: Constructor Fabric
         version: 1.0.0
         schema: v1
+        env:
+          OPENAI_API_KEY: ${OPENAI_API_KEY:-${API_TOKEN:-}}
+          ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-${API_TOKEN:-}}
+          API_TOKEN: ${API_TOKEN:-}
         models:
           - name: Constructor Fabric Chat
             provider: ${continue_provider}
@@ -203,6 +213,11 @@ actions:
           ""|-*) HOME=/home/developer ;;
         esac
         export HOME
+        if [ -f "${HOME}/.constructor-fabric-ai.env" ]; then
+          set -a
+          . "${HOME}/.constructor-fabric-ai.env"
+          set +a
+        fi
         export PATH="${HOME}/.local/bin:/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
         workspace="${HOME}/workspaces/constructor-fabric-workspace"
         mkdir -p "$workspace/.vscode"
@@ -254,7 +269,7 @@ actions:
         VSCODIUMDESK
         fi
         chmod +x /home/developer/Desktop/VS-Codium.desktop
-        chown -R developer:developer /home/developer/.continue /home/developer/.config/VSCodium /home/developer/constructor-fabric/open-vscodium-chat.sh /home/developer/workspaces /home/developer/Desktop/VS-Codium.desktop
+        chown -R developer:developer /home/developer/.constructor-fabric-ai.env /home/developer/.continue /home/developer/.config/VSCodium /home/developer/constructor-fabric/open-vscodium-chat.sh /home/developer/workspaces /home/developer/Desktop/VS-Codium.desktop
         su - developer -c "export HOME=/home/developer PATH=/home/developer/.local/bin:/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin; if command -v codium >/dev/null 2>&1; then codium --install-extension Continue.continue --force >/tmp/continue-install.log 2>&1 || true; fi"
 
   verify:
