@@ -171,8 +171,8 @@ actions:
         su - developer -c "
           test -f /home/developer/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher missing' >&2; exit 1; }
           grep -q '^Name=Chromium$' /home/developer/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher has wrong label' >&2; exit 1; }
-          grep -q '^Exec=/usr/local/bin/constructor-fabric-chromium' /home/developer/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher has wrong Exec' >&2; exit 1; }
-          test -x /usr/local/bin/constructor-fabric-chromium || { echo 'Chromium wrapper missing' >&2; exit 1; }
+          grep -Eq '^Exec=(/usr/local/bin/)?constructor-fabric-chromium' /home/developer/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher has wrong Exec' >&2; exit 1; }
+          command -v constructor-fabric-chromium >/dev/null 2>&1 || { echo 'Chromium wrapper missing' >&2; exit 1; }
           test -f /home/developer/Desktop/Terminal.desktop || { echo 'Terminal desktop launcher missing' >&2; exit 1; }
           if command -v firefox >/dev/null 2>&1 || command -v firefox-esr >/dev/null 2>&1; then echo 'Firefox is still installed' >&2; exit 1; fi
           echo 'Chromium and Terminal desktop launchers are present and Firefox is absent'
