@@ -390,11 +390,18 @@ for i in $(seq 1 30); do
   xdpyinfo -display :1 >/dev/null 2>&1 && break
   sleep 1
 done
-if [ -s /.password2 ]; then
-  setsid /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -rfbauth /.password2 </dev/null >"${HOME}/constructor-fabric/x11vnc.log" 2>&1 &
-else
-  setsid /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 -nopw </dev/null >"${HOME}/constructor-fabric/x11vnc.log" 2>&1 &
+VNC_AUTH_ARGS="-nopw"
+if [ -n "${VNC_PASSWORD:-${PASSWORD:-}}" ] && command -v x11vnc >/dev/null 2>&1; then
+  mkdir -p "${HOME}/.vnc"
+  # Do not use /.password2 here: in developer-user mode it is root-owned in the
+  # base image and x11vnc exits immediately when it cannot read it.
+  x11vnc -storepasswd "${VNC_PASSWORD:-${PASSWORD:-}}" "${HOME}/.vnc/passwd" >/dev/null 2>&1 || true
+  chmod 600 "${HOME}/.vnc/passwd" 2>/dev/null || true
+  if [ -s "${HOME}/.vnc/passwd" ]; then
+    VNC_AUTH_ARGS="-rfbauth ${HOME}/.vnc/passwd"
+  fi
 fi
+setsid /usr/bin/x11vnc -display :1 -xkb -forever -shared -repeat -noxdamage -nowf -noscr -listen 0.0.0.0 -rfbport 5900 $VNC_AUTH_ARGS </dev/null >"${HOME}/constructor-fabric/x11vnc.log" 2>&1 &
 # Enable VNC/noVNC clipboard sync. x11vnc 0.9.16 rejects its non-portable clipboard flag,
 # so keep x11vnc clipboard defaults enabled and bridge X selections with autocutsel.
 if command -v autocutsel >/dev/null 2>&1; then
@@ -402,7 +409,11 @@ if command -v autocutsel >/dev/null 2>&1; then
   DISPLAY=:1 setsid /usr/bin/autocutsel -selection CLIPBOARD -fork </dev/null >"${HOME}/constructor-fabric/autocutsel-clipboard.log" 2>&1 &
   DISPLAY=:1 setsid /usr/bin/autocutsel -selection PRIMARY -fork </dev/null >"${HOME}/constructor-fabric/autocutsel-primary.log" 2>&1 &
 fi
-for i in $(seq 1 20); do
+for i in $(seq 1 40); do
+  if ! pgrep -x x11vnc >/dev/null 2>&1; then
+    echo 'x11vnc is not running; last log lines:' >&2
+    tail -40 "${HOME}/constructor-fabric/x11vnc.log" >&2 2>/dev/null || true
+  fi
   if python3 - <<'PYVNC'
 import socket
 s=socket.create_connection(('127.0.0.1', 5900), timeout=1)
