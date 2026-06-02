@@ -152,6 +152,10 @@ if [ -f "${HOME}/constructor-fabric/assets/constructor-fabric-logo.png" ]; then
   cp "${HOME}/constructor-fabric/assets/constructor-fabric-logo.png" "${HOME}/constructor-fabric/app/icon.png" 2>/dev/null || true
   cp "${HOME}/constructor-fabric/assets/constructor-fabric-logo.png" "${HOME}/constructor-fabric/app/icons/trainer.png" 2>/dev/null || true
 fi
+if [ -s "${HOME}/constructor-fabric/trainer/index.html" ] && [ -s "${HOME}/constructor-fabric/trainer/main.js" ] && [ -s "${HOME}/constructor-fabric/trainer/package.json" ]; then
+  echo "Preserving GitHub-downloaded Constructor Fabric Trainer"
+else
+  echo "Writing fallback Constructor Fabric Trainer"
 cat > "${HOME}/constructor-fabric/trainer/package.json" <<'PKG'
 {"name":"constructor-fabric-trainer","version":"1.0.0","main":"main.js","private":true,"description":"Constructor Fabric Electron Trainer"}
 PKG
@@ -217,6 +221,7 @@ cat > "${HOME}/constructor-fabric/trainer/index.html" <<'HTMLTRAINER'
 </body>
 </html>
 HTMLTRAINER
+fi
 cat > "${HOME}/constructor-fabric/run-trainer.sh" <<'RUNTRAINER'
 #!/bin/sh
 set -u
