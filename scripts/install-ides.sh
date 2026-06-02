@@ -313,15 +313,15 @@ install_windsurf(){
 }
 
 install_codex(){
-  if command -v codix >/dev/null 2>&1; then log "Codex already installed"; return 0; fi
+  if command -v codex >/dev/null 2>&1; then log "Codex already installed"; return 0; fi
   log "Installing OpenAI Codex CLI"
-  /opt/node-current/bin/npm install -g @openai/codex >> "$LOG" 2>&1 || log "Codex install failed"
+  sudo /opt/node-current/bin/npm install -g @openai/codex >> "$LOG" 2>&1 || log "Codex install failed"
 }
 
 install_claude(){
   if command -v claude >/dev/null 2>&1; then log "Claude Code already installed"; return 0; fi
   log "Installing Claude Code CLI"
-  /opt/node-current/bin/npm install -g @anthropic-ai/claude-code >> "$LOG" 2>&1 || log "Claude Code install failed"
+  sudo /opt/node-current/bin/npm install -g @anthropic-ai/claude-code >> "$LOG" 2>&1 || log "Claude Code install failed"
 }
 
 install_continue_ai_chat(){
