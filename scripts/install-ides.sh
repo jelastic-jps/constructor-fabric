@@ -418,6 +418,8 @@ CONTINUECFG
   cat > "${HOME}/.config/VSCodium/User/settings.json" <<'VSCODESETTINGS'
 {
   "workbench.startupEditor": "none",
+  "security.workspace.trust.enabled": false,
+  "security.workspace.trust.startupPrompt": "never",
   "continue.telemetryEnabled": false,
   "continue.showInlineTip": false
 }
