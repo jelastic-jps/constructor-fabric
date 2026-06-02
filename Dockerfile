@@ -227,3 +227,6 @@ RUN chown -R developer:developer /home/developer
 
 # Switch to developer user
 USER developer
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+ENTRYPOINT ["/docker-entrypoint.sh"]
