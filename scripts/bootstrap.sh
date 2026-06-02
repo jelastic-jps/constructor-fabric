@@ -8,7 +8,12 @@ export PULSE_SERVER="${PULSE_SERVER:-unix:/tmp/pulse-root/native}"
 export SDL_AUDIODRIVER="${SDL_AUDIODRIVER:-pulse}"
 export AUDIODEV="${AUDIODEV:-default}"
 
-# Use ${HOME} for user-specific paths
+# Use ${HOME} for user-specific paths. The base VNC startup script can reset
+# /home/developer and /home/developer/constructor-fabric ownership to root at
+# container boot, so normalize ownership before writing runtime-downloaded files.
+if command -v sudo >/dev/null 2>&1; then
+  sudo chown -R "$(id -u):$(id -g)" "${HOME}" 2>/dev/null || true
+fi
 mkdir -p "${HOME}/constructor-fabric/app" "${HOME}/constructor-fabric/data" "${HOME}/.config/autostart" "${HOME}/Desktop"
 SCRIPT_VERSION="${SCRIPT_VERSION:-electron-20260526-1}"
 CF_SOURCE_REF="${CF_SOURCE_REF:-main}"
