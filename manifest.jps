@@ -131,8 +131,12 @@ actions:
         if [ ! -d /usr/share/X11/xkb/keycodes ] || [ ! -d /usr/share/X11/xkb/symbols ]; then
           find /etc/apt -type f \( -name '*.list' -o -name '*.sources' \) -print0 | xargs -0 grep -l 'api.cursor.com/apt' 2>/dev/null | xargs -r rm -f
           apt-get update
-          apt-get install --reinstall -y --no-install-recommends xkb-data
+          apt-get install -y --reinstall xkb-data || { apt-get purge -y xkb-data; apt-get update; apt-get install -y xkb-data; }
           rm -rf /var/lib/apt/lists/*
+        fi
+        if ! command -v electron >/dev/null 2>&1 && [ -x /opt/node-current/bin/npm ]; then
+          /opt/node-current/bin/npm install -g electron@latest
+          ln -sf /opt/node-current/bin/electron /usr/local/bin/electron 2>/dev/null || true
         fi
         # The base VNC startup may leave /home/developer owned by root. Fix it
         # before downloading runtime scripts, then execute bootstrap as developer.
