@@ -28,7 +28,7 @@ globals:
   CLAUDE_MODEL: claude-3-5-sonnet-latest
   RESOLUTION: 1280x720
   SCRIPT_VERSION: github-assets-20260602-1
-  CF_SOURCE_REF: 2c47f3e26d6497b78ac5b74c29418a6a6a74b7f8
+  CF_SOURCE_REF: ef61180aa5b1d46547cead8de82091af56f825b3
 
 settings:
   fields:
