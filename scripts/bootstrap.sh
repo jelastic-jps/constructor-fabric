@@ -39,9 +39,9 @@ chmod +x "${HOME}/constructor-fabric/install-ides.sh"
 selected_ide_profile="$(printenv CF_IDE_PROFILE || true)"
 # Always normalize the visible desktop immediately. Some prebuilt images contain stale
 # launchers (for example Chromium-Browser.desktop or terminal-only Codex/Claude
-# shortcuts). The CLI profile only recreates the clean GUI launchers from binaries
-# already present, so it is safe and quick before JPS verify.
-CF_IDE_PROFILE=cli "${HOME}/constructor-fabric/install-ides.sh" >"${HOME}/constructor-fabric/ide-install-wrapper.log" 2>&1 || true
+# shortcuts). The codium profile installs the mandatory GUI chat path (VS Codium + Continue)
+# before verify, while heavy optional IDEs remain delayed.
+CF_IDE_PROFILE=codium "${HOME}/constructor-fabric/install-ides.sh" >"${HOME}/constructor-fabric/ide-install-wrapper.log" 2>&1 || true
 if [ "$selected_ide_profile" != "cli" ] && [ -n "$selected_ide_profile" ]; then
   # Delay optional heavy IDE package installs until after JPS verify is done.
   # This prevents marketplace cmd[cp] from being killed by signal 9 on small nodes.

@@ -396,7 +396,7 @@ install_continue_ai_chat(){
       ;;
     *)
       continue_provider="openai"
-      continue_model="$(printenv OPENAI_MODEL || echo gpt-5.5)"
+      continue_model="$(printenv OPENAI_MODEL || echo gpt-4o-mini)"
       if [ -z "$continue_api_key" ]; then continue_api_key="$(printenv OPENAI_API_KEY || true)"; fi
       ;;
   esac
@@ -422,6 +422,16 @@ CONTINUECFG
 context:
   - provider: code
   - provider: docs
+prompts:
+  - name: cf-constructor
+    description: Run the Constructor Fabric SDLC workflow using the generated .cf-constructor workspace, cfc CLI, and traceability rules.
+    prompt: |
+      You are Constructor Fabric inside the pre-initialized workspace.
+
+      User request:
+      {{{ input }}}
+
+      Use AGENTS.md, .cf-constructor/.gen/AGENTS.md, the .cf-constructor adapter, generated cypilot skills, and cfc/cf-constructor CLI validation.
 CONTINUECFG
 
   cat > "${HOME}/.config/VSCodium/User/settings.json" <<'VSCODESETTINGS'
@@ -498,6 +508,13 @@ case "$PROFILE" in
     install_node22
     install_codex
     install_claude
+    install_continue_ai_chat
+    create_gui_launchers
+    ;;
+  codium)
+    log "Codium profile: installing mandatory VS Codium + Continue chat path"
+    install_node22
+    install_vscode
     install_continue_ai_chat
     create_gui_launchers
     ;;
