@@ -27,8 +27,8 @@ globals:
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-3-5-sonnet-latest
   RESOLUTION: 1280x720
-  SCRIPT_VERSION: trainer-icons-20260602-5
-  CF_SOURCE_REF: 060aea8e24918eee18a799eb2988b437e86cc9cf
+  SCRIPT_VERSION: ai-chat-20260602-1
+  CF_SOURCE_REF: 695592a7c45f9a98360994763950ac57b4f5c659
 
 settings:
   fields:
