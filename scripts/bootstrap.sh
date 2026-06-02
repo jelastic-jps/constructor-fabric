@@ -14,12 +14,13 @@ export AUDIODEV="${AUDIODEV:-default}"
 if command -v sudo >/dev/null 2>&1; then
   sudo chown -R "$(id -u):$(id -g)" "${HOME}" 2>/dev/null || true
 fi
-mkdir -p "${HOME}/constructor-fabric/app" "${HOME}/constructor-fabric/data" "${HOME}/.config/autostart" "${HOME}/Desktop"
+mkdir -p "${HOME}/constructor-fabric/app" "${HOME}/constructor-fabric/app/icons" "${HOME}/constructor-fabric/assets" "${HOME}/constructor-fabric/data" "${HOME}/.config/autostart" "${HOME}/Desktop"
 SCRIPT_VERSION="${SCRIPT_VERSION:-electron-20260526-1}"
 CF_SOURCE_REF="${CF_SOURCE_REF:-main}"
 ASSET_BASE="https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/assets"
 curl --noproxy '*' -fsSL "${ASSET_BASE}/constructor-fabric-logo.png?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/app/icon.png" || true
 curl --noproxy '*' -fsSL "${ASSET_BASE}/constructor-fabric-wallpaper.png?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/app/wallpaper.png" || true
+curl --noproxy '*' -fsSL "${ASSET_BASE}/vscode-logo.png?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/assets/vscode-logo.png" || true
 curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/scripts/app-server.py?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/app/server.py"
 chmod +x "${HOME}/constructor-fabric/app/server.py"
 
