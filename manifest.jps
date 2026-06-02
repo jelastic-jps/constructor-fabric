@@ -153,7 +153,8 @@ actions:
           exit 1
         fi
         check_port() {
-          host="$1"; port="$2"; name="$3"; want_rfb="${4:-0}"
+          host="$1"; port="$2"; name="$3"; want_rfb="$4"
+          if [ -z "$want_rfb" ]; then want_rfb=0; fi
           last=''
           for i in $(seq 1 30); do
             if python3 - "$host" "$port" "$want_rfb" <<'PYPORT'
