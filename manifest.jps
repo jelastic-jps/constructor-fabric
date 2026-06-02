@@ -1,5 +1,5 @@
 type: install
-version: 0.4.32
+version: 0.4.33
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -27,8 +27,8 @@ globals:
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-3-5-sonnet-latest
   RESOLUTION: 1280x720
-  SCRIPT_VERSION: ai-chat-20260602-8
-  CF_SOURCE_REF: af590ed1f1f6ef931dd62647c3f458e70eeb55f0
+  SCRIPT_VERSION: ai-chat-20260602-9
+  CF_SOURCE_REF: e4f3856637cb162bae4724825c9dae7cc1809a2c
 
 settings:
   fields:
