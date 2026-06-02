@@ -33,8 +33,9 @@ ensure_icon(){
   icon_name="$1"
   target_path="$2"
   
-  # If icon already exists at target, return success
-  if [ -f "$target_path" ]; then
+  # If a real icon already exists at target, return success. Tiny 1x1 PNGs
+  # are old placeholders and must be replaced with the real app icons.
+  if [ -f "$target_path" ] && [ "$(wc -c < "$target_path" 2>/dev/null || echo 0)" -gt 1024 ]; then
     return 0
   fi
   

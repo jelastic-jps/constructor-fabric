@@ -21,6 +21,9 @@ ASSET_BASE="https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${
 curl --noproxy '*' -fsSL "${ASSET_BASE}/constructor-fabric-logo.png?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/app/icon.png" || true
 curl --noproxy '*' -fsSL "${ASSET_BASE}/constructor-fabric-wallpaper.png?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/app/wallpaper.png" || true
 curl --noproxy '*' -fsSL "${ASSET_BASE}/vscode-logo.png?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/assets/vscode-logo.png" || true
+if [ -s "${HOME}/constructor-fabric/assets/vscode-logo.png" ]; then
+  cp "${HOME}/constructor-fabric/assets/vscode-logo.png" "${HOME}/constructor-fabric/app/icons/codium.png" 2>/dev/null || true
+fi
 curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${CF_SOURCE_REF}/scripts/app-server.py?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/app/server.py"
 chmod +x "${HOME}/constructor-fabric/app/server.py"
 
