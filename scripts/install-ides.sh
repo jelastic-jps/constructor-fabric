@@ -41,7 +41,7 @@ ensure_icon(){
   # Try to find and copy the icon from system locations
   case "$icon_name" in
     codium|vscode|vscodium)
-      for src in /usr/share/pixmaps/code.png /usr/share/icons/hicolor/256x256/apps/code.png /usr/share/pixmaps/codium.png /usr/share/icons/hicolor/256x256/apps/codium.png /usr/share/icons/hicolor/256x256/apps/vscodium.png; do
+      for src in "${HOME}/constructor-fabric/assets/vscode-logo.png" /usr/share/pixmaps/code.png /usr/share/icons/hicolor/256x256/apps/code.png /usr/share/pixmaps/codium.png /usr/share/icons/hicolor/256x256/apps/codium.png /usr/share/icons/hicolor/256x256/apps/vscodium.png; do
         if [ -f "$src" ]; then
           cp "$src" "$target_path" 2>/dev/null && return 0
         fi
