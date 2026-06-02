@@ -1,8 +1,8 @@
         #!/bin/bash
         agent="${1:-codex}"
-        export HOME=/root
-        export PATH=/root/cyber-constructor/.venv/bin:/root/.local/bin:/usr/local/bin:/opt/node-current/bin:$PATH
-        workspace=/root/workspaces/constructor-fabric-workspace
+        export HOME="${HOME:-/home/developer}"
+        export PATH=${HOME}/cyber-constructor/.venv/bin:${HOME}/.local/bin:/usr/local/bin:/opt/node-current/bin:$PATH
+        workspace="${HOME}/workspaces/constructor-fabric-workspace"
         mkdir -p "$workspace"
         cd "$workspace"
         if [ -f .env.constructor-fabric ]; then

@@ -6,8 +6,8 @@ export USER="${USER:-developer}"
 export XDG_CURRENT_DESKTOP=LXDE
 export DESKTOP_SESSION=LXDE
 mkdir -p "${HOME}/constructor-fabric" "${HOME}/.config/pcmanfm/LXDE" "${HOME}/.config/lxpanel/LXDE/panels" "${HOME}/.config/libfm"
-sudo mkdir -p /tmp/.X11-unix 2>/dev/null || mkdir -p /tmp/.X11-unix 2>/dev/null || true
-sudo chmod 1777 /tmp/.X11-unix 2>/dev/null || chmod 1777 /tmp/.X11-unix 2>/dev/null || true
+sudo mkdir -p /tmp/.X11-unix
+sudo chmod 1777 /tmp/.X11-unix
 # Audio: provide a real PulseAudio endpoint for Electron/Chromium apps so they do
 # not emit the base-image "To support audio, please read README" warning. Browser
 # audio forwarding is platform-dependent, but apps must at least see a working sink.
@@ -21,8 +21,8 @@ export AUDIODEV=default
 # only check that ALSADEV and /dev/snd exist before printing the noisy warning.
 # Provide a harmless dummy /dev/snd directory plus Pulse/ALSA null routing.
 mkdir -p /tmp/pulse-root "${HOME}/.config/pulse"
-sudo mkdir -p /dev/snd 2>/dev/null || mkdir -p /dev/snd 2>/dev/null || true
-sudo chmod 755 /dev/snd 2>/dev/null || chmod 755 /dev/snd 2>/dev/null || true
+sudo mkdir -p /dev/snd
+sudo chmod 755 /dev/snd
 chmod 700 /tmp/pulse-root || true
 cat > "${HOME}/.config/pulse/client.conf" <<'PULSECLIENT'
 default-server = unix:/tmp/pulse-root/native
@@ -47,7 +47,7 @@ ctl.nullctl {
   card 0
 }
 ASOUNDRC
-sudo cp "${HOME}/.asoundrc" /etc/asound.conf 2>/dev/null || cp "${HOME}/.asoundrc" /etc/asound.conf 2>/dev/null || true
+sudo cp "${HOME}/.asoundrc" /etc/asound.conf
 if command -v pulseaudio >/dev/null 2>&1; then
   pulseaudio --kill >/dev/null 2>&1 || true
   pulseaudio --daemonize=yes --exit-idle-time=-1 --disallow-exit --log-target=file:"${HOME}/constructor-fabric/pulseaudio.log" || true
@@ -65,7 +65,7 @@ single_click=0
 middle_click=0
 LIBFM
 if [ -f "${HOME}/constructor-fabric/app/wallpaper.png" ]; then
-  cat > "${HOME}/.config/pcmanfm/LXDE/desktop-items-0.conf" <<'WALLCONF'
+  cat > "${HOME}/.config/pcmanfm/LXDE/desktop-items-0.conf" <<WALLCONF
 [*]
 wallpaper_mode=fit
 wallpaper=${HOME}/constructor-fabric/app/wallpaper.png
@@ -98,7 +98,7 @@ PYCONF
 fi
 
 configure_openbox_theme() {
-  sudo mkdir -p /usr/share/themes/ConstructorFabric/openbox-3 "${HOME}/.config/openbox" "${HOME}/.config/gtk-3.0" "${HOME}/.config/gtk-2.0"
+  mkdir -p "${HOME}/.config/openbox" "${HOME}/.config/gtk-3.0" "${HOME}/.config/gtk-2.0"
   sudo mkdir -p /usr/share/themes/ConstructorFabric/openbox-3
   cat > /tmp/themerc <<'OBTHEME'
 border.width: 2
@@ -203,7 +203,7 @@ static unsigned char desk_bits[] = { 0xff,0x81,0xbd,0xa5,0xa5,0xbd,0x81,0xff };
 OBXBM
   sudo cp /tmp/desk.xbm /usr/share/themes/ConstructorFabric/openbox-3/desk.xbm
 
-python3 - <<PYOB
+python3 - <<'PYOB'
 from pathlib import Path
 candidates = [
   Path('/etc/xdg/openbox/LXDE/rc.xml'),
@@ -211,7 +211,8 @@ candidates = [
   Path('/usr/share/openbox/rc.xml'),
   Path('/usr/share/lxde/openbox/rc.xml'),
 ]
-p=Path('${HOME}/.config/openbox/lxde-rc.xml')
+p=Path.home() / '.config/openbox/lxde-rc.xml'
+p.parent.mkdir(parents=True, exist_ok=True)
 for src in candidates:
   if src.exists():
     p.write_text(src.read_text())
@@ -236,7 +237,7 @@ GTK2
 
 configure_lxpanel() {
   mkdir -p "${HOME}/.config/lxpanel/LXDE/panels"
-  cat > "${HOME}/.config/lxpanel/LXDE/panels/panel" <<'LXPANEL'
+  cat > "${HOME}/.config/lxpanel/LXDE/panels/panel" <<LXPANEL
 # Constructor Fabric bottom panel with task switcher for minimized windows.
 Global {
   edge=bottom
@@ -420,7 +421,7 @@ done
 # Serve a tiny redirector to the upstream noVNC page directly, with the
 # generated VNC password and websocket path filled in.
 if [ -d /usr/local/lib/web/frontend ]; then
-  cat > /usr/local/lib/web/frontend/index.html <<'HTML'
+  cat > /tmp/constructor-fabric-novnc-index.html <<'HTML'
 <!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Constructor Fabric noVNC</title>
 <style>html,body{margin:0;width:100%;height:100%;background:#050505;color:#eee;font-family:system-ui,sans-serif}.msg{padding:24px}</style></head>
@@ -438,12 +439,13 @@ HTML
   python3 - <<'PY'
 from pathlib import Path
 import os
-p=Path('/usr/local/lib/web/frontend/index.html')
+p=Path('/tmp/constructor-fabric-novnc-index.html')
 s=p.read_text()
 passwd=os.environ.get('VNC_PASSWORD') or os.environ.get('PASSWORD') or ''
 s=s.replace("window.__VNC_PASSWORD__ || ''", repr(passwd))
 p.write_text(s)
 PY
+  sudo cp /tmp/constructor-fabric-novnc-index.html /usr/local/lib/web/frontend/index.html
 fi
 if [ -f /etc/nginx/sites-enabled/default ]; then
   sudo rm -f /etc/nginx/sites-enabled/default.bak.*

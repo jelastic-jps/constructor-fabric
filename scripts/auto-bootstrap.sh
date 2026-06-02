@@ -94,7 +94,8 @@ fi
 cfc generate-agents --root "$root" -y
 (cd "$root" && cfc agents --json > "${HOME}/cyber-constructor/workspace-agents.json" && python3 - <<'PYAGENTS'
 import json, sys
-text=json.dumps(json.load(open('${HOME}/cyber-constructor/workspace-agents.json'))).lower()
+from pathlib import Path
+text=json.dumps(json.loads((Path.home()/'cyber-constructor/workspace-agents.json').read_text())).lower()
 required=['windsurf','cursor','claude','copilot','openai']
 missing=[name for name in required if name not in text]
 if missing:
