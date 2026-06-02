@@ -1,5 +1,5 @@
 type: install
-version: 0.4.33
+version: 0.4.34
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -27,7 +27,7 @@ globals:
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-3-5-sonnet-latest
   RESOLUTION: 1280x720
-  SCRIPT_VERSION: ai-chat-20260602-9
+  SCRIPT_VERSION: ai-chat-inline-20260602-1
   CF_SOURCE_REF: e4f3856637cb162bae4724825c9dae7cc1809a2c
 
 settings:
@@ -150,6 +150,119 @@ actions:
         chmod +x /tmp/constructor-fabric-bootstrap.sh
         chown developer:developer /tmp/constructor-fabric-bootstrap.sh
         su - developer -c "/tmp/constructor-fabric-bootstrap.sh"
+
+        # Post-bootstrap AI chat setup is intentionally inline in the JPS
+        # manifest so it does not require changing CF_SOURCE_REF. The trainer
+        # updater owns CF_SOURCE_REF; this block only wires VS Codium to open
+        # Continue chat with the token passed via JPS settings.
+        mkdir -p /home/developer/.continue /home/developer/.config/VSCodium/User /home/developer/constructor-fabric /home/developer/workspaces/constructor-fabric-workspace/.vscode
+        continue_provider="${LLM_PROVIDER:-openai}"
+        continue_model="${OPENAI_MODEL:-gpt-5.5}"
+        if [ "$continue_provider" = "anthropic" ]; then
+          continue_model="${CLAUDE_MODEL:-claude-3-5-sonnet-latest}"
+        fi
+        cat >/home/developer/.continue/config.yaml <<CONTINUECFG
+        name: Constructor Fabric
+        version: 1.0.0
+        schema: v1
+        models:
+          - name: Constructor Fabric Chat
+            provider: ${continue_provider}
+            model: ${continue_model}
+        CONTINUECFG
+        if [ -n "${API_TOKEN:-}" ]; then
+          printf "    apiKey: %s\n" "${API_TOKEN}" >> /home/developer/.continue/config.yaml
+        fi
+        cat >>/home/developer/.continue/config.yaml <<CONTINUECFG
+            roles:
+              - chat
+              - edit
+              - apply
+              - autocomplete
+        context:
+          - provider: code
+          - provider: docs
+        CONTINUECFG
+        cat >/home/developer/.config/VSCodium/User/settings.json <<VSCODESETTINGS
+        {
+          "workbench.startupEditor": "none",
+          "security.workspace.trust.enabled": false,
+          "security.workspace.trust.startupPrompt": "never",
+          "continue.telemetryEnabled": false,
+          "continue.showInlineTip": false
+        }
+        VSCODESETTINGS
+        cat >/home/developer/workspaces/constructor-fabric-workspace/.vscode/cfc-commands.md <<CFCMDS
+        View: Show Continue
+        Focus Continue Chat
+        CFCMDS
+        cat >/home/developer/constructor-fabric/open-vscodium-chat.sh <<OPENCHAT
+        #!/bin/sh
+        set -u
+        export HOME="\${HOME:-/home/developer}"
+        export PATH="\${HOME}/.local/bin:/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin:\$PATH"
+        workspace="\${HOME}/workspaces/constructor-fabric-workspace"
+        mkdir -p "\$workspace/.vscode"
+        cd "\$workspace" || exit 0
+        launcher=codium-wrap
+        if ! command -v "\$launcher" >/dev/null 2>&1; then
+          launcher=codium
+        fi
+        "\$launcher" --user-data-dir="\${HOME}/.config/VSCodium" --reuse-window --goto .vscode/cfc-commands.md . &
+        codium_pid=\$!
+        if command -v xdotool >/dev/null 2>&1; then
+          for i in \$(seq 1 40); do
+            win="\$(xdotool search --onlyvisible --class codium 2>/dev/null | tail -1 || true)"
+            if [ -n "\$win" ]; then
+              xdotool windowactivate --sync "\$win" 2>/dev/null || xdotool windowactivate "\$win" 2>/dev/null || true
+              sleep 1
+              xdotool key --window "\$win" ctrl+shift+p 2>/dev/null || true
+              sleep 1
+              xdotool type --window "\$win" --delay 5 "View: Show Continue" 2>/dev/null || true
+              sleep 1
+              xdotool key --window "\$win" Return 2>/dev/null || true
+              sleep 4
+              xdotool key --window "\$win" ctrl+shift+p 2>/dev/null || true
+              sleep 1
+              xdotool type --window "\$win" --delay 5 "Focus Continue Chat" 2>/dev/null || true
+              sleep 1
+              xdotool key --window "\$win" Return 2>/dev/null || true
+              break
+            fi
+            sleep 1
+          done
+        fi
+        wait "\$codium_pid"
+        OPENCHAT
+        chmod +x /home/developer/constructor-fabric/open-vscodium-chat.sh
+        if [ -f /home/developer/Desktop/VS-Codium.desktop ]; then
+          python3 - <<PYDESK
+        from pathlib import Path
+        p = Path("/home/developer/Desktop/VS-Codium.desktop")
+        s = p.read_text()
+        lines = []
+        for line in s.splitlines():
+            if line.startswith("Exec="):
+        line = "Exec=/home/developer/constructor-fabric/open-vscodium-chat.sh"
+            lines.append(line)
+        p.write_text("\n".join(lines) + "\n")
+        PYDESK
+        else
+          cat >/home/developer/Desktop/VS-Codium.desktop <<VSCODIUMDESK
+        [Desktop Entry]
+        Version=1.0
+        Type=Application
+        Name=VS Codium
+        Exec=/home/developer/constructor-fabric/open-vscodium-chat.sh
+        Icon=/home/developer/constructor-fabric/app/icons/codium.png
+        Terminal=false
+        Categories=Development;
+        StartupNotify=true
+        VSCODIUMDESK
+        fi
+        chmod +x /home/developer/Desktop/VS-Codium.desktop
+        chown -R developer:developer /home/developer/.continue /home/developer/.config/VSCodium /home/developer/constructor-fabric/open-vscodium-chat.sh /home/developer/workspaces /home/developer/Desktop/VS-Codium.desktop
+        su - developer -c "export HOME=/home/developer PATH=/home/developer/.local/bin:/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin; if command -v codium >/dev/null 2>&1; then codium --install-extension Continue.continue --force >/tmp/continue-install.log 2>&1 || true; fi"
 
   verify:
     - cmd[cp]: |-
