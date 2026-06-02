@@ -203,7 +203,7 @@ static unsigned char desk_bits[] = { 0xff,0x81,0xbd,0xa5,0xa5,0xbd,0x81,0xff };
 OBXBM
   sudo cp /tmp/desk.xbm /usr/share/themes/ConstructorFabric/openbox-3/desk.xbm
 
-python3 - <<'PYOB'
+python3 - <<PYOB
 from pathlib import Path
 candidates = [
   Path('/etc/xdg/openbox/LXDE/rc.xml'),
@@ -211,7 +211,7 @@ candidates = [
   Path('/usr/share/openbox/rc.xml'),
   Path('/usr/share/lxde/openbox/rc.xml'),
 ]
-p=Path('$HOME/.config/openbox/lxde-rc.xml')
+p=Path('${HOME}/.config/openbox/lxde-rc.xml')
 for src in candidates:
   if src.exists():
     p.write_text(src.read_text())
