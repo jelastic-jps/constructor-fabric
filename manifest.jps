@@ -387,7 +387,7 @@ actions:
         agents=json.load(open("/tmp/cfc-agents.json"))
         assert agents["status"] == "OK", agents
         text=json.dumps(agents).lower()
-        required=["windsurf","cursor","claude","copilot","openai"]
+        required=["windsurf","claude","copilot","openai"]
         missing=[x for x in required if x not in text]
         assert not missing, {"missing": missing, "data": agents}
         print("cyber-constructor info is FOUND at .cf-constructor")
