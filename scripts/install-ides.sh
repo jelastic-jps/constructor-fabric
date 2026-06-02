@@ -395,7 +395,7 @@ install_continue_ai_chat(){
       ;;
     *)
       continue_provider="openai"
-      continue_model="$(printenv OPENAI_MODEL || echo gpt-4o-mini)"
+      continue_model="$(printenv OPENAI_MODEL || echo gpt-5.5)"
       if [ -z "$continue_api_key" ]; then continue_api_key="$(printenv OPENAI_API_KEY || true)"; fi
       ;;
   esac
