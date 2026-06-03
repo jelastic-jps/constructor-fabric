@@ -181,6 +181,13 @@ export PATH="${HOME}/.local/bin:/opt/node-current/bin:/usr/local/bin:/usr/bin:/b
 workspace="${HOME}/workspaces/constructor-fabric-workspace"
 mkdir -p "$workspace"
 cd "$workspace" || exit 0
+# Source provider credentials so the Claude Code extension and terminal
+# sessions inside Codium have ANTHROPIC_API_KEY / CLAUDE_MODEL available.
+if [ -f "$workspace/.env.constructor-fabric" ]; then
+  set -a
+  . "$workspace/.env.constructor-fabric" 2>/dev/null || true
+  set +a
+fi
 launcher=codium-wrap
 if ! command -v "$launcher" >/dev/null 2>&1; then
   launcher=codium

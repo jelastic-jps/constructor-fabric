@@ -42,6 +42,34 @@ JSON
     if [ "$provider" = "claude" ]; then echo "ANTHROPIC_API_KEY=$token"; else echo "OPENAI_API_KEY=$token"; fi
   fi
 } > "$root/.env.constructor-fabric"
+# Configure VS Code / Codium with the selected provider credentials
+# so the Claude Code extension and integrated terminal pick them up.
+mkdir -p "${HOME}/.config/VSCodium/User" "${HOME}/.config/Code/User"
+for udir in "${HOME}/.config/VSCodium/User" "${HOME}/.config/Code/User"; do
+  if [ "$provider" = "claude" ] && [ -n "$token" ]; then
+    cat > "$udir/settings.json" <<VSCODESETTINGS
+{
+  "claude-code.apiKey": "$token",
+  "claude-code.model": "$model",
+  "terminal.integrated.env.linux": {
+    "ANTHROPIC_API_KEY": "$token",
+    "CLAUDE_MODEL": "$model",
+    "LLM_PROVIDER": "$provider"
+  }
+}
+VSCODESETTINGS
+  elif [ "$provider" = "openai" ] && [ -n "$token" ]; then
+    cat > "$udir/settings.json" <<VSCODESETTINGS
+{
+  "terminal.integrated.env.linux": {
+    "OPENAI_API_KEY": "$token",
+    "OPENAI_MODEL": "$model",
+    "LLM_PROVIDER": "$provider"
+  }
+}
+VSCODESETTINGS
+  fi
+done
 cat > "$root/CONSTRUCTOR_FABRIC_PROMPTS.md" <<'PROMPTS'
 # Constructor Fabric copy/paste prompts
 
