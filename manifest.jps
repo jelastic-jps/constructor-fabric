@@ -25,7 +25,7 @@ globals:
   APP_PORT: 8081
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
-  CLAUDE_MODEL: claude-3-5-sonnet-latest
+  CLAUDE_MODEL: claude-opus-4-7
   RESOLUTION: 1280x720
   SCRIPT_VERSION: github-assets-20260529-1
   CF_SOURCE_REF: 851ab1423cf04c3f91bdc6ad72a883964a95736a
@@ -59,12 +59,11 @@ settings:
             type: list
             inputType: string
             name: claude-model
-            default: claude-3-5-sonnet-latest
+            default: claude-opus-4-7
             values:
-              claude-3-5-sonnet-latest: Claude 3.5 Sonnet latest
-              claude-3-7-sonnet-latest: Claude 3.7 Sonnet latest
-              claude-sonnet-4-20250514: Claude Sonnet 4
-              claude-opus-4-20250514: Claude Opus 4
+              claude-opus-4-7: Claude Opus 4.7
+              claude-opus-4-6: Claude Opus 4.6
+              claude-sonnet-4-6: Claude Sonnet 4.6
             tooltip: Select the Anthropic Claude model used by the Constructor Fabric workflow.
     - caption: API Token
       type: string
@@ -98,7 +97,7 @@ nodes:
       OPENAI_API_KEY: ${settings.api-token}
       ANTHROPIC_API_KEY: ${settings.api-token}
       OPENAI_MODEL: ${settings.openai-model:gpt-5.5}
-      CLAUDE_MODEL: ${settings.claude-model:claude-3-5-sonnet-latest}
+      CLAUDE_MODEL: ${settings.claude-model:claude-opus-4-7}
       CF_IDE_PROFILE: all
       CF_PREINSTALLED_IDES: 1
       CF_HOME: /root/constructor-fabric
