@@ -42,15 +42,41 @@ JSON
     if [ "$provider" = "claude" ]; then echo "ANTHROPIC_API_KEY=$token"; else echo "OPENAI_API_KEY=$token"; fi
   fi
 } > "$root/.env.constructor-fabric"
-# Configure VS Code / Codium with the selected provider credentials
-# so the Claude Code extension and integrated terminal pick them up.
+# Configure the Continue extension with the selected provider credentials.
+mkdir -p "${HOME}/.continue"
+if [ "$provider" = "claude" ] && [ -n "$token" ]; then
+  cat > "${HOME}/.continue/config.json" <<CONTINUECONF
+{
+  "models": [
+    {
+      "title": "$model",
+      "provider": "anthropic",
+      "model": "$model",
+      "apiKey": "$token"
+    }
+  ]
+}
+CONTINUECONF
+elif [ "$provider" = "openai" ] && [ -n "$token" ]; then
+  cat > "${HOME}/.continue/config.json" <<CONTINUECONF
+{
+  "models": [
+    {
+      "title": "$model",
+      "provider": "openai",
+      "model": "$model",
+      "apiKey": "$token"
+    }
+  ]
+}
+CONTINUECONF
+fi
+# Also push credentials into the VS Code / Codium integrated terminal.
 mkdir -p "${HOME}/.config/VSCodium/User" "${HOME}/.config/Code/User"
 for udir in "${HOME}/.config/VSCodium/User" "${HOME}/.config/Code/User"; do
   if [ "$provider" = "claude" ] && [ -n "$token" ]; then
     cat > "$udir/settings.json" <<VSCODESETTINGS
 {
-  "claude-code.apiKey": "$token",
-  "claude-code.model": "$model",
   "terminal.integrated.env.linux": {
     "ANTHROPIC_API_KEY": "$token",
     "CLAUDE_MODEL": "$model",
