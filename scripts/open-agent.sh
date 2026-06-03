@@ -1,8 +1,8 @@
         #!/bin/bash
         agent="${1:-codex}"
-        export HOME=/root
-        export PATH=/root/cyber-constructor/.venv/bin:/root/.local/bin:/usr/local/bin:/opt/node-current/bin:$PATH
-        workspace=/root/workspaces/constructor-fabric-workspace
+        export HOME="${HOME:-/home/developer}"
+        export PATH=${HOME}/cyber-constructor/.venv/bin:${HOME}/.local/bin:/usr/local/bin:/opt/node-current/bin:$PATH
+        workspace="${HOME}/workspaces/constructor-fabric-workspace"
         mkdir -p "$workspace"
         cd "$workspace"
         if [ -f .env.constructor-fabric ]; then
@@ -24,7 +24,7 @@
         if [ -z "$existing_anthropic_key" ] && [ -n "$install_api_token" ]; then export ANTHROPIC_API_KEY="$install_api_token"; fi
         clear
         cat <<'WELCOME'
-        Constructor Fabric Showcase
+        Constructor Fabric AI Fabric Trainer
         
         Use this agent to drive the product flow with the generated /cf-constructor workflow.
         
