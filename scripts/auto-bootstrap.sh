@@ -43,32 +43,31 @@ JSON
   fi
 } > "$root/.env.constructor-fabric"
 # Configure the Continue extension with the selected provider credentials.
+# Continue prefers config.yaml over config.json (getPrimaryConfigFilePath).
 mkdir -p "${HOME}/.continue"
 if [ "$provider" = "claude" ] && [ -n "$token" ]; then
-  cat > "${HOME}/.continue/config.json" <<CONTINUECONF
-{
-  "models": [
-    {
-      "title": "$model",
-      "provider": "anthropic",
-      "model": "$model",
-      "apiKey": "$token"
-    }
-  ]
-}
+  cat > "${HOME}/.continue/config.yaml" <<CONTINUECONF
+models:
+  - name: $model
+    provider: anthropic
+    model: $model
+    apiKey: $token
+context: []
+name: Local Config
+version: "1.0.0"
+schema: v1
 CONTINUECONF
 elif [ "$provider" = "openai" ] && [ -n "$token" ]; then
-  cat > "${HOME}/.continue/config.json" <<CONTINUECONF
-{
-  "models": [
-    {
-      "title": "$model",
-      "provider": "openai",
-      "model": "$model",
-      "apiKey": "$token"
-    }
-  ]
-}
+  cat > "${HOME}/.continue/config.yaml" <<CONTINUECONF
+models:
+  - name: $model
+    provider: openai
+    model: $model
+    apiKey: $token
+context: []
+name: Local Config
+version: "1.0.0"
+schema: v1
 CONTINUECONF
 fi
 # Also push credentials into the VS Code / Codium integrated terminal.
