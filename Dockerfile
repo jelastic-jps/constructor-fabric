@@ -1,14 +1,18 @@
 FROM dorowu/ubuntu-desktop-lxde-vnc:focal
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG UV_INSTALL_DIR=/root/.local/bin
+ARG UV_INSTALL_DIR=/home/developer/.local/bin
 ARG CYBER_CONSTRUCTOR_TARBALL_URL=https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/assets/cyber-constructor-v4.0.0.tar.gz
 ARG CYBER_CONSTRUCTOR_TARBALL_SHA256=8ca1c8005097cb3bdca521888a61cc3f0c508601a199722d2585e3130703a626
 
+# Create developer user early in the build
+RUN useradd -m -u 1000 -s /bin/bash developer \
+    && echo "developer ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
 ENV TZ=Europe/Kyiv \
-    HOME=/root \
-    USER=root \
-    PATH=/opt/node-current/bin:/root/.local/bin:/usr/local/bin:/usr/bin:/bin
+    HOME=/home/developer \
+    USER=developer \
+    PATH=/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -48,30 +52,37 @@ RUN mkdir -p /opt \
     && ln -sf /opt/node-current/bin/npm /usr/local/bin/npm \
     && ln -sf /opt/node-current/bin/npx /usr/local/bin/npx \
     && rm -f /tmp/node.tar.xz \
-    && /opt/node-current/bin/npm install -g electron@latest
+    && /opt/node-current/bin/npm install -g electron@latest \
+    && ln -sf /opt/node-current/bin/electron /usr/local/bin/electron
 
-RUN mkdir -p /root/.local/bin \
+# Install uv for developer user
+RUN mkdir -p /home/developer/.local/bin \
     && wget -q https://astral.sh/uv/install.sh -O /tmp/install-uv.sh \
     && sh /tmp/install-uv.sh \
-    && rm -f /tmp/install-uv.sh
+    && rm -f /tmp/install-uv.sh \
+    && chown -R developer:developer /home/developer/.local
 
-RUN mkdir -p /root/cfc-build /root/cyber-constructor /root/.cf-constructor/cache \
-    && cd /root/cfc-build \
+# Build cyber-constructor under developer home
+RUN mkdir -p /home/developer/cfc-build /home/developer/cyber-constructor /home/developer/.cf-constructor/cache \
+    && cd /home/developer/cfc-build \
     && curl --noproxy '*' -fsSL "${CYBER_CONSTRUCTOR_TARBALL_URL}" -o cyber-constructor.tar.gz \
     && echo "${CYBER_CONSTRUCTOR_TARBALL_SHA256}  cyber-constructor.tar.gz" | sha256sum -c - \
-    && tar -xzf cyber-constructor.tar.gz -C /root/cyber-constructor \
-    && find /root/cyber-constructor \( -name '._*' -o -name '.DS_Store' \) -delete \
-    && cp -a /root/cyber-constructor/skills /root/.cf-constructor/cache/ \
-    && if [ -d /root/cyber-constructor/config ]; then cp -a /root/cyber-constructor/config /root/.cf-constructor/cache/; fi \
-    && echo v4.0.0 > /root/.cf-constructor/cache/.version \
-    && rm -rf /root/cfc-build
+    && tar -xzf cyber-constructor.tar.gz -C /home/developer/cyber-constructor \
+    && find /home/developer/cyber-constructor \( -name '._*' -o -name '.DS_Store' \) -delete \
+    && cp -a /home/developer/cyber-constructor/skills /home/developer/.cf-constructor/cache/ \
+    && if [ -d /home/developer/cyber-constructor/config ]; then cp -a /home/developer/cyber-constructor/config /home/developer/.cf-constructor/cache/; fi \
+    && echo v4.0.0 > /home/developer/.cf-constructor/cache/.version \
+    && rm -rf /home/developer/cfc-build \
+    && chown -R developer:developer /home/developer/cyber-constructor /home/developer/.cf-constructor
 
-RUN mkdir -p /root/constructor-fabric/app /root/constructor-fabric/data /root/.config/autostart /root/Desktop /root/.config/lxpanel/LXDE/panels /root/.config/libfm /root/.config/pcmanfm/LXDE /tmp/.X11-unix \
+# Create constructor-fabric directories under developer home
+RUN mkdir -p /home/developer/constructor-fabric/app /home/developer/constructor-fabric/data /home/developer/.config/autostart /home/developer/Desktop /home/developer/.config/lxpanel/LXDE/panels /home/developer/.config/libfm /home/developer/.config/pcmanfm/LXDE /tmp/.X11-unix \
     && chmod 1777 /tmp/.X11-unix || true
 
 # Pre-download edited wallpaper (without Powered by Virtuozzo on right)
-RUN mkdir -p /root/constructor-fabric/app \
-    && curl --noproxy '*' -fsSL https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/assets/constructor-fabric-wallpaper.png -o /root/constructor-fabric/app/wallpaper.png
+RUN mkdir -p /home/developer/constructor-fabric/app \
+    && curl --noproxy '*' -fsSL https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/assets/constructor-fabric-wallpaper.png -o /home/developer/constructor-fabric/app/wallpaper.png \
+    && chown -R developer:developer /home/developer/constructor-fabric
 
 ENV ALSADEV=default \
     PULSE_RUNTIME_PATH=/tmp/pulse-root \
@@ -79,58 +90,138 @@ ENV ALSADEV=default \
     SDL_AUDIODRIVER=pulse \
     AUDIODEV=default
 
-COPY . /root/constructor-fabric/
-RUN chmod +x /root/constructor-fabric/scripts/*.sh 2>/dev/null || true \
-    && CF_IDE_PROFILE=all CF_PREINSTALLED_IDES=0 /root/constructor-fabric/scripts/install-ides.sh \
-    && command -v code \
-    && command -v cursor \
-    && command -v windsurf \
-    && command -v codex \
-    && command -v claude \
-    && echo 'Constructor Fabric IDEs and agent CLIs are preinstalled'
+# Copy scripts and config to developer home
+COPY . /home/developer/constructor-fabric/
+RUN chmod +x /home/developer/constructor-fabric/scripts/*.sh 2>/dev/null || true \
+    && CF_IDE_PROFILE=all CF_PREINSTALLED_IDES=0 /home/developer/constructor-fabric/scripts/install-ides.sh || true \
+    && echo 'Constructor Fabric IDEs and agent CLIs are preinstalled' \
+    && chown -R developer:developer /home/developer/constructor-fabric
+
+# Pre-create the Constructor Fabric workspace so cfc commands and IDE integrations
+# work immediately after the container starts -- no waiting for auto-bootstrap.
+RUN mkdir -p /home/developer/workspaces/constructor-fabric-workspace \
+    && /home/developer/.local/bin/uv python install 3.11 \
+    && /home/developer/.local/bin/uv venv --python 3.11 /home/developer/cyber-constructor/.venv \
+    && /home/developer/.local/bin/uv pip install --python /home/developer/cyber-constructor/.venv/bin/python -e /home/developer/cyber-constructor \
+    && ln -sf /home/developer/cyber-constructor/.venv/bin/cfc /usr/local/bin/cfc \
+    && ln -sf /home/developer/cyber-constructor/.venv/bin/cf-constructor /usr/local/bin/cf-constructor \
+    && printf 'd\n' | /usr/local/bin/cfc init --no-cache --project-root /home/developer/workspaces/constructor-fabric-workspace --install-dir .cf-constructor --project-name "constructor-fabric-workspace" --force \
+    && /usr/local/bin/cfc generate-agents --root /home/developer/workspaces/constructor-fabric-workspace -y \
+    && echo 'Constructor Fabric workspace is pre-initialized' \
+    && chown -R developer:developer /home/developer/workspaces
 
 # Desktop icons for Chromium-labeled browser and Terminal.
 # On Ubuntu focal, chromium-browser is a snap wrapper and snap does not work in Docker; use Google Chrome stable but label the launcher Chromium.
 RUN python3 - <<'PY'
 from pathlib import Path
-d = Path('/root/Desktop')
-d.mkdir(parents=True, exist_ok=True)
+import os
 
+# Create icon directory
+icon_dir = Path('/home/developer/constructor-fabric/app/icons')
+icon_dir.mkdir(parents=True, exist_ok=True)
+
+# Create a simple placeholder icon function
+def create_placeholder_icon(target_path):
+    # Create a minimal 1x1 pixel PNG as placeholder (base64 encoded)
+    import base64
+    placeholder_b64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+    try:
+        with open(target_path, 'wb') as f:
+            f.write(base64.b64decode(placeholder_b64))
+    except:
+        pass
+
+# Use the vendored VS Code icon for VS Codium as requested.
+codium_icon = icon_dir / 'codium.png'
+vscode_asset_icon = Path('/home/developer/constructor-fabric/assets/vscode-logo.png')
+if vscode_asset_icon.exists():
+    import shutil
+    shutil.copy2(str(vscode_asset_icon), str(codium_icon))
+elif not codium_icon.exists():
+    create_placeholder_icon(str(codium_icon))
+
+# Download Windsurf icon if not present
+windsurf_icon = icon_dir / 'windsurf.png'
+if not windsurf_icon.exists():
+    create_placeholder_icon(str(windsurf_icon))
+
+# Download Chrome icon for Chromium launcher
+chrome_icon = icon_dir / 'chromium.png'
+if not chrome_icon.exists():
+    import urllib.request
+    try:
+        urllib.request.urlretrieve(
+            'https://raw.githubusercontent.com/nicehash/NiceHashQuickMiner/main/nhqm/icon.png',
+            str(chrome_icon)
+        )
+    except:
+        create_placeholder_icon(str(chrome_icon))
+
+# Use the Constructor Fabric logo for the Trainer icon.
+trainer_icon = icon_dir / 'trainer.png'
+cf_asset_icon = Path('/home/developer/constructor-fabric/assets/constructor-fabric-logo.png')
+cf_app_icon = Path('/home/developer/constructor-fabric/app/icon.png')
+if cf_asset_icon.exists():
+    import shutil
+    cf_app_icon.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(str(cf_asset_icon), str(cf_app_icon))
+    shutil.copy2(str(cf_asset_icon), str(trainer_icon))
+elif not trainer_icon.exists():
+    create_placeholder_icon(str(trainer_icon))
+
+# Create desktop directory
+desktop_dir = Path('/home/developer/Desktop')
+desktop_dir.mkdir(parents=True, exist_ok=True)
+
+# Create Chromium wrapper
 wrapper = Path('/usr/local/bin/constructor-fabric-chromium')
 wrapper.write_text('''#!/bin/sh
 exec /usr/bin/google-chrome-stable --no-sandbox --disable-gpu --disable-dev-shm-usage "$@"
 ''')
 wrapper.chmod(0o755)
 
-chrome = d / 'Chromium.desktop'
+# Create Chromium desktop entry
+chrome = desktop_dir / 'Chromium.desktop'
 chrome.write_text('''[Desktop Entry]
 Version=1.0
 Type=Application
 Name=Chromium
 Exec=/usr/local/bin/constructor-fabric-chromium %U
-Icon=web-browser
+Icon=/home/developer/constructor-fabric/app/icons/chromium.png
 Terminal=false
 Categories=Network;WebBrowser;
 StartupNotify=true
 ''')
 chrome.chmod(0o755)
 
-term = d / 'Terminal.desktop'
+# Create Terminal desktop entry
+term = desktop_dir / 'Terminal.desktop'
 term.write_text('''[Desktop Entry]
 Version=1.0
 Type=Application
 Name=Terminal Emulator
 Comment=Open a terminal emulator
-Exec=lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace
+Exec=lxterminal --working-directory=/home/developer/workspaces/constructor-fabric-workspace
 Icon=utilities-terminal
 Terminal=false
 Categories=System;TerminalEmulator;
 StartupNotify=true
 ''')
 term.chmod(0o755)
+
 print('Created desktop icons: Chromium, Terminal Emulator')
 PY
 
 ENV CF_PREINSTALLED_IDES=1
 
-WORKDIR /root/constructor-fabric
+WORKDIR /home/developer/constructor-fabric
+
+# Set ownership for all developer directories
+RUN chown -R developer:developer /home/developer
+
+# Switch to developer user
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+USER developer
+ENTRYPOINT ["/docker-entrypoint.sh"]

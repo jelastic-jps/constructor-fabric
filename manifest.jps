@@ -1,5 +1,5 @@
 type: install
-version: 0.1.0
+version: 0.4.49
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -10,7 +10,7 @@ categories:
   - apps/productivity
 
 description:
-  text: Constructor Fabric environment with a local PRD -> features -> tasks pipeline and OpenAI/Claude LLM configuration.
+  text: CLets AI define, build, and run software end to end -- with reusable components, operational automation, and built-in productivity measurement and insights.
   short: Constructor Fabric
 
 targetRegions:
@@ -25,10 +25,10 @@ globals:
   APP_PORT: 8081
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
-  CLAUDE_MODEL: claude-opus-4-7
+  CLAUDE_MODEL: claude-sonnet-4-6
   RESOLUTION: 1280x720
-  SCRIPT_VERSION: github-assets-20260529-1
-  CF_SOURCE_REF: 851ab1423cf04c3f91bdc6ad72a883964a95736a
+  SCRIPT_VERSION: trainer-cf-constructor-copy-20260602-1
+  CF_SOURCE_REF: 9c02ce9feddc368c36d0b754c5ef98e8b350c655
 
 settings:
   fields:
@@ -51,19 +51,17 @@ settings:
             values:
               gpt-5.5: OpenAI GPT-5.5
               gpt-5.4: OpenAI GPT-5.4
-              gpt-5.4-mini: OpenAI GPT-5.4 mini
-              gpt-5.4-nano: OpenAI GPT-5.4 nano
             tooltip: Select the OpenAI model used by the Constructor Fabric workflow.
         claude:
           - caption: Anthropic model
             type: list
             inputType: string
             name: claude-model
-            default: claude-opus-4-7
+            default: claude-sonnet-4-6
             values:
-              claude-opus-4-7: Claude Opus 4.7
-              claude-opus-4-6: Claude Opus 4.6
               claude-sonnet-4-6: Claude Sonnet 4.6
+              claude-opus-4-8: Claude Opus 4.8
+              claude-haiku-4-5: Claude Haiku 4.5
             tooltip: Select the Anthropic Claude model used by the Constructor Fabric workflow.
     - caption: API Token
       type: string
@@ -77,7 +75,7 @@ nodes:
   - image: ihorman/constructor-fabric:latest
     nodeType: docker
     displayName: Constructor Fabric
-    cloudlets: 16
+    cloudlets: 64
     nodeGroup: cp
     ports:
       - 80
@@ -88,7 +86,7 @@ nodes:
         protocol: TCP
     env:
       TZ: Europe/Kyiv
-      USER: root
+      USER: developer
       PASSWORD: ${globals.VNC_PASSWORD}
       VNC_PASSWORD: ${globals.VNC_PASSWORD}
       HTTP_PASSWORD: ${globals.VNC_PASSWORD}
@@ -96,11 +94,11 @@ nodes:
       API_TOKEN: ${settings.api-token}
       OPENAI_API_KEY: ${settings.api-token}
       ANTHROPIC_API_KEY: ${settings.api-token}
-      OPENAI_MODEL: ${settings.openai-model:gpt-5.5}
-      CLAUDE_MODEL: ${settings.claude-model:claude-opus-4-7}
+      OPENAI_MODEL: ${settings.openai-model}
+      CLAUDE_MODEL: ${settings.claude-model:claude-sonnet-4-6}
       CF_IDE_PROFILE: all
       CF_PREINSTALLED_IDES: 1
-      CF_HOME: /root/constructor-fabric
+      CF_HOME: /home/developer/constructor-fabric
       CF_PORT: ${globals.CF_PORT}
       ALSADEV: default
       PULSE_RUNTIME_PATH: /tmp/pulse-root
@@ -124,10 +122,183 @@ actions:
     - cmd[cp]: |-
         set -euo pipefail
         export DEBIAN_FRONTEND=noninteractive
-        mkdir -p /root/constructor-fabric
-        curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/scripts/bootstrap.sh?v=${globals.SCRIPT_VERSION}" -o /root/constructor-fabric/bootstrap.sh
-        chmod +x /root/constructor-fabric/bootstrap.sh
-        /root/constructor-fabric/bootstrap.sh
+        # The currently published latest image can contain a stale Cursor apt source
+        # and can be missing XKB files even when dpkg says xkb-data is installed.
+        # Repair that root-level image state before the developer-only bootstrap starts.
+        if [ ! -d /usr/share/X11/xkb/keycodes ] || [ ! -d /usr/share/X11/xkb/symbols ]; then
+          find /etc/apt -type f \( -name '*.list' -o -name '*.sources' \) -print0 | xargs -0 grep -l 'api.cursor.com/apt' 2>/dev/null | xargs -r rm -f
+          apt-get update
+          apt-get install -y --reinstall xkb-data || { apt-get purge -y xkb-data; apt-get update; apt-get install -y xkb-data; }
+          rm -rf /var/lib/apt/lists/*
+        fi
+        if ! command -v electron >/dev/null 2>&1 && [ -x /opt/node-current/bin/npm ]; then
+          /opt/node-current/bin/npm install -g electron@latest
+          ln -sf /opt/node-current/bin/electron /usr/local/bin/electron 2>/dev/null || true
+        fi
+        if ! command -v xdotool >/dev/null 2>&1; then
+          apt-get update
+          apt-get install -y --no-install-recommends xdotool
+          rm -rf /var/lib/apt/lists/*
+        fi
+        # The base VNC startup may leave /home/developer owned by root. Fix it
+        # before downloading runtime scripts, then execute bootstrap as developer.
+        chown -R developer:developer /home/developer
+        curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/scripts/bootstrap.sh?v=${globals.SCRIPT_VERSION}" -o /tmp/constructor-fabric-bootstrap.sh
+        chmod +x /tmp/constructor-fabric-bootstrap.sh
+        chown developer:developer /tmp/constructor-fabric-bootstrap.sh
+        su - developer -c "/tmp/constructor-fabric-bootstrap.sh"
+
+        # Post-bootstrap AI chat setup is intentionally inline in the JPS
+        # manifest so it does not require changing CF_SOURCE_REF. The trainer
+        # updater owns CF_SOURCE_REF; this block only wires VS Codium to open
+        # Continue chat with the token passed via JPS settings.
+        mkdir -p /home/developer/.continue /home/developer/.config/VSCodium/User /home/developer/constructor-fabric /home/developer/workspaces/constructor-fabric-workspace/.vscode
+        ai_token="$(printenv API_TOKEN || true)"
+        ai_openai_key="$(printenv OPENAI_API_KEY || true)"
+        ai_anthropic_key="$(printenv ANTHROPIC_API_KEY || true)"
+        if [ -z "$ai_openai_key" ]; then ai_openai_key="$ai_token"; fi
+        if [ -z "$ai_anthropic_key" ]; then ai_anthropic_key="$ai_token"; fi
+        {
+          printf '%s\n' "API_TOKEN=$ai_token"
+          printf '%s\n' "OPENAI_API_KEY=$ai_openai_key"
+          printf '%s\n' "ANTHROPIC_API_KEY=$ai_anthropic_key"
+        } >/home/developer/.constructor-fabric-ai.env
+        chmod 600 /home/developer/.constructor-fabric-ai.env
+        continue_provider="$(printenv LLM_PROVIDER || true)"
+        if [ -z "$continue_provider" ]; then continue_provider="openai"; fi
+        continue_model="$(printenv OPENAI_MODEL || true)"
+        if [ -z "$continue_model" ]; then continue_model="gpt-5.5"; fi
+        if [ "$continue_provider" = "anthropic" ]; then
+          continue_model="$(printenv CLAUDE_MODEL || true)"
+          if [ -z "$continue_model" ]; then continue_model="claude-sonnet-4-6"; fi
+        fi
+        cat >/home/developer/.continue/config.yaml <<CONTINUECFG
+        name: Constructor Fabric
+        version: 1.0.0
+        schema: v1
+        env:
+          OPENAI_API_KEY: ${ai_openai_key}
+          ANTHROPIC_API_KEY: ${ai_anthropic_key}
+          API_TOKEN: ${ai_token}
+        models:
+          - name: Constructor Fabric Chat
+            provider: ${continue_provider}
+            model: ${continue_model}
+        CONTINUECFG
+        if [ -n "$ai_token" ]; then
+          printf "    apiKey: %s\n" "$ai_token" >> /home/developer/.continue/config.yaml
+        fi
+        cat >>/home/developer/.continue/config.yaml <<CONTINUECFG
+            roles:
+              - chat
+              - edit
+              - apply
+              - autocomplete
+        context:
+          - provider: code
+          - provider: docs
+        prompts:
+          - name: cf-constructor
+            description: Run the Constructor Fabric SDLC workflow using the generated .cf-constructor workspace, cfc CLI, and traceability rules.
+            prompt: |
+              You are Constructor Fabric inside the pre-initialized workspace.
+
+              User request:
+              {{{ input }}}
+
+              Use the local Constructor Fabric setup in this workspace:
+              - Read AGENTS.md and .cf-constructor/.gen/AGENTS.md before making changes.
+              - Use .cf-constructor as the Constructor Fabric adapter path.
+              - Use the generated agents and skills under .cf-constructor/.core/skills/cypilot when relevant.
+              - Use cfc/cf-constructor CLI commands for info, validation, artifacts, traceability, and generated agent workflow checks.
+              - Preserve traceability across PRD, ADR, DESIGN, DECOMPOSITION, FEATURE, CODE, tasks, tests, and review artifacts.
+              - When generating artifacts, write them into the workspace using Constructor Fabric conventions and run validation commands when possible.
+              - If validation fails, explain the failing checks and propose or apply fixes.
+        CONTINUECFG
+        cat >/home/developer/.config/VSCodium/User/settings.json <<VSCODESETTINGS
+        {
+          "workbench.startupEditor": "none",
+          "security.workspace.trust.enabled": false,
+          "security.workspace.trust.startupPrompt": "never",
+          "continue.telemetryEnabled": false,
+          "continue.showInlineTip": false
+        }
+        VSCODESETTINGS
+        cat >/home/developer/.config/VSCodium/User/keybindings.json <<VSCODEKEYS
+        [
+          { "key": "ctrl+alt+c", "command": "continue.focusContinueInput" }
+        ]
+        VSCODEKEYS
+        cat >/home/developer/workspaces/constructor-fabric-workspace/.vscode/cfc-commands.md <<CFCMDS
+        Continue: Focus Continue Chat
+        Focus Continue Chat
+        View: Show Continue
+        CFCMDS
+        cat >/home/developer/constructor-fabric/open-vscodium-chat.sh <<'OPENCHAT'
+        #!/bin/sh
+        set -u
+        case "${HOME:-}" in
+          ""|-*) HOME=/home/developer ;;
+        esac
+        export HOME
+        if [ -f "${HOME}/.constructor-fabric-ai.env" ]; then
+          set -a
+          . "${HOME}/.constructor-fabric-ai.env"
+          set +a
+        fi
+        export PATH="${HOME}/.local/bin:/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+        workspace="${HOME}/workspaces/constructor-fabric-workspace"
+        mkdir -p "$workspace/.vscode"
+        cd "$workspace" || exit 0
+        launcher=codium-wrap
+        if ! command -v "$launcher" >/dev/null 2>&1; then
+          launcher=codium
+        fi
+        "$launcher" --user-data-dir="${HOME}/.config/VSCodium" --reuse-window --goto .vscode/cfc-commands.md . &
+        codium_pid=$!
+        if command -v xdotool >/dev/null 2>&1; then
+          for i in $(seq 1 40); do
+            win="$(xdotool search --onlyvisible --class codium 2>/dev/null | tail -1 || true)"
+            if [ -n "$win" ]; then
+              xdotool windowactivate --sync "$win" 2>/dev/null || xdotool windowactivate "$win" 2>/dev/null || true
+              sleep 12
+              xdotool key --window "$win" ctrl+alt+c 2>/dev/null || true
+              sleep 3
+              for cmd in "Continue: Focus Continue Chat" "Focus Continue Chat" "View: Show Continue"; do
+                xdotool key --window "$win" ctrl+shift+p 2>/dev/null || true
+                sleep 1
+                xdotool type --window "$win" --delay 5 "$cmd" 2>/dev/null || true
+                sleep 1
+                xdotool key --window "$win" Return 2>/dev/null || true
+                sleep 4
+              done
+              xdotool key --window "$win" ctrl+alt+c 2>/dev/null || true
+              break
+            fi
+            sleep 1
+          done
+        fi
+        wait "$codium_pid"
+        OPENCHAT
+        chmod +x /home/developer/constructor-fabric/open-vscodium-chat.sh
+        if [ -f /home/developer/Desktop/VS-Codium.desktop ]; then
+          sed -i "s|^Exec=.*|Exec=/home/developer/constructor-fabric/open-vscodium-chat.sh|" /home/developer/Desktop/VS-Codium.desktop
+        else
+          cat >/home/developer/Desktop/VS-Codium.desktop <<VSCODIUMDESK
+        [Desktop Entry]
+        Version=1.0
+        Type=Application
+        Name=VS Codium
+        Exec=/home/developer/constructor-fabric/open-vscodium-chat.sh
+        Icon=/home/developer/constructor-fabric/app/icons/codium.png
+        Terminal=false
+        Categories=Development;
+        StartupNotify=true
+        VSCODIUMDESK
+        fi
+        chmod +x /home/developer/Desktop/VS-Codium.desktop
+        chown -R developer:developer /home/developer/.constructor-fabric-ai.env /home/developer/.continue /home/developer/.config/VSCodium /home/developer/constructor-fabric/open-vscodium-chat.sh /home/developer/workspaces /home/developer/Desktop/VS-Codium.desktop
+        su - developer -c "export HOME=/home/developer PATH=/home/developer/.local/bin:/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin; if command -v codium >/dev/null 2>&1; then codium --install-extension Continue.continue --force >/tmp/continue-install.log 2>&1 || true; fi"
 
   verify:
     - cmd[cp]: |-
@@ -136,75 +307,129 @@ actions:
         export no_proxy=$NO_PROXY
         app_ready=0
         for i in $(seq 1 60); do
-          if curl --noproxy '*' -fsS http://127.0.0.1:8081/health >/dev/null; then
-            echo 'Constructor Fabric app is up'
-            curl --noproxy '*' -fsS http://127.0.0.1:8081/health
+          if curl --noproxy "*" -fsS http://127.0.0.1:8081/health >/dev/null; then
+            echo "Constructor Fabric app is up"
+            curl --noproxy "*" -fsS http://127.0.0.1:8081/health
             app_ready=1
             break
           fi
           sleep 2
         done
         if [ "$app_ready" != "1" ]; then
-          echo 'Constructor Fabric app did not become ready in time' >&2
+          echo "Constructor Fabric app did not become ready in time" >&2
           exit 1
         fi
-        python3 -c 'import socket,sys; checks=[("127.0.0.1",5900,"native-vnc"),("127.0.0.1",6081,"websockify")];
-        import time
-        for host,port,name in checks:
-            last=None
-            for _ in range(30):
-                try:
-                    s=socket.create_connection((host,port),timeout=2)
-                    if port==5900:
-                        banner=s.recv(12).decode(errors="replace").strip()
-                        assert banner.startswith("RFB"), banner
-                    s.close(); print(f"{name} is up on {host}:{port}"); break
-                except Exception as exc:
-                    last=exc; time.sleep(2)
-            else:
-                print(f"{name} did not become ready: {last}", file=sys.stderr); sys.exit(1)'
-        test -f /root/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher missing' >&2; exit 1; }
-        grep -q '^Name=Chromium$' /root/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher has wrong label' >&2; exit 1; }
-        grep -q '^Exec=/usr/local/bin/constructor-fabric-chromium' /root/Desktop/Chromium.desktop || { echo 'Chromium desktop launcher has wrong Exec' >&2; exit 1; }
-        test -x /usr/local/bin/constructor-fabric-chromium || { echo 'Chromium wrapper missing' >&2; exit 1; }
-        test -f /root/Desktop/Terminal.desktop || { echo 'Terminal desktop launcher missing' >&2; exit 1; }
-        if command -v firefox >/dev/null 2>&1 || command -v firefox-esr >/dev/null 2>&1; then echo 'Firefox is still installed' >&2; exit 1; fi
-        echo 'Chromium and Terminal desktop launchers are present and Firefox is absent'
-        cd /root/cyber-constructor
+        check_port() {
+          host="$1"; port="$2"; name="$3"; want_rfb="$4"
+          if [ -z "$want_rfb" ]; then want_rfb=0; fi
+          for i in $(seq 1 30); do
+            if python3 - "$host" "$port" "$want_rfb" <<PYPORT
+        import socket, sys
+        host=sys.argv[1]; port=int(sys.argv[2]); want_rfb=sys.argv[3] == "1"
+        s=socket.create_connection((host, port), timeout=2)
+        if want_rfb:
+            banner=s.recv(12).decode(errors="replace").strip()
+            assert banner.startswith("RFB"), banner
+        s.close()
+        PYPORT
+            then
+              echo "$name is up on $host:$port"
+              return 0
+            fi
+            sleep 2
+          done
+          echo "$name did not become ready" >&2
+          echo "process list:" >&2
+          ps aux | grep -E "Xvfb|x11vnc|websockify|supervisord" | grep -v grep >&2 || true
+          echo "x11vnc.log:" >&2
+          tail -120 /home/developer/constructor-fabric/x11vnc.log >&2 2>/dev/null || true
+          echo "xvfb.log:" >&2
+          tail -80 /home/developer/constructor-fabric/xvfb.log >&2 2>/dev/null || true
+          return 1
+        }
+        check_port 127.0.0.1 5900 native-vnc 1
+        check_port 127.0.0.1 6081 websockify 0
+        cat >/tmp/constructor-fabric-verify-developer.sh <<VERIFYDEV
+        set -euo pipefail
+        test -f /home/developer/Desktop/Chromium.desktop || { echo "Chromium desktop launcher missing" >&2; exit 1; }
+        grep -q "^Name=Chromium$" /home/developer/Desktop/Chromium.desktop || { echo "Chromium desktop launcher has wrong label" >&2; exit 1; }
+        grep -Eq "^Exec=(/usr/local/bin/)?constructor-fabric-chromium" /home/developer/Desktop/Chromium.desktop || { echo "Chromium desktop launcher has wrong Exec" >&2; exit 1; }
+        command -v constructor-fabric-chromium >/dev/null 2>&1 || { echo "Chromium wrapper missing" >&2; exit 1; }
+        test -f /home/developer/Desktop/Terminal.desktop || { echo "Terminal desktop launcher missing" >&2; exit 1; }
+        test -f /home/developer/Desktop/Constructor-Fabric-Trainer.desktop || { echo "Constructor desktop launcher missing" >&2; exit 1; }
+        grep -q "^Name=Constructor Fabric Trainer$" /home/developer/Desktop/Constructor-Fabric-Trainer.desktop || { echo "Constructor desktop launcher has wrong label" >&2; exit 1; }
+        grep -q "run-trainer.sh" /home/developer/Desktop/Constructor-Fabric-Trainer.desktop || { echo "Constructor desktop launcher has wrong Exec" >&2; exit 1; }
+        test -f /home/developer/Desktop/VS-Codium.desktop || { echo "VS Codium desktop launcher missing" >&2; exit 1; }
+        grep -q "open-vscodium-chat.sh" /home/developer/Desktop/VS-Codium.desktop || { echo "VS Codium desktop launcher does not open AI chat wrapper" >&2; exit 1; }
+        test -f /home/developer/constructor-fabric/open-vscodium-chat.sh || { echo "VS Codium AI chat wrapper missing" >&2; exit 1; }
+        command -v xdotool >/dev/null 2>&1 || { echo "xdotool missing for Codium chat focus" >&2; exit 1; }
+        command -v codium >/dev/null 2>&1 || { echo "VS Codium binary missing" >&2; exit 1; }
+        test -f /home/developer/.continue/config.yaml || { echo "Continue config missing" >&2; exit 1; }
+        grep -q "provider: " /home/developer/.continue/config.yaml || { echo "Continue provider missing" >&2; exit 1; }
+        grep -q "model: " /home/developer/.continue/config.yaml || { echo "Continue model missing" >&2; exit 1; }
+        grep -q "name: cf-constructor" /home/developer/.continue/config.yaml || { echo "Continue cf-constructor prompt missing" >&2; exit 1; }
+        codium --list-extensions 2>/dev/null | grep -qi "^continue\.continue$" || { echo "Continue extension missing in VS Codium" >&2; tail -80 /tmp/continue-install.log /home/developer/constructor-fabric/ide-install.log >&2 2>/dev/null || true; exit 1; }
+        if command -v firefox >/dev/null 2>&1 || command -v firefox-esr >/dev/null 2>&1; then echo "Firefox is still installed" >&2; exit 1; fi
+        echo "Chromium, Terminal, Constructor, and VS Codium AI chat desktop launchers are present and Firefox is absent"
+        cd /home/developer/cyber-constructor
         cfc --version
-        cfc info --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "FOUND", data; assert data["relative_path"] == ".cf-constructor", data; print("cyber-constructor info is FOUND at .cf-constructor")'
-        cfc validate --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "PASS", data; print("cyber-constructor validate is PASS")'
-        cfc agents --json | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "OK", data; text=json.dumps(data).lower(); required=["windsurf","cursor","claude","copilot","openai"]; missing=[x for x in required if x not in text]; assert not missing, {"missing": missing, "data": data}; print("cyber-constructor agents are OK for "+", ".join(required))'
-
+        cfc info --json >/tmp/cfc-info.json
+        cfc validate --json >/tmp/cfc-validate.json
+        cfc agents --json >/tmp/cfc-agents.json
+        python3 <<PYCHECK
+        import json
+        info=json.load(open("/tmp/cfc-info.json"))
+        assert info["status"] == "FOUND", info
+        assert info["relative_path"] == ".cf-constructor", info
+        validate=json.load(open("/tmp/cfc-validate.json"))
+        assert validate["status"] == "PASS", validate
+        agents=json.load(open("/tmp/cfc-agents.json"))
+        assert agents["status"] == "OK", agents
+        text=json.dumps(agents).lower()
+        required=["windsurf","claude","copilot","openai"]
+        missing=[x for x in required if x not in text]
+        assert not missing, {"missing": missing, "data": agents}
+        print("cyber-constructor info is FOUND at .cf-constructor")
+        print("cyber-constructor validate is PASS")
+        print("cyber-constructor agents are OK for " + ", ".join(required))
+        PYCHECK
+        VERIFYDEV
+        chmod +x /tmp/constructor-fabric-verify-developer.sh
+        chown developer:developer /tmp/constructor-fabric-verify-developer.sh
+        su - developer -c /tmp/constructor-fabric-verify-developer.sh
 success: |
-  <h3>Constructor Fabric is ready</h3>
+  ### Constructor Fabric is ready
 
-  <h4>Access</h4>
-  <p>
-    <a href="https://${env.domain}/" target="_blank">Open Constructor Fabric noVNC desktop</a>
-  </p>
-  <h4>VNC password</h4>
-  <p>Use this password if noVNC asks for it:</p>
-  <input type="text" readonly="readonly" value="${globals.VNC_PASSWORD}" style="width: 100%; max-width: 420px; font-family: monospace; padding: 6px;" onclick="this.select();" />
+  #### Access
 
-  <h4>Desktop contents</h4>
-  <ul>
-    <li>noVNC opens the Constructor Fabric desktop at 1280x720.</li>
-    <li>The bottom LXDE panel contains launchers, clock, tray, and task switcher.</li>
-    <li>The Constructor Fabric Trainer opens as an Electron desktop app with copy-ready prompts.</li>
-    <li>The desktop is intentionally minimal: Trainer, Chromium, Terminal Emulator, VS Code, Cursor, and Windsurf only.</li>
-    <li>Firefox is removed; the Chromium launcher runs the container-safe browser directly.</li>
-    <li>Claude/Codex integrations are generated inside the workspace for those IDEs; no misleading terminal-only IDE icons are shown.</li>
-  </ul>
+  [Open Constructor Fabric noVNC desktop](https://${env.domain}/)
 
-  <h4>Workspace</h4>
-  <p><code>/root/workspaces/constructor-fabric-workspace</code></p>
+  #### VNC password
 
-  <h4>Install options used</h4>
-  <table>
-    <tr><td>LLM provider</td><td><code>${settings.llm-provider}</code></td></tr>
-    <tr><td>Model</td><td><code>${settings.openai-model:}${settings.claude-model:}</code></td></tr>
-    <tr><td>API Token</td><td>configured from install form when provided</td></tr>
-  </table>
+  Use this password if noVNC asks for it:
 
-  <p>If you set an API Token in the install form, Constructor Fabric exports it into the generated workspace environment.</p>
+  `${globals.VNC_PASSWORD}`
+
+  #### Desktop contents
+
+  - noVNC opens the Constructor Fabric desktop at 1280x720.
+  - The bottom LXDE panel contains launchers, clock, tray, and task switcher.
+  - The Constructor Fabric Trainer opens as an Electron desktop app with copy-ready prompts.
+  - The desktop is intentionally minimal: Trainer, Chromium, Terminal Emulator, VS Codium, Cursor, and Windsurf only.
+  - Firefox is removed; the Chromium launcher runs the container-safe browser directly.
+  - Claude/Codex integrations are generated inside the workspace for those IDEs; no misleading terminal-only IDE icons are shown.
+
+  #### Workspace
+
+  `/home/developer/workspaces/constructor-fabric-workspace`
+
+  #### Install options used
+
+  | Setting | Value |
+  |---------|-------|
+  | LLM provider | `${settings.llm-provider}` |
+  | Model | `${settings.openai-model:}${settings.claude-model:}` |
+  | API Token | configured from install form when provided |
+
+  If you set an API Token in the install form, Constructor Fabric exports it into the generated workspace environment.
+
