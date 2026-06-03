@@ -79,17 +79,14 @@ nodes:
     nodeGroup: cp
     ports:
       - 80
-      - 5900
     endpoints:
-      - name: VNC
-        privatePort: 5900
+      - name: VS Codium Web
+        privatePort: 80
         protocol: TCP
     env:
       TZ: Europe/Kyiv
       USER: developer
-      PASSWORD: ${globals.VNC_PASSWORD}
-      VNC_PASSWORD: ${globals.VNC_PASSWORD}
-      HTTP_PASSWORD: ${globals.VNC_PASSWORD}
+      ACCESS_TOKEN: ${globals.VNC_PASSWORD}
       LLM_PROVIDER: ${settings.llm-provider}
       API_TOKEN: ${settings.api-token}
       OPENAI_API_KEY: ${settings.api-token}
@@ -234,7 +231,14 @@ actions:
         Focus Continue Chat
         View: Show Continue
         CFCMDS
-        cat >/home/developer/constructor-fabric/open-vscodium-chat.sh <<'OPENCHAT'
+        # Kill VNC/desktop processes — we serve VS Codium over HTTP instead.
+        pkill -f Xvfb || true
+        pkill -f x11vnc || true
+        pkill -f websockify || true
+        pkill -f lxsession || true
+        pkill -f lxpanel || true
+        pkill -f openbox || true
+        cat >/home/developer/constructor-fabric/start-codium-web.sh <<'STARTWEB'
         #!/bin/sh
         set -u
         case "${HOME:-}" in
@@ -248,56 +252,17 @@ actions:
         fi
         export PATH="${HOME}/.local/bin:/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
         workspace="${HOME}/workspaces/constructor-fabric-workspace"
-        mkdir -p "$workspace/.vscode"
-        cd "$workspace" || exit 0
-        launcher=codium-wrap
-        if ! command -v "$launcher" >/dev/null 2>&1; then
-          launcher=codium
-        fi
-        "$launcher" --user-data-dir="${HOME}/.config/VSCodium" --reuse-window --goto .vscode/cfc-commands.md . &
-        codium_pid=$!
-        if command -v xdotool >/dev/null 2>&1; then
-          for i in $(seq 1 40); do
-            win="$(xdotool search --onlyvisible --class codium 2>/dev/null | tail -1 || true)"
-            if [ -n "$win" ]; then
-              xdotool windowactivate --sync "$win" 2>/dev/null || xdotool windowactivate "$win" 2>/dev/null || true
-              sleep 12
-              xdotool key --window "$win" ctrl+alt+c 2>/dev/null || true
-              sleep 3
-              for cmd in "Continue: Focus Continue Chat" "Focus Continue Chat" "View: Show Continue"; do
-                xdotool key --window "$win" ctrl+shift+p 2>/dev/null || true
-                sleep 1
-                xdotool type --window "$win" --delay 5 "$cmd" 2>/dev/null || true
-                sleep 1
-                xdotool key --window "$win" Return 2>/dev/null || true
-                sleep 4
-              done
-              xdotool key --window "$win" ctrl+alt+c 2>/dev/null || true
-              break
-            fi
-            sleep 1
-          done
-        fi
-        wait "$codium_pid"
-        OPENCHAT
-        chmod +x /home/developer/constructor-fabric/open-vscodium-chat.sh
-        if [ -f /home/developer/Desktop/VS-Codium.desktop ]; then
-          sed -i "s|^Exec=.*|Exec=/home/developer/constructor-fabric/open-vscodium-chat.sh|" /home/developer/Desktop/VS-Codium.desktop
-        else
-          cat >/home/developer/Desktop/VS-Codium.desktop <<VSCODIUMDESK
-        [Desktop Entry]
-        Version=1.0
-        Type=Application
-        Name=VS Codium
-        Exec=/home/developer/constructor-fabric/open-vscodium-chat.sh
-        Icon=/home/developer/constructor-fabric/app/icons/codium.png
-        Terminal=false
-        Categories=Development;
-        StartupNotify=true
-        VSCODIUMDESK
-        fi
-        chmod +x /home/developer/Desktop/VS-Codium.desktop
-        chown -R developer:developer /home/developer/.constructor-fabric-ai.env /home/developer/.continue /home/developer/.config/VSCodium /home/developer/constructor-fabric/open-vscodium-chat.sh /home/developer/workspaces /home/developer/Desktop/VS-Codium.desktop
+        mkdir -p "$workspace"
+        cd "$workspace" || exit 1
+        exec codium serve-web --port 80 --host 0.0.0.0 \
+          --connection-token "${ACCESS_TOKEN:-changeme}" \
+          --accept-server-license-terms \
+          --user-data-dir "${HOME}/.config/VSCodium"
+        STARTWEB
+        chmod +x /home/developer/constructor-fabric/start-codium-web.sh
+        chown -R developer:developer /home/developer/.constructor-fabric-ai.env /home/developer/.continue /home/developer/.config/VSCodium /home/developer/constructor-fabric/start-codium-web.sh /home/developer/workspaces
+        # Start VSCodium web server in background (runs as developer).
+        su - developer -c "nohup /home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1 &"
         su - developer -c "export HOME=/home/developer PATH=/home/developer/.local/bin:/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin; if command -v codium >/dev/null 2>&1; then codium --install-extension Continue.continue --force >/tmp/continue-install.log 2>&1 || true; fi"
 
   verify:
@@ -319,58 +284,35 @@ actions:
           echo "Constructor Fabric app did not become ready in time" >&2
           exit 1
         fi
-        check_port() {
-          host="$1"; port="$2"; name="$3"; want_rfb="$4"
-          if [ -z "$want_rfb" ]; then want_rfb=0; fi
-          for i in $(seq 1 30); do
-            if python3 - "$host" "$port" "$want_rfb" <<PYPORT
-        import socket, sys
-        host=sys.argv[1]; port=int(sys.argv[2]); want_rfb=sys.argv[3] == "1"
-        s=socket.create_connection((host, port), timeout=2)
-        if want_rfb:
-            banner=s.recv(12).decode(errors="replace").strip()
-            assert banner.startswith("RFB"), banner
-        s.close()
-        PYPORT
-            then
-              echo "$name is up on $host:$port"
-              return 0
-            fi
-            sleep 2
-          done
-          echo "$name did not become ready" >&2
+        # Wait for VS Codium web server on port 80.
+        codium_ready=0
+        for i in $(seq 1 40); do
+          if curl --noproxy "*" -fsS http://127.0.0.1:80/ >/dev/null 2>&1; then
+            echo "VS Codium web server is up on port 80"
+            codium_ready=1
+            break
+          fi
+          sleep 2
+        done
+        if [ "$codium_ready" != "1" ]; then
+          echo "VS Codium web server did not start on port 80" >&2
           echo "process list:" >&2
-          ps aux | grep -E "Xvfb|x11vnc|websockify|supervisord" | grep -v grep >&2 || true
-          echo "x11vnc.log:" >&2
-          tail -120 /home/developer/constructor-fabric/x11vnc.log >&2 2>/dev/null || true
-          echo "xvfb.log:" >&2
-          tail -80 /home/developer/constructor-fabric/xvfb.log >&2 2>/dev/null || true
-          return 1
-        }
-        check_port 127.0.0.1 5900 native-vnc 1
-        check_port 127.0.0.1 6081 websockify 0
+          ps aux | grep -E "codium|node" | grep -v grep >&2 || true
+          echo "codium-web.log:" >&2
+          tail -80 /home/developer/codium-web.log >&2 2>/dev/null || true
+          exit 1
+        fi
         cat >/tmp/constructor-fabric-verify-developer.sh <<VERIFYDEV
         set -euo pipefail
-        test -f /home/developer/Desktop/Chromium.desktop || { echo "Chromium desktop launcher missing" >&2; exit 1; }
-        grep -q "^Name=Chromium$" /home/developer/Desktop/Chromium.desktop || { echo "Chromium desktop launcher has wrong label" >&2; exit 1; }
-        grep -Eq "^Exec=(/usr/local/bin/)?constructor-fabric-chromium" /home/developer/Desktop/Chromium.desktop || { echo "Chromium desktop launcher has wrong Exec" >&2; exit 1; }
-        command -v constructor-fabric-chromium >/dev/null 2>&1 || { echo "Chromium wrapper missing" >&2; exit 1; }
-        test -f /home/developer/Desktop/Terminal.desktop || { echo "Terminal desktop launcher missing" >&2; exit 1; }
-        test -f /home/developer/Desktop/Constructor-Fabric-Trainer.desktop || { echo "Constructor desktop launcher missing" >&2; exit 1; }
-        grep -q "^Name=Constructor Fabric Trainer$" /home/developer/Desktop/Constructor-Fabric-Trainer.desktop || { echo "Constructor desktop launcher has wrong label" >&2; exit 1; }
-        grep -q "run-trainer.sh" /home/developer/Desktop/Constructor-Fabric-Trainer.desktop || { echo "Constructor desktop launcher has wrong Exec" >&2; exit 1; }
-        test -f /home/developer/Desktop/VS-Codium.desktop || { echo "VS Codium desktop launcher missing" >&2; exit 1; }
-        grep -q "open-vscodium-chat.sh" /home/developer/Desktop/VS-Codium.desktop || { echo "VS Codium desktop launcher does not open AI chat wrapper" >&2; exit 1; }
-        test -f /home/developer/constructor-fabric/open-vscodium-chat.sh || { echo "VS Codium AI chat wrapper missing" >&2; exit 1; }
-        command -v xdotool >/dev/null 2>&1 || { echo "xdotool missing for Codium chat focus" >&2; exit 1; }
+        test -f /home/developer/constructor-fabric/start-codium-web.sh || { echo "VS Codium web startup script missing" >&2; exit 1; }
+        grep -q "serve-web" /home/developer/constructor-fabric/start-codium-web.sh || { echo "start-codium-web.sh does not use serve-web" >&2; exit 1; }
         command -v codium >/dev/null 2>&1 || { echo "VS Codium binary missing" >&2; exit 1; }
         test -f /home/developer/.continue/config.yaml || { echo "Continue config missing" >&2; exit 1; }
         grep -q "provider: " /home/developer/.continue/config.yaml || { echo "Continue provider missing" >&2; exit 1; }
         grep -q "model: " /home/developer/.continue/config.yaml || { echo "Continue model missing" >&2; exit 1; }
         grep -q "name: cf-constructor" /home/developer/.continue/config.yaml || { echo "Continue cf-constructor prompt missing" >&2; exit 1; }
         codium --list-extensions 2>/dev/null | grep -qi "^continue\.continue$" || { echo "Continue extension missing in VS Codium" >&2; tail -80 /tmp/continue-install.log /home/developer/constructor-fabric/ide-install.log >&2 2>/dev/null || true; exit 1; }
-        if command -v firefox >/dev/null 2>&1 || command -v firefox-esr >/dev/null 2>&1; then echo "Firefox is still installed" >&2; exit 1; fi
-        echo "Chromium, Terminal, Constructor, and VS Codium AI chat desktop launchers are present and Firefox is absent"
+        echo "VS Codium web server and Continue extension are configured"
         cd /home/developer/cyber-constructor
         cfc --version
         cfc info --json >/tmp/cfc-info.json
@@ -402,22 +344,19 @@ success: |
 
   #### Access
 
-  [Open Constructor Fabric noVNC desktop](https://${env.domain}/)
+  [Open VS Codium](https://${env.domain}/)
 
-  #### VNC password
+  #### Access token
 
-  Use this password if noVNC asks for it:
+  Enter this token when VS Codium asks for it:
 
   `${globals.VNC_PASSWORD}`
 
-  #### Desktop contents
+  #### What you get
 
-  - noVNC opens the Constructor Fabric desktop at 1280x720.
-  - The bottom LXDE panel contains launchers, clock, tray, and task switcher.
-  - The Constructor Fabric Trainer opens as an Electron desktop app with copy-ready prompts.
-  - The desktop is intentionally minimal: Trainer, Chromium, Terminal Emulator, VS Codium, Cursor, and Windsurf only.
-  - Firefox is removed; the Chromium launcher runs the container-safe browser directly.
-  - Claude/Codex integrations are generated inside the workspace for those IDEs; no misleading terminal-only IDE icons are shown.
+  - VS Codium runs as a web IDE in your browser on port 80.
+  - The Continue extension is pre-installed and configured with your selected LLM provider.
+  - The workspace is at `/home/developer/workspaces/constructor-fabric-workspace`.
 
   #### Workspace
 
