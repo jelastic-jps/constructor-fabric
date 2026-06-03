@@ -98,7 +98,19 @@ create_gui_launchers(){
   fi
   desktop_link "Terminal Emulator" "lxterminal --working-directory=/root/workspaces/constructor-fabric-workspace" "utilities-terminal" "Terminal.desktop" "System;TerminalEmulator;"
   if command -v code >/dev/null 2>&1; then
-    desktop_link "VS Code" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && exec code --no-sandbox --user-data-dir=/root/.config/Code .'" "$(icon_for vscode)" "VS-Code.desktop"
+    cat > /usr/local/bin/constructor-fabric-code <<'CODEWRAP'
+#!/bin/sh
+export HOME=/root
+WS=/root/workspaces/constructor-fabric-workspace
+if [ -f "$WS/.env.constructor-fabric" ]; then
+  set -a
+  . "$WS/.env.constructor-fabric" 2>/dev/null || true
+  set +a
+fi
+exec code --no-sandbox --user-data-dir=/root/.config/Code "$@"
+CODEWRAP
+    chmod +x /usr/local/bin/constructor-fabric-code
+    desktop_link "VS Code" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && exec /usr/local/bin/constructor-fabric-code .'" "$(icon_for vscode)" "VS-Code.desktop"
   fi
   if command -v cursor >/dev/null 2>&1; then
     desktop_link "Cursor" "sh -lc 'cd /root/workspaces/constructor-fabric-workspace && exec cursor --no-sandbox .'" "$(icon_for cursor)" "Cursor.desktop"

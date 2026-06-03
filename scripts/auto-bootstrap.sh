@@ -11,7 +11,7 @@
         case "$provider" in openai|claude) ;; *) provider=openai ;; esac
         if [ "$provider" = "claude" ]; then
           model="$(printenv CLAUDE_MODEL || true)"
-          if [ -z "$model" ]; then model=claude-3-5-sonnet-latest; fi
+          if [ -z "$model" ]; then model=claude-opus-4-7; fi
         else
           model="$(printenv OPENAI_MODEL || true)"
           if [ -z "$model" ]; then model=gpt-5.5; fi
@@ -42,6 +42,32 @@
             if [ "$provider" = "claude" ]; then echo "ANTHROPIC_API_KEY=$token"; else echo "OPENAI_API_KEY=$token"; fi
           fi
         } > "$root/.env.constructor-fabric"
+        # Configure VS Code / Codium with the selected Anthropic credentials
+        # so the Claude Code extension picks them up automatically.
+        mkdir -p /root/.config/Code/User
+        if [ "$provider" = "claude" ] && [ -n "$token" ]; then
+          cat > /root/.config/Code/User/settings.json <<VSCODESETTINGS
+{
+  "claude-code.apiKey": "$token",
+  "claude-code.model": "$model",
+  "terminal.integrated.env.linux": {
+    "ANTHROPIC_API_KEY": "$token",
+    "CLAUDE_MODEL": "$model",
+    "LLM_PROVIDER": "$provider"
+  }
+}
+VSCODESETTINGS
+        elif [ "$provider" = "openai" ] && [ -n "$token" ]; then
+          cat > /root/.config/Code/User/settings.json <<VSCODESETTINGS
+{
+  "terminal.integrated.env.linux": {
+    "OPENAI_API_KEY": "$token",
+    "OPENAI_MODEL": "$model",
+    "LLM_PROVIDER": "$provider"
+  }
+}
+VSCODESETTINGS
+        fi
         cat > "$root/CONSTRUCTOR_FABRIC_PROMPTS.md" <<'PROMPTS'
         # Constructor Fabric copy/paste prompts
         
