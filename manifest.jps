@@ -277,7 +277,7 @@ actions:
         cat >/tmp/install-continue.py <<'PYEOF'
         import zipfile, json, os, subprocess, sys
         home = os.environ.get("HOME", "/home/developer")
-        ext_dir = os.path.join(home, ".vscode-oss", "extensions")
+        ext_dir = os.path.join(home, ".config", "VSCodium", "extensions")
         os.makedirs(ext_dir, exist_ok=True)
         vsix = "/tmp/continue.vsix"
         subprocess.check_call(["curl", "-fsSL",
@@ -359,7 +359,7 @@ actions:
         grep -q "provider: " /home/developer/.continue/config.yaml || { echo "Continue provider missing" >&2; exit 1; }
         grep -q "model: " /home/developer/.continue/config.yaml || { echo "Continue model missing" >&2; exit 1; }
         grep -q "name: cf-constructor" /home/developer/.continue/config.yaml || { echo "Continue cf-constructor prompt missing" >&2; exit 1; }
-        test -d /home/developer/.vscode-oss/extensions/continue.continue-* || { echo "Continue extension missing in VS Codium" >&2; tail -80 /tmp/continue-install.log >&2 2>/dev/null || true; exit 1; }
+        test -d /home/developer/.config/VSCodium/extensions/continue.continue-* || { echo "Continue extension missing in VS Codium" >&2; tail -80 /tmp/continue-install.log >&2 2>/dev/null || true; exit 1; }
         echo "VS Codium web server and Continue extension are configured"
         cd /home/developer/cyber-constructor
         cfc --version
