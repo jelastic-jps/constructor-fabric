@@ -274,36 +274,36 @@ actions:
         # Install Continue extension -- codium --install-extension does not work
         # with codium-tunnel (serve-web mode). Download .vsix from Open VSX and
         # extract directly into extensions directory.
-        su - developer -c '
-          set -e
-          export HOME=/home/developer
-          EXT_DIR="$HOME/.vscode-oss/extensions"
-          mkdir -p "$EXT_DIR"
-          VSIX_URL="https://open-vsx.org/api/Continue/continue/latest/file/Continue.continue.vsix"
-          curl -fsSL "$VSIX_URL" -o /tmp/continue.vsix
-          # Extract extension ID from package.json inside vsix (it is a zip)
-          EXT_VERSION=$(python3 -c "
-import zipfile, json, sys
-with zipfile.ZipFile(\"/tmp/continue.vsix\") as z:
-    for name in z.namelist():
-        if name.endswith(\"extension/package.json\"):
-            print(json.loads(z.read(name))[\"version\"])
-            break
-")
-          DEST="$EXT_DIR/continue.continue-$EXT_VERSION"
-          mkdir -p "$DEST"
-          cd "$DEST"
-          python3 -c "
-import zipfile
-with zipfile.ZipFile(\"/tmp/continue.vsix\") as z:
-    for info in z.infolist():
-        if info.filename.startswith(\"extension/\"):
-            info.filename = info.filename[len(\"extension/\"):]
-            z.extract(info, \".\")
-"
-          rm -f /tmp/continue.vsix
-          echo "Continue $EXT_VERSION installed to $DEST"
-        ' > /tmp/continue-install.log 2>&1 || echo "Continue install failed, check /tmp/continue-install.log"
+        cat >/tmp/install-continue.py <<'PYEOF'
+        import zipfile, json, os, subprocess, sys
+        home = os.environ.get("HOME", "/home/developer")
+        ext_dir = os.path.join(home, ".vscode-oss", "extensions")
+        os.makedirs(ext_dir, exist_ok=True)
+        vsix = "/tmp/continue.vsix"
+        subprocess.check_call(["curl", "-fsSL",
+            "https://open-vsx.org/api/Continue/continue/latest/file/Continue.continue.vsix",
+            "-o", vsix])
+        version = None
+        with zipfile.ZipFile(vsix) as z:
+            for name in z.namelist():
+                if name.endswith("extension/package.json"):
+                    version = json.loads(z.read(name))["version"]
+                    break
+        if not version:
+            print("Could not determine Continue version", file=sys.stderr)
+            sys.exit(1)
+        dest = os.path.join(ext_dir, f"continue.continue-{version}")
+        os.makedirs(dest, exist_ok=True)
+        with zipfile.ZipFile(vsix) as z:
+            for info in z.infolist():
+                if info.filename.startswith("extension/"):
+                    info.filename = info.filename[len("extension/"):]
+                    z.extract(info, dest)
+        os.remove(vsix)
+        print(f"Continue {version} installed to {dest}")
+        PYEOF
+        chmod +x /tmp/install-continue.py
+        su - developer -c "python3 /tmp/install-continue.py" > /tmp/continue-install.log 2>&1 || echo "Continue install failed, check /tmp/continue-install.log"
 
   verify:
     - cmd[cp]: |-
