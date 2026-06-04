@@ -1,5 +1,5 @@
 type: install
-version: 0.4.49
+version: 0.4.50
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -231,13 +231,25 @@ actions:
         Focus Continue Chat
         View: Show Continue
         CFCMDS
-        # Kill VNC/desktop processes — we serve VS Codium over HTTP instead.
-        pkill -f Xvfb || true
-        pkill -f x11vnc || true
-        pkill -f websockify || true
-        pkill -f lxsession || true
-        pkill -f lxpanel || true
-        pkill -f openbox || true
+        # Stop the entire VNC/supervisor stack -- we serve VS Codium over HTTP.
+        # The base image startup.sh launches supervisord which manages Xvfb,
+        # x11vnc, nginx (noVNC on port 80), websockify, etc.  supervisord
+        # auto-restarts children, so we must stop it first.
+        killall supervisord 2>/dev/null || true
+        sleep 2
+        # Force-kill any remaining managed processes and nginx.
+        pkill -9 -f nginx 2>/dev/null || true
+        pkill -9 -f Xvfb 2>/dev/null || true
+        pkill -9 -f x11vnc 2>/dev/null || true
+        pkill -9 -f websockify 2>/dev/null || true
+        pkill -9 -f lxsession 2>/dev/null || true
+        pkill -9 -f lxpanel 2>/dev/null || true
+        pkill -9 -f openbox 2>/dev/null || true
+        # Wait for port 80 to become free so codium can bind to it.
+        for _port_wait in $(seq 1 15); do
+          if ! ss -tlnp 2>/dev/null | grep -q ":80 "; then break; fi
+          sleep 1
+        done
         cat >/home/developer/constructor-fabric/start-codium-web.sh <<'STARTWEB'
         #!/bin/sh
         set -u
@@ -284,18 +296,29 @@ actions:
           echo "Constructor Fabric app did not become ready in time" >&2
           exit 1
         fi
-        # Wait for VS Codium web server on port 80.
+        # Wait for VS Codium web server on port 80 (not noVNC).
         codium_ready=0
         for i in $(seq 1 40); do
-          if curl --noproxy "*" -fsS http://127.0.0.1:80/ >/dev/null 2>&1; then
-            echo "VS Codium web server is up on port 80"
-            codium_ready=1
-            break
+          # Check that codium serve-web process is running
+          if pgrep -f "codium.*serve-web" >/dev/null 2>&1; then
+            # Verify port 80 is responding and is NOT noVNC
+            page=$(curl --noproxy "*" -fsS http://127.0.0.1:80/ 2>/dev/null || true)
+            if [ -n "$page" ] && ! echo "$page" | grep -qi "noVNC"; then
+              echo "VS Codium web server is up on port 80"
+              codium_ready=1
+              break
+            fi
           fi
           sleep 2
         done
         if [ "$codium_ready" != "1" ]; then
           echo "VS Codium web server did not start on port 80" >&2
+          # Check if noVNC/nginx is still running (the old failure mode)
+          if curl --noproxy "*" -fsS http://127.0.0.1:80/ 2>/dev/null | grep -qi "noVNC"; then
+            echo "ERROR: noVNC is still being served on port 80 instead of VS Codium" >&2
+            echo "supervisord/nginx were not properly stopped" >&2
+            ps aux | grep -E "supervisor|nginx" | grep -v grep >&2 || true
+          fi
           echo "process list:" >&2
           ps aux | grep -E "codium|node" | grep -v grep >&2 || true
           echo "codium-web.log:" >&2
