@@ -357,53 +357,61 @@ install_continue_ai_chat(){
 
   mkdir -p "${HOME}/.continue" "${HOME}/.config/VSCodium/User"
   ensure_vscodium_chat_wrapper
-  continue_provider="$(printenv LLM_PROVIDER || echo openai)"
-  continue_api_key="$(printenv API_TOKEN || true)"
+  continue_provider="$(printenv LLM_PROVIDER || true)"
   case "$continue_provider" in
-    claude|anthropic)
-      continue_provider="anthropic"
-      continue_model="$(printenv CLAUDE_MODEL || echo claude-sonnet-4-6)"
-      if [ -z "$continue_api_key" ]; then continue_api_key="$(printenv ANTHROPIC_API_KEY || true)"; fi
-      ;;
-    *)
-      continue_provider="openai"
-      continue_model="$(printenv OPENAI_MODEL || echo gpt-5.5)"
-      if [ -z "$continue_api_key" ]; then continue_api_key="$(printenv OPENAI_API_KEY || true)"; fi
-      ;;
+    claude|anthropic) continue_provider="anthropic" ;;
+    *) continue_provider="openai" ;;
   esac
-
-  cat > "${HOME}/.continue/config.yaml" <<CONTINUECFG
-name: Constructor Fabric
-version: 1.0.0
-schema: v1
-models:
-  - name: Constructor Fabric Chat
-    provider: ${continue_provider}
-    model: ${continue_model}
-CONTINUECFG
-  if [ -n "$continue_api_key" ]; then
-    printf "    apiKey: %s\n" "$continue_api_key" >> "${HOME}/.continue/config.yaml"
+  continue_api_key="$(printenv API_TOKEN || true)"
+  if [ "$continue_provider" = "anthropic" ]; then
+    continue_model="$(printenv CLAUDE_MODEL || true)"
+    if [ -z "$continue_api_key" ]; then continue_api_key="$(printenv ANTHROPIC_API_KEY || true)"; fi
+    case "$continue_model" in ""|-|null|None|undefined|\$\{*) continue_model="claude-sonnet-4-6" ;; esac
+  else
+    continue_model="$(printenv OPENAI_MODEL || true)"
+    if [ -z "$continue_api_key" ]; then continue_api_key="$(printenv OPENAI_API_KEY || true)"; fi
+    case "$continue_model" in ""|-|null|None|undefined|\$\{*) continue_model="gpt-5.5" ;; esac
   fi
-  cat >> "${HOME}/.continue/config.yaml" <<CONTINUECFG
-    roles:
-      - chat
-      - edit
-      - apply
-      - autocomplete
-context:
-  - provider: code
-  - provider: docs
-prompts:
-  - name: cf-constructor
-    description: Run the Constructor Fabric SDLC workflow using the generated .cf-constructor workspace, cfc CLI, and traceability rules.
-    prompt: |
-      You are Constructor Fabric inside the pre-initialized workspace.
+  case "$continue_api_key" in -|null|None|undefined|\$\{*) continue_api_key="" ;; esac
 
-      User request:
-      {{{ input }}}
-
-      Use AGENTS.md, .cf-constructor/.gen/AGENTS.md, the .cf-constructor adapter, generated cypilot skills, and cfc/cf-constructor CLI validation.
-CONTINUECFG
+  python3 - "$continue_provider" "$continue_model" "$continue_api_key" > "${HOME}/.continue/config.yaml" <<'PYCONTINUECFG'
+import json
+import sys
+provider, model, api_key = sys.argv[1:4]
+def q(v): return json.dumps(str(v))
+lines = [
+  "name: Constructor Fabric",
+  "version: 1.0.0",
+  "schema: v1",
+  "models:",
+  "  - name: Constructor Fabric Chat",
+  f"    provider: {q(provider)}",
+  f"    model: {q(model)}",
+]
+if api_key:
+  lines.append(f"    apiKey: {q(api_key)}")
+lines += [
+  "    roles:",
+  "      - chat",
+  "      - edit",
+  "      - apply",
+  "      - autocomplete",
+  "context:",
+  "  - provider: code",
+  "  - provider: docs",
+  "prompts:",
+  "  - name: cf-constructor",
+  "    description: Run the Constructor Fabric SDLC workflow using the generated .cf-constructor workspace, cfc CLI, and traceability rules.",
+  "    prompt: |",
+  "      You are Constructor Fabric inside the pre-initialized workspace.",
+  "",
+  "      User request:",
+  "      {{{ input }}}",
+  "",
+  "      Use AGENTS.md, .cf-constructor/.gen/AGENTS.md, the .cf-constructor adapter, generated cypilot skills, and cfc/cf-constructor CLI validation.",
+]
+print("\n".join(lines))
+PYCONTINUECFG
 
   cat > "${HOME}/.config/VSCodium/User/settings.json" <<'VSCODESETTINGS'
 {
