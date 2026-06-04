@@ -320,7 +320,8 @@ actions:
         cat /tmp/continue-install.log
         # Start VSCodium web server in background (root for port 80).
         # Extensions are pre-installed so codium picks them up on startup.
-        setsid /home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1 &
+        setsid /home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1
+        true
 
   verify:
     - cmd[cp]: |-
