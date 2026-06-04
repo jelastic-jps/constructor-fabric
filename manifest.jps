@@ -1,5 +1,5 @@
 type: install
-version: 0.4.58
+version: 0.4.59
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -324,20 +324,58 @@ actions:
         PYWEBVIEW
         python3 /tmp/patch-codium-webview-transfer.py | tee /tmp/codium-webview-transfer-patch.log
 
-        # Kill VNC/noVNC stack before starting Codium. Kill tini first or it
-        # restarts supervisord/nginx and noVNC wins port 80 back.
-        sudo pkill -9 -f "tini.*supervisord" 2>/dev/null || true
-        sudo supervisorctl stop all 2>/dev/null || true
-        sudo supervisorctl shutdown 2>/dev/null || true
-        sleep 2
-        sudo pkill -9 -f supervisord 2>/dev/null || true
-        sudo pkill -9 -f nginx 2>/dev/null || true
-        sudo pkill -9 -f Xvfb 2>/dev/null || true
-        sudo pkill -9 -f x11vnc 2>/dev/null || true
-        sudo pkill -9 -f websockify 2>/dev/null || true
-        for _port_wait in $(seq 1 20); do
+        # Patch Codium workbench to avoid sending ReadableStream through the
+        # webview/ServiceWorker path. The built-in support probe only checks
+        # MessageChannel transferability, which can pass even though Jelastic's
+        # browser/proxy/ServiceWorker path fails with DataCloneError.
+        cat >/tmp/patch-codium-workbench-no-streams.py <<'PYWORKBENCH'
+        import re
+        from pathlib import Path
+
+        roots = [Path('/home/developer'), Path('/usr/share'), Path('/usr/lib'), Path('/opt')]
+        files = []
+        for root in roots:
+            if root.exists():
+                files.extend(root.rglob('workbench.js'))
+        pattern = re.compile(
+            r"this\._supportsTransferableStreams=new Ws\(\(\)=>\{try\{const e=new ReadableStream,t=new MessageChannel;return t\.port1\.postMessage\(e,\[e\]\),t\.port1\.close\(\),t\.port2\.close\(\),!0\}catch\{return!1\}\}\)"
+        )
+        replacement = "this._supportsTransferableStreams=new Ws(()=>!1)"
+        patched = []
+        for path in files:
+            text = path.read_text(errors='replace')
+            new_text, count = pattern.subn(replacement, text)
+            if count:
+                path.write_text(new_text)
+                patched.append(f"patched workbench streams: {path}")
+            elif replacement in text:
+                patched.append(f"already patched workbench streams: {path}")
+        if not patched:
+            raise SystemExit("No Codium workbench.js transferable stream probe patched")
+        print("\n".join(patched))
+        PYWORKBENCH
+        python3 /tmp/patch-codium-workbench-no-streams.py | tee /tmp/codium-workbench-no-streams-patch.log
+
+        # Kill VNC/noVNC stack before starting Codium. Kill process managers
+        # repeatedly; the base image can restart nginx/noVNC if supervisord/tini
+        # survives. Also kill stale codium server-main children so only one
+        # fresh serve-web instance owns port 80.
+        for _kill_round in $(seq 1 8); do
+          sudo pkill -9 -f "tini.*supervisord" 2>/dev/null || true
+          sudo supervisorctl stop all 2>/dev/null || true
+          sudo supervisorctl shutdown 2>/dev/null || true
+          sudo pkill -9 -f supervisord 2>/dev/null || true
+          sudo pkill -9 -f nginx 2>/dev/null || true
+          sudo pkill -9 -f Xvfb 2>/dev/null || true
+          sudo pkill -9 -f x11vnc 2>/dev/null || true
+          sudo pkill -9 -f websockify 2>/dev/null || true
+          sudo pkill -9 -f lxsession 2>/dev/null || true
+          sudo pkill -9 -f lxpanel 2>/dev/null || true
+          sudo pkill -9 -f openbox 2>/dev/null || true
+          sudo pkill -9 -f "codium.*serve-web" 2>/dev/null || true
+          sudo pkill -9 -f codium-server 2>/dev/null || true
+          sleep 2
           if ! ss -tlnp 2>/dev/null | grep -q ":80 "; then break; fi
-          sleep 1
         done
         cat >/home/developer/constructor-fabric/start-codium-web.sh <<'STARTWEB'
         #!/bin/sh
