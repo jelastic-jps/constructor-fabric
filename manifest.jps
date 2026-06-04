@@ -1,5 +1,5 @@
 type: install
-version: 0.4.54
+version: 0.4.55
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -155,7 +155,7 @@ actions:
         curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/trainer/index.html" -o /home/developer/workspaces/constructor-fabric-workspace/trainer/index.html 2>/dev/null || true
         # Start a lightweight HTTP server to serve the trainer (port 8082)
         /bin/sh -c "python3 -m http.server 8082 --directory /home/developer/workspaces/constructor-fabric-workspace/trainer --bind 127.0.0.1 >/dev/null 2>&1 &"
-        python3 >/tmp/write-continue-config.py <<'PYCFG'
+        cat >/tmp/write-continue-config.py <<'PYCFG'
         import json
         import os
         from pathlib import Path
