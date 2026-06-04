@@ -280,7 +280,39 @@ actions:
         # Start VSCodium web server in background.
         # Must run as root because port 80 is privileged (< 1024).
         nohup /home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1 &
-        su - developer -c "export HOME=/home/developer PATH=/home/developer/.local/bin:/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin; if command -v codium >/dev/null 2>&1; then codium --install-extension Continue.continue --force >/tmp/continue-install.log 2>&1 || true; fi"
+        # Install Continue extension -- codium --install-extension does not work
+        # with codium-tunnel (serve-web mode). Download .vsix from Open VSX and
+        # extract directly into extensions directory.
+        su - developer -c '
+          set -e
+          export HOME=/home/developer
+          EXT_DIR="$HOME/.vscode-oss/extensions"
+          mkdir -p "$EXT_DIR"
+          VSIX_URL="https://open-vsx.org/api/Continue/continue/latest/file/Continue.continue.vsix"
+          curl -fsSL "$VSIX_URL" -o /tmp/continue.vsix
+          # Extract extension ID from package.json inside vsix (it is a zip)
+          EXT_VERSION=$(python3 -c "
+import zipfile, json, sys
+with zipfile.ZipFile(\"/tmp/continue.vsix\") as z:
+    for name in z.namelist():
+        if name.endswith(\"extension/package.json\"):
+            print(json.loads(z.read(name))[\"version\"])
+            break
+")
+          DEST="$EXT_DIR/continue.continue-$EXT_VERSION"
+          mkdir -p "$DEST"
+          cd "$DEST"
+          python3 -c "
+import zipfile
+with zipfile.ZipFile(\"/tmp/continue.vsix\") as z:
+    for info in z.infolist():
+        if info.filename.startswith(\"extension/\"):
+            info.filename = info.filename[len(\"extension/\"):]
+            z.extract(info, \".\")
+"
+          rm -f /tmp/continue.vsix
+          echo "Continue $EXT_VERSION installed to $DEST"
+        ' > /tmp/continue-install.log 2>&1 || echo "Continue install failed, check /tmp/continue-install.log"
 
   verify:
     - cmd[cp]: |-
@@ -336,7 +368,7 @@ actions:
         grep -q "provider: " /home/developer/.continue/config.yaml || { echo "Continue provider missing" >&2; exit 1; }
         grep -q "model: " /home/developer/.continue/config.yaml || { echo "Continue model missing" >&2; exit 1; }
         grep -q "name: cf-constructor" /home/developer/.continue/config.yaml || { echo "Continue cf-constructor prompt missing" >&2; exit 1; }
-        codium --list-extensions 2>/dev/null | grep -qi "^continue\.continue$" || { echo "Continue extension missing in VS Codium" >&2; tail -80 /tmp/continue-install.log /home/developer/constructor-fabric/ide-install.log >&2 2>/dev/null || true; exit 1; }
+        test -d /home/developer/.vscode-oss/extensions/continue.continue-* || { echo "Continue extension missing in VS Codium" >&2; tail -80 /tmp/continue-install.log >&2 2>/dev/null || true; exit 1; }
         echo "VS Codium web server and Continue extension are configured"
         cd /home/developer/cyber-constructor
         cfc --version
