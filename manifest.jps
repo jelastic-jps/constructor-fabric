@@ -1,5 +1,5 @@
 type: install
-version: 0.4.56
+version: 0.4.57
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -265,6 +265,53 @@ actions:
         Focus Continue Chat
         View: Show Continue
         CFCMDS
+
+        # Patch Codium WebView resource loader for browsers/Jelastic proxy setups
+        # that require ReadableStream to be passed as a transferable. Without
+        # this, Continue's webview can fail with:
+        # DataCloneError: ReadableStream could not be cloned because it was not transferred.
+        cat >/tmp/patch-codium-webview-transfer.py <<'PYWEBVIEW'
+        import re
+        from pathlib import Path
+
+        roots = [Path('/usr/share'), Path('/usr/lib'), Path('/opt')]
+        candidates = []
+        for root in roots:
+            if not root.exists():
+                continue
+            for path in root.rglob('index.html'):
+                s = str(path)
+                if 'webview' in s and 'browser' in s and 'pre' in s:
+                    candidates.append(path)
+
+        patched = []
+        pattern = re.compile(
+            r"(hostMessaging\.onMessage\('did-load-resource', \(_event, data\) => \{\s*)"
+            r"(assertIsDefined\(navigator\.serviceWorker\.controller\)\.postMessage\(\{ channel: 'did-load-resource', data \}\);)"
+            r"(\s*\}\);)",
+            re.MULTILINE,
+        )
+        replacement = (
+            "\\1"
+            "const transfer = data.stream ? [data.stream] : [];\n"
+            "\t\t\t\tassertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-resource', data }, transfer);"
+            "\\3"
+        )
+        for path in candidates:
+            text = path.read_text(errors='replace')
+            if "const transfer = data.stream ? [data.stream] : []" in text:
+                patched.append(f"already patched: {path}")
+                continue
+            new_text, count = pattern.subn(replacement, text, count=1)
+            if count:
+                path.write_text(new_text)
+                patched.append(f"patched: {path}")
+        if not patched:
+            raise SystemExit("No Codium webview pre/index.html patched; candidates=" + ",".join(map(str, candidates[:20])))
+        print("\n".join(patched))
+        PYWEBVIEW
+        python3 /tmp/patch-codium-webview-transfer.py | tee /tmp/codium-webview-transfer-patch.log
+
         # Kill VNC/noVNC stack before starting Codium. Kill tini first or it
         # restarts supervisord/nginx and noVNC wins port 80 back.
         sudo pkill -9 -f "tini.*supervisord" 2>/dev/null || true
