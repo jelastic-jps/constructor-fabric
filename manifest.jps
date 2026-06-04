@@ -232,45 +232,23 @@ actions:
         View: Show Continue
         CFCMDS
         # Stop the entire VNC/supervisor stack -- we serve VS Codium over HTTP.
-        # The base image startup.sh launches supervisord which manages Xvfb,
-        # x11vnc, nginx (noVNC on port 80), websockify, etc.
-        # Write diagnostics to file (stdout may not be captured by Jelastic)
-        {
-          echo "=== Bootstrap debug $(date) ==="
-          echo "whoami: $(whoami)"
-          echo "id: $(id)"
-          echo "supervisor processes before cleanup:"
-          ps aux | grep -E "supervisor|nginx" | grep -v grep
-          echo "port 80 before cleanup:"
-          ss -tlnp 2>/dev/null | grep ":80 "
-        } >/tmp/bootstrap-debug.txt 2>&1
-        # Try multiple methods to stop supervisord and nginx
-        # Method 1: supervisorctl
-        sudo supervisorctl stop all >>/tmp/bootstrap-debug.txt 2>&1 || true
-        sudo supervisorctl shutdown >>/tmp/bootstrap-debug.txt 2>&1 || true
-        # Method 2: kill via PID file
-        if [ -f /var/run/supervisord.pid ]; then
-          sudo kill -9 "$(cat /var/run/supervisord.pid)" >>/tmp/bootstrap-debug.txt 2>&1 || true
-        fi
-        # Method 3: pkill with sudo
-        sudo pkill -9 -f "supervisord" >>/tmp/bootstrap-debug.txt 2>&1 || true
+        # The base image startup.sh launches supervisord via tini which manages
+        # Xvfb, x11vnc, nginx (noVNC on port 80), websockify, etc.
+        # Must kill tini first or it restarts supervisord after shutdown.
+        sudo pkill -9 -f "tini.*supervisord" 2>/dev/null || true
+        sudo supervisorctl stop all 2>/dev/null || true
+        sudo supervisorctl shutdown 2>/dev/null || true
         sleep 2
-        # Kill nginx directly
-        sudo pkill -9 -f "nginx" >>/tmp/bootstrap-debug.txt 2>&1 || true
-        sudo pkill -9 -f "Xvfb" >>/tmp/bootstrap-debug.txt 2>&1 || true
-        sudo pkill -9 -f "x11vnc" >>/tmp/bootstrap-debug.txt 2>&1 || true
-        sudo pkill -9 -f "websockify" >>/tmp/bootstrap-debug.txt 2>&1 || true
-        # Wait for port 80 to be free
+        sudo pkill -9 -f supervisord 2>/dev/null || true
+        sudo pkill -9 -f nginx 2>/dev/null || true
+        sudo pkill -9 -f Xvfb 2>/dev/null || true
+        sudo pkill -9 -f x11vnc 2>/dev/null || true
+        sudo pkill -9 -f websockify 2>/dev/null || true
+        # Wait for port 80 to become free
         for _port_wait in $(seq 1 15); do
           if ! ss -tlnp 2>/dev/null | grep -q ":80 "; then break; fi
           sleep 1
         done
-        {
-          echo "supervisor processes after cleanup:"
-          ps aux | grep -E "supervisor|nginx" | grep -v grep || echo "none"
-          echo "port 80 after cleanup:"
-          ss -tlnp 2>/dev/null | grep ":80 " || echo "free"
-        } >>/tmp/bootstrap-debug.txt 2>&1
         cat >/home/developer/constructor-fabric/start-codium-web.sh <<'STARTWEB'
         #!/bin/sh
         set -u
@@ -294,8 +272,9 @@ actions:
         STARTWEB
         chmod +x /home/developer/constructor-fabric/start-codium-web.sh
         chown -R developer:developer /home/developer/.constructor-fabric-ai.env /home/developer/.continue /home/developer/.config/VSCodium /home/developer/constructor-fabric/start-codium-web.sh /home/developer/workspaces
-        # Start VSCodium web server in background (runs as developer).
-        su - developer -c "nohup /home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1 &"
+        # Start VSCodium web server in background.
+        # Must run as root because port 80 is privileged (< 1024).
+        nohup /home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1 &
         su - developer -c "export HOME=/home/developer PATH=/home/developer/.local/bin:/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin; if command -v codium >/dev/null 2>&1; then codium --install-extension Continue.continue --force >/tmp/continue-install.log 2>&1 || true; fi"
 
   verify:
@@ -334,14 +313,8 @@ actions:
         done
         if [ "$codium_ready" != "1" ]; then
           echo "VS Codium web server did not start on port 80" >&2
-          # Show bootstrap debug output
-          if [ -f /tmp/bootstrap-debug.txt ]; then
-            echo "=== Bootstrap debug output ===" >&2
-            cat /tmp/bootstrap-debug.txt >&2
-          fi
-          # Check if noVNC/nginx is still running (the old failure mode)
           if curl --noproxy "*" -fsS http://127.0.0.1:80/ 2>/dev/null | grep -qi "noVNC"; then
-            echo "ERROR: noVNC is still being served on port 80 instead of VS Codium" >&2
+            echo "ERROR: noVNC is still being served on port 80" >&2
           fi
           echo "process list:" >&2
           ps aux | grep -E "codium|node|supervisor|nginx" | grep -v grep >&2 || true
