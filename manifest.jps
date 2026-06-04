@@ -78,10 +78,10 @@ nodes:
     cloudlets: 64
     nodeGroup: cp
     ports:
-      - 8080
+      - 80
     endpoints:
       - name: VS Codium Web
-        privatePort: 8080
+        privatePort: 80
         protocol: TCP
     env:
       TZ: Europe/Kyiv
@@ -104,8 +104,8 @@ nodes:
       AUDIODEV: default
       NO_PROXY: localhost,127.0.0.1,::1
       no_proxy: localhost,127.0.0.1,::1
-      JELASTIC_EXPOSE: 8080
-      JELASTIC_PORTS: 8080
+      JELASTIC_EXPOSE: 80
+      JELASTIC_PORTS: 80
       RESOLUTION: 1280x720
       SCRIPT_VERSION: ${globals.SCRIPT_VERSION}
       CF_SOURCE_REF: ${globals.CF_SOURCE_REF}
@@ -260,18 +260,17 @@ actions:
         workspace="${HOME}/workspaces/constructor-fabric-workspace"
         mkdir -p "$workspace"
         cd "$workspace" || exit 1
-        exec codium serve-web --port 8080 --host 0.0.0.0 \
+        exec codium serve-web --port 80 --host 0.0.0.0 \
           --without-connection-token \
           --accept-server-license-terms \
-          --extensions-dir "${HOME}/.config/VSCodium/extensions" \
           --server-data-dir "${HOME}/.config/VSCodium"
         # NOTE: codium listens on 8080 inside container. Jelastic endpoint
         # maps external port to 8080. Port 80 is reserved for future use.
         STARTWEB
         chmod +x /home/developer/constructor-fabric/start-codium-web.sh
         chown -R developer:developer /home/developer/.constructor-fabric-ai.env /home/developer/.continue /home/developer/.config/VSCodium /home/developer/constructor-fabric/start-codium-web.sh /home/developer/workspaces
-        # Start VSCodium web server in background (runs as developer).
-        su - developer -c "nohup /home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1 &"
+        # Start VSCodium web server in background (root for port 80).
+        setsid /home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1 &
         # Install Continue extension -- codium --install-extension does not work
         # with codium-tunnel (serve-web mode). Download .vsix from Open VSX and
         # extract directly into extensions directory.
@@ -325,15 +324,15 @@ actions:
           echo "Constructor Fabric app did not become ready in time" >&2
           exit 1
         fi
-        # Wait for VS Codium web server on port 8080 (not noVNC).
+        # Wait for VS Codium web server on port 80 (not noVNC).
         codium_ready=0
         for i in $(seq 1 40); do
           # Check that codium serve-web process is running
           if pgrep -f "codium.*serve-web" >/dev/null 2>&1; then
-            # Verify port 8080 is responding and is NOT noVNC
-            page=$(curl --noproxy "*" -fsS http://127.0.0.1:8080/ 2>/dev/null || true)
+            # Verify port 80 is responding and is NOT noVNC
+            page=$(curl --noproxy "*" -fsS http://127.0.0.1:80/ 2>/dev/null || true)
             if [ -n "$page" ] && ! echo "$page" | grep -qi "noVNC"; then
-              echo "VS Codium web server is up on port 8080"
+              echo "VS Codium web server is up on port 80"
               codium_ready=1
               break
             fi
@@ -341,7 +340,7 @@ actions:
           sleep 2
         done
         if [ "$codium_ready" != "1" ]; then
-          echo "VS Codium web server did not start on port 8080" >&2
+          echo "VS Codium web server did not start on port 80" >&2
           if curl --noproxy "*" -fsS http://127.0.0.1:80/ 2>/dev/null | grep -qi "noVNC"; then
             echo "ERROR: noVNC is still being served on port 80" >&2
           fi
