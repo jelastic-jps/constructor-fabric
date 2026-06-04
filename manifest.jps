@@ -1,5 +1,5 @@
 type: install
-version: 0.4.52
+version: 0.4.53
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -27,7 +27,7 @@ globals:
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
   RESOLUTION: 1280x720
-  SCRIPT_VERSION: trainer-cf-constructor-copy-20260602-1
+  SCRIPT_VERSION: continue-config-v0453-20260604-1
   CF_SOURCE_REF: 9c02ce9feddc368c36d0b754c5ef98e8b350c655
 
 settings:
@@ -155,68 +155,97 @@ actions:
         curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/trainer/index.html" -o /home/developer/workspaces/constructor-fabric-workspace/trainer/index.html 2>/dev/null || true
         # Start a lightweight HTTP server to serve the trainer (port 8082)
         /bin/sh -c "python3 -m http.server 8082 --directory /home/developer/workspaces/constructor-fabric-workspace/trainer --bind 127.0.0.1 >/dev/null 2>&1 &"
-        ai_token="$(printenv API_TOKEN || true)"
-        ai_openai_key="$(printenv OPENAI_API_KEY || true)"
-        ai_anthropic_key="$(printenv ANTHROPIC_API_KEY || true)"
-        if [ -z "$ai_openai_key" ]; then ai_openai_key="$ai_token"; fi
-        if [ -z "$ai_anthropic_key" ]; then ai_anthropic_key="$ai_token"; fi
-        {
-          printf '%s\n' "API_TOKEN=$ai_token"
-          printf '%s\n' "OPENAI_API_KEY=$ai_openai_key"
-          printf '%s\n' "ANTHROPIC_API_KEY=$ai_anthropic_key"
-        } >/home/developer/.constructor-fabric-ai.env
-        chmod 600 /home/developer/.constructor-fabric-ai.env
-        continue_provider="$(printenv LLM_PROVIDER || true)"
-        if [ -z "$continue_provider" ]; then continue_provider="openai"; fi
-        continue_model="$(printenv OPENAI_MODEL || true)"
-        if [ -z "$continue_model" ]; then continue_model="gpt-5.5"; fi
-        if [ "$continue_provider" = "anthropic" ]; then
-          continue_model="$(printenv CLAUDE_MODEL || true)"
-          if [ -z "$continue_model" ]; then continue_model="claude-sonnet-4-6"; fi
-        fi
-        cat >/home/developer/.continue/config.yaml <<CONTINUECFG
-        name: Constructor Fabric
-        version: 1.0.0
-        schema: v1
-        env:
-          OPENAI_API_KEY: ${ai_openai_key}
-          ANTHROPIC_API_KEY: ${ai_anthropic_key}
-          API_TOKEN: ${ai_token}
-        models:
-          - name: Constructor Fabric Chat
-            provider: ${continue_provider}
-            model: ${continue_model}
-        CONTINUECFG
-        if [ -n "$ai_token" ]; then
-          printf "    apiKey: %s\n" "$ai_token" >> /home/developer/.continue/config.yaml
-        fi
-        cat >>/home/developer/.continue/config.yaml <<CONTINUECFG
-            roles:
-              - chat
-              - edit
-              - apply
-              - autocomplete
-        context:
-          - provider: code
-          - provider: docs
-        prompts:
-          - name: cf-constructor
-            description: Run the Constructor Fabric SDLC workflow using the generated .cf-constructor workspace, cfc CLI, and traceability rules.
-            prompt: |
-              You are Constructor Fabric inside the pre-initialized workspace.
+        python3 >/tmp/write-continue-config.py <<'PYCFG'
+        import json
+        import os
+        from pathlib import Path
 
-              User request:
-              {{{ input }}}
+        def clean(value, default=""):
+            value = (value or "").strip()
+            bad = {"", "-", "null", "None", "undefined"}
+            if value in bad or value.startswith("${") or value.startswith("-"):
+                return default
+            return value
 
-              Use the local Constructor Fabric setup in this workspace:
-              - Read AGENTS.md and .cf-constructor/.gen/AGENTS.md before making changes.
-              - Use .cf-constructor as the Constructor Fabric adapter path.
-              - Use the generated agents and skills under .cf-constructor/.core/skills/cypilot when relevant.
-              - Use cfc/cf-constructor CLI commands for info, validation, artifacts, traceability, and generated agent workflow checks.
-              - Preserve traceability across PRD, ADR, DESIGN, DECOMPOSITION, FEATURE, CODE, tasks, tests, and review artifacts.
-              - When generating artifacts, write them into the workspace using Constructor Fabric conventions and run validation commands when possible.
-              - If validation fails, explain the failing checks and propose or apply fixes.
-        CONTINUECFG
+        provider = clean(os.environ.get("LLM_PROVIDER"), "openai")
+        if provider == "claude":
+            provider = "anthropic"
+        if provider not in {"openai", "anthropic"}:
+            provider = "openai"
+
+        token = clean(os.environ.get("API_TOKEN"), "")
+        openai_key = clean(os.environ.get("OPENAI_API_KEY"), token)
+        anthropic_key = clean(os.environ.get("ANTHROPIC_API_KEY"), token)
+        openai_model = clean(os.environ.get("OPENAI_MODEL"), "gpt-5.5")
+        claude_model = clean(os.environ.get("CLAUDE_MODEL"), "claude-sonnet-4-6")
+        model = claude_model if provider == "anthropic" else openai_model
+        api_key = anthropic_key if provider == "anthropic" else openai_key
+
+        out = Path("/home/developer/.continue/config.yaml")
+        out.parent.mkdir(parents=True, exist_ok=True)
+
+        def q(value):
+            return json.dumps(str(value))
+
+        lines = [
+            "name: Constructor Fabric",
+            "version: 1.0.0",
+            "schema: v1",
+            "env:",
+            f"  OPENAI_API_KEY: {q(openai_key)}",
+            f"  ANTHROPIC_API_KEY: {q(anthropic_key)}",
+            f"  API_TOKEN: {q(token)}",
+            "models:",
+            "  - name: Constructor Fabric Chat",
+            f"    provider: {q(provider)}",
+            f"    model: {q(model)}",
+        ]
+        if api_key:
+            lines.append(f"    apiKey: {q(api_key)}")
+        lines.extend([
+            "    roles:",
+            "      - chat",
+            "      - edit",
+            "      - apply",
+            "      - autocomplete",
+            "context:",
+            "  - provider: code",
+            "  - provider: docs",
+            "prompts:",
+            "  - name: cf-constructor",
+            "    description: Run the Constructor Fabric SDLC workflow using the generated .cf-constructor workspace, cfc CLI, and traceability rules.",
+            "    prompt: |",
+            "      You are Constructor Fabric inside the pre-initialized workspace.",
+            "",
+            "      User request:",
+            "      {{{ input }}}",
+            "",
+            "      Use the local Constructor Fabric setup in this workspace:",
+            "      - Read AGENTS.md and .cf-constructor/.gen/AGENTS.md before making changes.",
+            "      - Use .cf-constructor as the Constructor Fabric adapter path.",
+            "      - Use the generated agents and skills under .cf-constructor/.core/skills/cypilot when relevant.",
+            "      - Use cfc/cf-constructor CLI commands for info, validation, artifacts, traceability, and generated agent workflow checks.",
+            "      - Preserve traceability across PRD, ADR, DESIGN, DECOMPOSITION, FEATURE, CODE, tasks, tests, and review artifacts.",
+            "      - When generating artifacts, write them into the workspace using Constructor Fabric conventions and run validation commands when possible.",
+            "      - If validation fails, explain the failing checks and propose or apply fixes.",
+        ])
+        out.write_text("\n".join(lines) + "\n")
+
+        # Developer-readable env file for the Codium/Continue extension host.
+        env = Path("/home/developer/.constructor-fabric-ai.env")
+        env.write_text("\n".join([
+            f"API_TOKEN={token}",
+            f"OPENAI_API_KEY={openai_key}",
+            f"ANTHROPIC_API_KEY={anthropic_key}",
+            f"LLM_PROVIDER={provider}",
+            f"OPENAI_MODEL={openai_model}",
+            f"CLAUDE_MODEL={claude_model}",
+        ]) + "\n")
+        env.chmod(0o600)
+
+        print(f"Continue config written: provider={provider}, model={model}, api_key_len={len(api_key)}")
+        PYCFG
+        python3 /tmp/write-continue-config.py
         cat >/home/developer/.config/VSCodium/User/settings.json <<VSCODESETTINGS
         {
           "workbench.startupEditor": "none",
