@@ -1,5 +1,5 @@
 type: install
-version: 0.4.50
+version: 0.4.51
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -263,24 +263,23 @@ actions:
         exec codium serve-web --port 80 --host 0.0.0.0 \
           --without-connection-token \
           --accept-server-license-terms \
-          --server-data-dir "${HOME}/.config/VSCodium"
+          --server-data-dir "${HOME}/.config/VSCodium" \
+          --extensions-dir "${HOME}/.config/VSCodium/extensions"
         # NOTE: codium listens on 8080 inside container. Jelastic endpoint
         # maps external port to 8080. Port 80 is reserved for future use.
         STARTWEB
         chmod +x /home/developer/constructor-fabric/start-codium-web.sh
         chown -R developer:developer /home/developer/.constructor-fabric-ai.env /home/developer/.continue /home/developer/.config/VSCodium /home/developer/constructor-fabric/start-codium-web.sh /home/developer/workspaces
-        # Start VSCodium web server in background (root for port 80).
-        setsid /home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1 &
-        # Install Continue extension -- codium --install-extension does not work
-        # with codium-tunnel (serve-web mode). Download .vsix from Open VSX and
-        # extract directly into extensions directory.
+        # Install Continue extension BEFORE starting codium so it picks it up
+        # on first scan. Download .vsix from Open VSX and extract to extensions dir.
         cat >/tmp/install-continue.py <<'PYEOF'
         import zipfile, json, os, subprocess, sys
         home = os.environ.get("HOME", "/home/developer")
         ext_dir = os.path.join(home, ".config", "VSCodium", "extensions")
         os.makedirs(ext_dir, exist_ok=True)
         vsix = "/tmp/continue.vsix"
-        subprocess.check_call(["curl", "-fsSL",
+        print(f"Downloading Continue .vsix to {vsix}...")
+        subprocess.check_call(["curl", "--noproxy", "*", "-fsSL", "--max-time", "120",
             "https://open-vsx.org/api/Continue/continue/latest/file/Continue.continue.vsix",
             "-o", vsix])
         version = None
@@ -293,17 +292,35 @@ actions:
             print("Could not determine Continue version", file=sys.stderr)
             sys.exit(1)
         dest = os.path.join(ext_dir, f"continue.continue-{version}")
-        os.makedirs(dest, exist_ok=True)
-        with zipfile.ZipFile(vsix) as z:
-            for info in z.infolist():
-                if info.filename.startswith("extension/"):
-                    info.filename = info.filename[len("extension/"):]
-                    z.extract(info, dest)
-        os.remove(vsix)
-        print(f"Continue {version} installed to {dest}")
+        if os.path.exists(dest):
+            print(f"Continue {version} already extracted at {dest}, skipping")
+        else:
+            os.makedirs(dest, exist_ok=True)
+            with zipfile.ZipFile(vsix) as z:
+                for info in z.infolist():
+                    if info.filename.startswith("extension/"):
+                        info.filename = info.filename[len("extension/"):]
+                        z.extract(info, dest)
+            os.remove(vsix)
+        # Verify the extraction produced a valid extension
+        pkg = os.path.join(dest, "package.json")
+        if os.path.isfile(pkg):
+            data = json.loads(open(pkg).read())
+            print(f"Continue {data.get('version','?')} installed OK at {dest}")
+            print(f"  package.json displayName: {data.get('displayName','?')}")
+        else:
+            print(f"WARNING: package.json not found at {dest}", file=sys.stderr)
+            sys.exit(1)
+        # List all installed extensions
+        for d in sorted(os.listdir(ext_dir)):
+            print(f"  ext dir: {d}")
         PYEOF
         chmod +x /tmp/install-continue.py
         su - developer -c "python3 /tmp/install-continue.py" > /tmp/continue-install.log 2>&1 || echo "Continue install failed, check /tmp/continue-install.log"
+        cat /tmp/continue-install.log
+        # Start VSCodium web server in background (root for port 80).
+        # Extensions are pre-installed so codium picks them up on startup.
+        setsid /home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1 &
 
   verify:
     - cmd[cp]: |-
