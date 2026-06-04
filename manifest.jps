@@ -1,5 +1,5 @@
 type: install
-version: 0.4.53
+version: 0.4.54
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -163,7 +163,7 @@ actions:
         def clean(value, default=""):
             value = (value or "").strip()
             bad = {"", "-", "null", "None", "undefined"}
-            if value in bad or value.startswith("${") or value.startswith("-"):
+            if value in bad or value.startswith("$" + "{") or value.startswith("-"):
                 return default
             return value
 
