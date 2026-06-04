@@ -117,13 +117,21 @@ for d in (primary_ext_dir, compat_ext_dir):
     d.mkdir(parents=True, exist_ok=True)
 
 vsix = Path('/tmp/continue.vsix')
+# Resolve the linux-x64 artifact explicitly. The Open VSX latest endpoint can
+# default to alpine-x64, which activates but breaks Continue in Ubuntu/glibc.
 api_url = 'https://open-vsx.org/api/Continue/continue/latest'
 with urllib.request.urlopen(api_url, timeout=60) as r:
     api_data = json.loads(r.read())
-url = api_data.get('files', {}).get('download')
+version_from_api = api_data.get('version')
+if not version_from_api:
+    raise SystemExit('Open VSX API response did not include version')
+platform_api_url = f'https://open-vsx.org/api/Continue/continue/linux-x64/{version_from_api}'
+with urllib.request.urlopen(platform_api_url, timeout=60) as r:
+    platform_data = json.loads(r.read())
+url = platform_data.get('files', {}).get('download')
 if not url:
-    raise SystemExit('Open VSX API response did not include files.download')
-print(f'Downloading Continue from {url}')
+    raise SystemExit('Open VSX linux-x64 API response did not include files.download')
+print(f'Downloading Continue linux-x64 from {url}')
 subprocess.check_call([
     'curl', '--noproxy', '*', '-fsSL', '--retry', '3', '--retry-delay', '3',
     '--max-time', '180', url, '-o', str(vsix)
@@ -159,6 +167,43 @@ if compat_dest.exists():
     shutil.rmtree(compat_dest)
 shutil.copytree(dest, compat_dest)
 vsix.unlink(missing_ok=True)
+
+# Bake the YAML extension too. Continue tries to register yaml.schemas; without
+# this extension Codium logs a schema registration error.
+yaml_api_url = 'https://open-vsx.org/api/redhat/vscode-yaml/latest'
+with urllib.request.urlopen(yaml_api_url, timeout=60) as r:
+    yaml_api_data = json.loads(r.read())
+yaml_url = yaml_api_data.get('files', {}).get('download')
+if not yaml_url:
+    raise SystemExit('Open VSX YAML API response did not include files.download')
+yaml_vsix = Path('/tmp/vscode-yaml.vsix')
+print(f'Downloading YAML extension from {yaml_url}')
+subprocess.check_call([
+    'curl', '--noproxy', '*', '-fsSL', '--retry', '3', '--retry-delay', '3',
+    '--max-time', '180', yaml_url, '-o', str(yaml_vsix)
+])
+with zipfile.ZipFile(yaml_vsix) as z:
+    yaml_pkg = None
+    for name in z.namelist():
+        if name.endswith('extension/package.json'):
+            yaml_pkg = json.loads(z.read(name))
+            break
+    if not yaml_pkg:
+        raise SystemExit('Could not determine YAML extension version')
+    yaml_dest = primary_ext_dir / f"redhat.vscode-yaml-{yaml_pkg['version']}"
+    if yaml_dest.exists():
+        shutil.rmtree(yaml_dest)
+    yaml_dest.mkdir(parents=True)
+    for info in z.infolist():
+        if info.filename.startswith('extension/') and info.filename != 'extension/':
+            info.filename = info.filename[len('extension/'):]
+            z.extract(info, yaml_dest)
+compat_yaml_dest = compat_ext_dir / yaml_dest.name
+if compat_yaml_dest.exists():
+    shutil.rmtree(compat_yaml_dest)
+shutil.copytree(yaml_dest, compat_yaml_dest)
+yaml_vsix.unlink(missing_ok=True)
+print(f"Baked YAML extension {yaml_pkg.get('version')} into {yaml_dest}")
 PY
 RUN chown -R developer:developer /home/developer/.config/VSCodium /home/developer/.vscode-oss
 
