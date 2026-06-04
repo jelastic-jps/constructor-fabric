@@ -1,5 +1,5 @@
 type: install
-version: 0.4.57
+version: 0.4.58
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -274,7 +274,7 @@ actions:
         import re
         from pathlib import Path
 
-        roots = [Path('/usr/share'), Path('/usr/lib'), Path('/opt')]
+        roots = [Path('/home/developer'), Path('/usr/share'), Path('/usr/lib'), Path('/opt')]
         candidates = []
         for root in roots:
             if not root.exists():
@@ -299,13 +299,25 @@ actions:
         )
         for path in candidates:
             text = path.read_text(errors='replace')
-            if "const transfer = data.stream ? [data.stream] : []" in text:
-                patched.append(f"already patched: {path}")
-                continue
+            original = text
+            # Disable the service-worker resource path entirely for Jelastic/proxy
+            # deployments. This avoids ReadableStream transfer through SW.
+            text = text.replace(
+                "const disableServiceWorker = searchParams.has('disableServiceWorker');",
+                "const disableServiceWorker = true; // patched for Jelastic proxy"
+            )
             new_text, count = pattern.subn(replacement, text, count=1)
-            if count:
-                path.write_text(new_text)
-                patched.append(f"patched: {path}")
+            text = new_text
+            changes = []
+            if original != text:
+                if "const disableServiceWorker = true; // patched for Jelastic proxy" in text:
+                    changes.append("disableServiceWorker")
+                if count or "const transfer = data.stream ? [data.stream] : []" in text:
+                    changes.append("transfer")
+                path.write_text(text)
+                patched.append(f"patched {','.join(changes)}: {path}")
+            elif "const disableServiceWorker = true; // patched for Jelastic proxy" in text:
+                patched.append(f"already patched: {path}")
         if not patched:
             raise SystemExit("No Codium webview pre/index.html patched; candidates=" + ",".join(map(str, candidates[:20])))
         print("\n".join(patched))
