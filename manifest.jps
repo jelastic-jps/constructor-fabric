@@ -1,5 +1,5 @@
 type: install
-version: 0.4.51
+version: 0.4.52
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -154,7 +154,7 @@ actions:
         mkdir -p /home/developer/workspaces/constructor-fabric-workspace/trainer
         curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/trainer/index.html" -o /home/developer/workspaces/constructor-fabric-workspace/trainer/index.html 2>/dev/null || true
         # Start a lightweight HTTP server to serve the trainer (port 8082)
-        nohup python3 -m http.server 8082 --directory /home/developer/workspaces/constructor-fabric-workspace/trainer --bind 127.0.0.1 >/dev/null 2>&1 &
+        /bin/sh -c "python3 -m http.server 8082 --directory /home/developer/workspaces/constructor-fabric-workspace/trainer --bind 127.0.0.1 >/dev/null 2>&1 &"
         ai_token="$(printenv API_TOKEN || true)"
         ai_openai_key="$(printenv OPENAI_API_KEY || true)"
         ai_anthropic_key="$(printenv ANTHROPIC_API_KEY || true)"
@@ -236,14 +236,21 @@ actions:
         Focus Continue Chat
         View: Show Continue
         CFCMDS
-        # Kill VNC stack so it doesn't waste resources (not needed for codium web).
+        # Kill VNC/noVNC stack before starting Codium. Kill tini first or it
+        # restarts supervisord/nginx and noVNC wins port 80 back.
+        sudo pkill -9 -f "tini.*supervisord" 2>/dev/null || true
         sudo supervisorctl stop all 2>/dev/null || true
         sudo supervisorctl shutdown 2>/dev/null || true
-        sudo pkill -9 -f "tini.*supervisord" 2>/dev/null || true
+        sleep 2
         sudo pkill -9 -f supervisord 2>/dev/null || true
         sudo pkill -9 -f nginx 2>/dev/null || true
         sudo pkill -9 -f Xvfb 2>/dev/null || true
         sudo pkill -9 -f x11vnc 2>/dev/null || true
+        sudo pkill -9 -f websockify 2>/dev/null || true
+        for _port_wait in $(seq 1 20); do
+          if ! ss -tlnp 2>/dev/null | grep -q ":80 "; then break; fi
+          sleep 1
+        done
         cat >/home/developer/constructor-fabric/start-codium-web.sh <<'STARTWEB'
         #!/bin/sh
         set -u
@@ -263,65 +270,20 @@ actions:
         exec codium serve-web --port 80 --host 0.0.0.0 \
           --without-connection-token \
           --accept-server-license-terms \
-          --server-data-dir "${HOME}/.config/VSCodium" \
-          --extensions-dir "${HOME}/.config/VSCodium/extensions"
-        # NOTE: codium listens on 8080 inside container. Jelastic endpoint
-        # maps external port to 8080. Port 80 is reserved for future use.
+          --server-data-dir "${HOME}/.config/VSCodium"
         STARTWEB
         chmod +x /home/developer/constructor-fabric/start-codium-web.sh
         chown -R developer:developer /home/developer/.constructor-fabric-ai.env /home/developer/.continue /home/developer/.config/VSCodium /home/developer/constructor-fabric/start-codium-web.sh /home/developer/workspaces
-        # Install Continue extension BEFORE starting codium so it picks it up
-        # on first scan. Download .vsix from Open VSX and extract to extensions dir.
-        cat >/tmp/install-continue.py <<'PYEOF'
-        import zipfile, json, os, subprocess, sys
-        home = os.environ.get("HOME", "/home/developer")
-        ext_dir = os.path.join(home, ".config", "VSCodium", "extensions")
-        os.makedirs(ext_dir, exist_ok=True)
-        vsix = "/tmp/continue.vsix"
-        print(f"Downloading Continue .vsix to {vsix}...")
-        subprocess.check_call(["curl", "--noproxy", "*", "-fsSL", "--max-time", "120",
-            "https://open-vsx.org/api/Continue/continue/latest/file/Continue.continue.vsix",
-            "-o", vsix])
-        version = None
-        with zipfile.ZipFile(vsix) as z:
-            for name in z.namelist():
-                if name.endswith("extension/package.json"):
-                    version = json.loads(z.read(name))["version"]
-                    break
-        if not version:
-            print("Could not determine Continue version", file=sys.stderr)
-            sys.exit(1)
-        dest = os.path.join(ext_dir, f"continue.continue-{version}")
-        if os.path.exists(dest):
-            print(f"Continue {version} already extracted at {dest}, skipping")
-        else:
-            os.makedirs(dest, exist_ok=True)
-            with zipfile.ZipFile(vsix) as z:
-                for info in z.infolist():
-                    if info.filename.startswith("extension/"):
-                        info.filename = info.filename[len("extension/"):]
-                        z.extract(info, dest)
-            os.remove(vsix)
-        # Verify the extraction produced a valid extension
-        pkg = os.path.join(dest, "package.json")
-        if os.path.isfile(pkg):
-            data = json.loads(open(pkg).read())
-            print(f"Continue {data.get('version','?')} installed OK at {dest}")
-            print(f"  package.json displayName: {data.get('displayName','?')}")
-        else:
-            print(f"WARNING: package.json not found at {dest}", file=sys.stderr)
-            sys.exit(1)
-        # List all installed extensions
-        for d in sorted(os.listdir(ext_dir)):
-            print(f"  ext dir: {d}")
-        PYEOF
-        chmod +x /tmp/install-continue.py
-        su - developer -c "python3 /tmp/install-continue.py" > /tmp/continue-install.log 2>&1 || echo "Continue install failed, check /tmp/continue-install.log"
-        cat /tmp/continue-install.log
-        # Start VSCodium web server in background (root for port 80).
-        # Extensions are pre-installed so codium picks them up on startup.
-        setsid /home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1
-        true
+        # Continue is baked into the Docker image. Runtime .vsix installation is
+        # intentionally avoided because codium-tunnel serve-web does not reliably
+        # load extensions installed after image build.
+        if ! ls -d /home/developer/.config/VSCodium/extensions/continue.continue-* >/dev/null 2>&1; then
+          echo "WARNING: baked Continue extension directory is missing before codium start" >&2
+        fi
+        # Start VSCodium web server in background (root for port 80). Do not end
+        # this JPS line with a raw '&' because Jelastic can wrap it as '&;)'.
+        /bin/sh -c "/home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1 &"
+        sleep 2
 
   verify:
     - cmd[cp]: |-
