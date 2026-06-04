@@ -263,7 +263,7 @@ actions:
         exec codium serve-web --port 8080 --host 0.0.0.0 \
           --without-connection-token \
           --accept-server-license-terms \
-          --install-extension Continue.continue \
+          --extensions-dir "${HOME}/.config/VSCodium/extensions" \
           --server-data-dir "${HOME}/.config/VSCodium"
         # NOTE: codium listens on 8080 inside container. Jelastic endpoint
         # maps external port to 8080. Port 80 is reserved for future use.
