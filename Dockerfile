@@ -97,6 +97,71 @@ RUN chmod +x /home/developer/constructor-fabric/scripts/*.sh 2>/dev/null || true
     && echo 'Constructor Fabric IDEs and agent CLIs are preinstalled' \
     && chown -R developer:developer /home/developer/constructor-fabric
 
+# Bake Continue into the image. Runtime installation is unreliable with the
+# codium-tunnel serve-web binary, so the extension must exist before Codium
+# starts in Jelastic.
+RUN python3 - <<'PY'
+import json
+import os
+import shutil
+import subprocess
+import sys
+import urllib.request
+import zipfile
+from pathlib import Path
+
+home = Path('/home/developer')
+primary_ext_dir = home / '.config' / 'VSCodium' / 'extensions'
+compat_ext_dir = home / '.vscode-oss' / 'extensions'
+for d in (primary_ext_dir, compat_ext_dir):
+    d.mkdir(parents=True, exist_ok=True)
+
+vsix = Path('/tmp/continue.vsix')
+api_url = 'https://open-vsx.org/api/Continue/continue/latest'
+with urllib.request.urlopen(api_url, timeout=60) as r:
+    api_data = json.loads(r.read())
+url = api_data.get('files', {}).get('download')
+if not url:
+    raise SystemExit('Open VSX API response did not include files.download')
+print(f'Downloading Continue from {url}')
+subprocess.check_call([
+    'curl', '--noproxy', '*', '-fsSL', '--retry', '3', '--retry-delay', '3',
+    '--max-time', '180', url, '-o', str(vsix)
+])
+
+with zipfile.ZipFile(vsix) as z:
+    version = None
+    for name in z.namelist():
+        if name.endswith('extension/package.json'):
+            version = json.loads(z.read(name))['version']
+            break
+    if not version:
+        raise SystemExit('Could not determine Continue extension version')
+
+    dest = primary_ext_dir / f'continue.continue-{version}'
+    if dest.exists():
+        shutil.rmtree(dest)
+    dest.mkdir(parents=True)
+    for info in z.infolist():
+        if info.filename.startswith('extension/') and info.filename != 'extension/':
+            info.filename = info.filename[len('extension/'):]
+            z.extract(info, dest)
+
+pkg = dest / 'package.json'
+if not pkg.exists():
+    raise SystemExit(f'Continue package.json missing at {pkg}')
+data = json.loads(pkg.read_text())
+print(f"Baked Continue {data.get('version')} into {dest}")
+
+# Also copy to .vscode-oss for compatibility with builds that scan that path.
+compat_dest = compat_ext_dir / dest.name
+if compat_dest.exists():
+    shutil.rmtree(compat_dest)
+shutil.copytree(dest, compat_dest)
+vsix.unlink(missing_ok=True)
+PY
+RUN chown -R developer:developer /home/developer/.config/VSCodium /home/developer/.vscode-oss
+
 # Pre-create the Constructor Fabric workspace so cfc commands and IDE integrations
 # work immediately after the container starts -- no waiting for auto-bootstrap.
 RUN mkdir -p /home/developer/workspaces/constructor-fabric-workspace \
