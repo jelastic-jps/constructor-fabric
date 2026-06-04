@@ -235,18 +235,18 @@ actions:
         # The base image startup.sh launches supervisord which manages Xvfb,
         # x11vnc, nginx (noVNC on port 80), websockify, etc.  supervisord
         # auto-restarts children, so we must stop it first.
-        # NOTE: supervisord runs as "python3 /usr/bin/supervisord" so
-        # killall supervisord won't work - must use pkill -f.
-        pkill -f "supervisord" 2>/dev/null || true
+        # supervisord runs as root, cmd[cp] runs as developer -- need sudo.
+        sudo supervisorctl shutdown 2>/dev/null || true
+        sudo pkill -9 -f supervisord 2>/dev/null || true
         sleep 2
         # Force-kill any remaining managed processes and nginx.
-        pkill -9 -f nginx 2>/dev/null || true
-        pkill -9 -f Xvfb 2>/dev/null || true
-        pkill -9 -f x11vnc 2>/dev/null || true
-        pkill -9 -f websockify 2>/dev/null || true
-        pkill -9 -f lxsession 2>/dev/null || true
-        pkill -9 -f lxpanel 2>/dev/null || true
-        pkill -9 -f openbox 2>/dev/null || true
+        sudo pkill -9 -f nginx 2>/dev/null || true
+        sudo pkill -9 -f Xvfb 2>/dev/null || true
+        sudo pkill -9 -f x11vnc 2>/dev/null || true
+        sudo pkill -9 -f websockify 2>/dev/null || true
+        sudo pkill -9 -f lxsession 2>/dev/null || true
+        sudo pkill -9 -f lxpanel 2>/dev/null || true
+        sudo pkill -9 -f openbox 2>/dev/null || true
         # Wait for port 80 to become free so codium can bind to it.
         for _port_wait in $(seq 1 15); do
           if ! ss -tlnp 2>/dev/null | grep -q ":80 "; then break; fi
@@ -269,7 +269,7 @@ actions:
         mkdir -p "$workspace"
         cd "$workspace" || exit 1
         exec codium serve-web --port 80 --host 0.0.0.0 \
-          --connection-token "${ACCESS_TOKEN:-changeme}" \
+          --without-connection-token \
           --accept-server-license-terms \
           --user-data-dir "${HOME}/.config/VSCodium"
         STARTWEB
