@@ -150,6 +150,11 @@ actions:
         # updater owns CF_SOURCE_REF; this block only wires VS Codium to open
         # Continue chat with the token passed via JPS settings.
         mkdir -p /home/developer/.continue /home/developer/.config/VSCodium/User /home/developer/constructor-fabric /home/developer/workspaces/constructor-fabric-workspace/.vscode
+        # Download trainer HTML into workspace for Simple Browser view
+        mkdir -p /home/developer/workspaces/constructor-fabric-workspace/trainer
+        curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/trainer/index.html" -o /home/developer/workspaces/constructor-fabric-workspace/trainer/index.html 2>/dev/null || true
+        # Start a lightweight HTTP server to serve the trainer (port 8082)
+        nohup python3 -m http.server 8082 --directory /home/developer/workspaces/constructor-fabric-workspace/trainer --bind 127.0.0.1 >/dev/null 2>&1 &
         ai_token="$(printenv API_TOKEN || true)"
         ai_openai_key="$(printenv OPENAI_API_KEY || true)"
         ai_anthropic_key="$(printenv ANTHROPIC_API_KEY || true)"
