@@ -235,7 +235,9 @@ actions:
         # The base image startup.sh launches supervisord which manages Xvfb,
         # x11vnc, nginx (noVNC on port 80), websockify, etc.  supervisord
         # auto-restarts children, so we must stop it first.
-        killall supervisord 2>/dev/null || true
+        # NOTE: supervisord runs as "python3 /usr/bin/supervisord" so
+        # killall supervisord won't work - must use pkill -f.
+        pkill -f "supervisord" 2>/dev/null || true
         sleep 2
         # Force-kill any remaining managed processes and nginx.
         pkill -9 -f nginx 2>/dev/null || true
