@@ -233,25 +233,31 @@ actions:
         CFCMDS
         # Stop the entire VNC/supervisor stack -- we serve VS Codium over HTTP.
         # The base image startup.sh launches supervisord which manages Xvfb,
-        # x11vnc, nginx (noVNC on port 80), websockify, etc.  supervisord
-        # auto-restarts children, so we must stop it first.
-        # supervisord runs as root, cmd[cp] runs as developer -- need sudo.
-        sudo supervisorctl shutdown 2>/dev/null || true
-        sudo pkill -9 -f supervisord 2>/dev/null || true
+        # x11vnc, nginx (noVNC on port 80), websockify, etc.
+        # Debug: show who we are and what is running
+        echo "=== Bootstrap debug ==="
+        echo "whoami: $(whoami)"
+        echo "id: $(id)"
+        echo "supervisor processes:"
+        ps aux | grep -E "supervisor|nginx" | grep -v grep || true
+        echo "port 80:"
+        ss -tlnp 2>/dev/null | grep ":80 " || true
+        # Stop all supervisor-managed services, then kill supervisord itself
+        echo "Stopping supervisor services..."
+        sudo supervisorctl stop all 2>&1 || echo "supervisorctl stop all failed: $?"
+        sudo supervisorctl shutdown 2>&1 || echo "supervisorctl shutdown failed: $?"
+        sleep 1
+        sudo pkill -9 -f "supervisord" 2>&1 || echo "pkill supervisord failed: $?"
         sleep 2
-        # Force-kill any remaining managed processes and nginx.
-        sudo pkill -9 -f nginx 2>/dev/null || true
-        sudo pkill -9 -f Xvfb 2>/dev/null || true
-        sudo pkill -9 -f x11vnc 2>/dev/null || true
-        sudo pkill -9 -f websockify 2>/dev/null || true
-        sudo pkill -9 -f lxsession 2>/dev/null || true
-        sudo pkill -9 -f lxpanel 2>/dev/null || true
-        sudo pkill -9 -f openbox 2>/dev/null || true
-        # Wait for port 80 to become free so codium can bind to it.
-        for _port_wait in $(seq 1 15); do
-          if ! ss -tlnp 2>/dev/null | grep -q ":80 "; then break; fi
-          sleep 1
-        done
+        # Force-kill any remaining managed processes and nginx
+        echo "Force-killing remaining processes..."
+        sudo pkill -9 -f nginx 2>&1 || true
+        sudo pkill -9 -f Xvfb 2>&1 || true
+        sudo pkill -9 -f x11vnc 2>&1 || true
+        sudo pkill -9 -f websockify 2>&1 || true
+        echo "After cleanup:"
+        ps aux | grep -E "supervisor|nginx" | grep -v grep || echo "no supervisor/nginx processes"
+        ss -tlnp 2>/dev/null | grep ":80 " || echo "port 80 is free"
         cat >/home/developer/constructor-fabric/start-codium-web.sh <<'STARTWEB'
         #!/bin/sh
         set -u
