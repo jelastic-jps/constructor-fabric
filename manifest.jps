@@ -26,7 +26,7 @@ globals:
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
   SCRIPT_VERSION: landing-v050-20260605
-  CF_SOURCE_REF: de94910bf7df94d94d1474b583369af69160a723
+  CF_SOURCE_REF: 620b955714282949deb815da13d9ae1c0e387ada
 
 settings:
   fields:
