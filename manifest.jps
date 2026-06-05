@@ -375,7 +375,8 @@ actions:
         exec codium serve-web --port 8080 --host 0.0.0.0 \
           --without-connection-token \
           --accept-server-license-terms \
-          --server-data-dir "${HOME}/.codium-server"
+          --server-data-dir "${HOME}/.codium-server" \
+          --extensions-dir "${HOME}/.config/VSCodium/extensions"
         STARTWEB
         chmod +x /home/developer/constructor-fabric/start-codium-web.sh
         /bin/sh -c "DISPLAY=:1 /home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1 &"

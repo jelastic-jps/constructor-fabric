@@ -232,46 +232,9 @@ if command -v codium >/dev/null 2>&1 || [ -x /usr/share/codium/bin/codium ]; the
 }
 JSON
   fi
-  # Install Continue extension for codium serve-web
-  CODIUM_EXT_DIR="${HOME}/.codium-server/extensions"
+  # Clear extension cache so codium re-discovers extensions
   CODIUM_CACHE="${HOME}/.codium-server/data/CachedProfilesData/__default__profile__/extensions.builtin.cache"
-  if [ -d "${HOME}/.config/VSCodium/extensions" ]; then
-    # Copy any extensions from user dir to server extensions dir
-    for ext_dir in "${HOME}"/.config/VSCodium/extensions/*/; do
-      [ -d "$ext_dir" ] || continue
-      ext_name=$(basename "$ext_dir")
-      if [ ! -d "${CODIUM_EXT_DIR}/${ext_name}" ]; then
-        cp -r "$ext_dir" "${CODIUM_EXT_DIR}/${ext_name}"
-        echo "Copied extension: ${ext_name}"
-      fi
-    done
-    # Register extensions in extensions.json if missing
-    python3 -c "
-import json, sys
-from pathlib import Path
-ext_dir = Path('${CODIUM_EXT_DIR}')
-reg = ext_dir / 'extensions.json'
-data = json.loads(reg.read_text()) if reg.exists() else []
-ids = {e.get('identifier',{}).get('id') for e in data}
-for d in ext_dir.iterdir():
-    if d.is_dir() and (d / 'package.json').exists():
-        pkg = json.loads((d / 'package.json').read_text())
-        publisher = pkg.get('publisher', '')
-        name = pkg.get('name', '')
-        ext_id = f'{publisher}.{name}' if publisher else name
-        if ext_id and ext_id not in ids:
-            data.append({
-                'identifier': {'id': ext_id},
-                'version': pkg.get('version', ''),
-                'location': {'\$mid': 1, 'fsPath': str(d), 'external': f'file://{d}', 'path': str(d), 'scheme': 'file'},
-                'relativeLocation': d.name
-            })
-            print(f'Registered: {ext_id}')
-reg.write_text(json.dumps(data, indent=2))
-" 2>/dev/null || true
-    # Clear extension cache so codium re-discovers extensions
-    rm -f "${CODIUM_CACHE}" 2>/dev/null || true
-  fi
+  rm -f "${CODIUM_CACHE}" 2>/dev/null || true
   # Configure Continue extension with API key
   CONTINUE_CONFIG="${HOME}/.continue/config.json"
   if [ -n "${CONTINUE_API_KEY:-}" ] && [ ! -f "${CONTINUE_CONFIG}" ]; then
@@ -300,7 +263,9 @@ CONTINUEJSON
     chown -R "$(id -u):$(id -g)" "${HOME}/.continue" 2>/dev/null || true
   fi
   start_detached "codium serve-web" "${LOG_DIR}/codium-serve.log" \
-    "${CODIUM_BIN}" serve-web --port 8080 --host 0.0.0.0 --without-connection-token --server-data-dir "${HOME}/.codium-server"
+    "${CODIUM_BIN}" serve-web --port 8080 --host 0.0.0.0 --without-connection-token \
+    --server-data-dir "${HOME}/.codium-server" \
+    --extensions-dir "${HOME}/.config/VSCodium/extensions"
 fi
 
 # --- Trainer HTTP server on port 8082 ---
