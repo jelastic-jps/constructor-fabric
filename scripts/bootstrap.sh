@@ -25,6 +25,8 @@ curl --noproxy '*' -fsSL "${TRAINER_BASE}/index.html?v=${SCRIPT_VERSION}" -o "${
 curl --noproxy '*' -fsSL "${TRAINER_BASE}/main.js?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/trainer/main.js" || true
 curl --noproxy '*' -fsSL "${TRAINER_BASE}/package.json?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/trainer/package.json" || true
 
+curl --noproxy '*' -fsSL "${ASSET_BASE}/landing.html?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/app/landing.html" || true
+
 # NOTE: System-level package installation (apt-get, etc.) is done during Docker build
 # This bootstrap script only handles user-level operations
 
