@@ -1,639 +1,501 @@
-type: install
-version: 0.5.0
-id: constructor-fabric
-baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
-name: Constructor Fabric
-logo: assets/constructor-fabric-logo.png
-categories:
-  - apps/dev-and-admin-tools
-  - apps/collaboration
-  - apps/productivity
-
-description:
-  text: Lets AI define, build, and run software end to end -- with reusable components, operational automation, and built-in productivity measurement and insights.
-  short: Constructor Fabric
-
-targetRegions:
-  type: vz7
-
-ssl: true
-skipNodeEmails: true
-
-globals:
-  CF_PORT: 8081
-  APP_PORT: 8081
-  LLM_PROVIDER: openai
-  OPENAI_MODEL: gpt-5.5
-  CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: landing-v050-20260605
-  CF_SOURCE_REF: 620b955714282949deb815da13d9ae1c0e387ada
-
-settings:
-  fields:
-    - caption: LLM provider
-      type: list
-      inputType: string
-      name: llm-provider
-      default: openai
-      values:
-        openai: OpenAI
-        claude: Claude
-      tooltip: Select which LLM provider the Constructor Fabric workflow should use.
-      showIf:
-        openai:
-          - caption: OpenAI model
-            type: list
-            inputType: string
-            name: openai-model
-            default: gpt-5.5
-            values:
-              gpt-5.5: OpenAI GPT-5.5
-              gpt-5.4: OpenAI GPT-5.4
-            tooltip: Select the OpenAI model used by the Constructor Fabric workflow.
-        claude:
-          - caption: Anthropic model
-            type: list
-            inputType: string
-            name: claude-model
-            default: claude-sonnet-4-6
-            values:
-              claude-sonnet-4-6: Claude Sonnet 4.6
-              claude-opus-4-8: Claude Opus 4.8
-              claude-haiku-4-5: Claude Haiku 4.5
-            tooltip: Select the Anthropic Claude model used by the Constructor Fabric workflow.
-    - caption: API Token
-      type: string
-      inputType: password
-      name: api-token
-      value: ""
-      required: false
-      tooltip: API token for the selected provider. Use an OpenAI key for openai or an Anthropic/Claude key for claude.
-
-nodes:
-  - image: ihorman/constructor-fabric:latest
-    nodeType: docker
-    displayName: Constructor Fabric
-    cloudlets: 64
-    nodeGroup: cp
-    ports:
-      - 80
-    endpoints:
-      - name: Constructor Fabric
-        privatePort: 80
-        protocol: TCP
-    env:
-      TZ: Europe/Kyiv
-      USER: developer
-      LLM_PROVIDER: ${settings.llm-provider}
-      API_TOKEN: ${settings.api-token}
-      OPENAI_API_KEY: ${settings.api-token}
-      ANTHROPIC_API_KEY: ${settings.api-token}
-      OPENAI_MODEL: ${settings.openai-model}
-      CLAUDE_MODEL: ${settings.claude-model:claude-sonnet-4-6}
-      CF_IDE_PROFILE: codium
-      CF_HOME: /home/developer/constructor-fabric
-      CF_PORT: ${globals.CF_PORT}
-      NO_PROXY: localhost,127.0.0.1,::1
-      no_proxy: localhost,127.0.0.1,::1
-      JELASTIC_EXPOSE: 80
-      JELASTIC_PORTS: 80
-      SCRIPT_VERSION: ${globals.SCRIPT_VERSION}
-      CF_SOURCE_REF: ${globals.CF_SOURCE_REF}
-
-onInstall:
-  - bootstrap
-  - verify
-
-actions:
-  bootstrap:
-    - cmd[cp]: |-
-        set -euo pipefail
-        export DEBIAN_FRONTEND=noninteractive
-
-        # Repair XKB if the base image is missing it (needed for electron trainer)
-        if [ ! -d /usr/share/X11/xkb/keycodes ] || [ ! -d /usr/share/X11/xkb/symbols ]; then
-          find /etc/apt -type f \( -name '*.list' -o -name '*.sources' \) -print0 | xargs -0 grep -l 'api.cursor.com/apt' 2>/dev/null | xargs -r rm -f
-          apt-get update
-          apt-get install -y --reinstall xkb-data || { apt-get purge -y xkb-data; apt-get update; apt-get install -y xkb-data; }
-          rm -rf /var/lib/apt/lists/*
-        fi
-
-        # Ensure electron is available for the trainer
-        if ! command -v electron >/dev/null 2>&1 && [ -x /opt/node-current/bin/npm ]; then
-          /opt/node-current/bin/npm install -g electron@latest
-          ln -sf /opt/node-current/bin/electron /usr/local/bin/electron 2>/dev/null || true
-        fi
-
-        # Fix ownership before downloading scripts
-        chown -R developer:developer /home/developer
-
-        # Download and run bootstrap (installs cfc, trainer, codium profile, etc.)
-        curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/scripts/bootstrap.sh?v=${globals.SCRIPT_VERSION}" -o /tmp/constructor-fabric-bootstrap.sh
-        chmod +x /tmp/constructor-fabric-bootstrap.sh
-        chown developer:developer /tmp/constructor-fabric-bootstrap.sh
-        su - developer -c "/tmp/constructor-fabric-bootstrap.sh"
-
-        # --- Continue extension config ---
-        mkdir -p /home/developer/.continue /home/developer/.config/VSCodium/User /home/developer/constructor-fabric /home/developer/workspaces/constructor-fabric-workspace/.vscode
-
-        # Download trainer HTML
-        mkdir -p /home/developer/workspaces/constructor-fabric-workspace/trainer
-        curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/trainer/index.html" -o /home/developer/workspaces/constructor-fabric-workspace/trainer/index.html 2>/dev/null || true
-
-        cat >/tmp/write-continue-config.py <<'PYCFG'
-        import json
-        import os
-        from pathlib import Path
-
-        def clean(value, default=""):
-            value = (value or "").strip()
-            bad = {"", "-", "null", "None", "undefined"}
-            if value in bad or value.startswith("$" + "{") or value.startswith("-"):
-                return default
-            return value
-
-        provider = clean(os.environ.get("LLM_PROVIDER"), "openai")
-        if provider == "claude":
-            provider = "anthropic"
-        if provider not in {"openai", "anthropic"}:
-            provider = "openai"
-
-        token = clean(os.environ.get("API_TOKEN"), "")
-        openai_key = clean(os.environ.get("OPENAI_API_KEY"), token)
-        anthropic_key = clean(os.environ.get("ANTHROPIC_API_KEY"), token)
-        openai_model = clean(os.environ.get("OPENAI_MODEL"), "gpt-5.5")
-        claude_model = clean(os.environ.get("CLAUDE_MODEL"), "claude-sonnet-4-6")
-        model = claude_model if provider == "anthropic" else openai_model
-        api_key = anthropic_key if provider == "anthropic" else openai_key
-
-        out = Path("/home/developer/.continue/config.yaml")
-        out.parent.mkdir(parents=True, exist_ok=True)
-
-        def q(value):
-            return json.dumps(str(value))
-
-        lines = [
-            "name: Constructor Fabric",
-            "version: 1.0.0",
-            "schema: v1",
-            "env:",
-            f"  OPENAI_API_KEY: {q(openai_key)}",
-            f"  ANTHROPIC_API_KEY: {q(anthropic_key)}",
-            f"  API_TOKEN: {q(token)}",
-            "models:",
-            "  - name: Constructor Fabric Chat",
-            f"    provider: {q(provider)}",
-            f"    model: {q(model)}",
-        ]
-        if api_key:
-            lines.append(f"    apiKey: {q(api_key)}")
-        lines.extend([
-            "    roles:",
-            "      - chat",
-            "      - edit",
-            "      - apply",
-            "      - autocomplete",
-            "context:",
-            "  - provider: code",
-            "  - provider: docs",
-            "prompts:",
-            "  - name: cf-constructor",
-            "    description: Run the Constructor Fabric SDLC workflow.",
-            "    prompt: |",
-            "      You are Constructor Fabric inside the pre-initialized workspace.",
-            "",
-            "      User request:",
-            "      {{{ input }}}",
-            "",
-            "      Use the local Constructor Fabric setup in this workspace:",
-            "      - Read AGENTS.md and .cf-constructor/.gen/AGENTS.md before making changes.",
-            "      - Use .cf-constructor as the Constructor Fabric adapter path.",
-            "      - Use cfc/cf-constructor CLI commands for info, validation, artifacts, traceability.",
-            "      - Preserve traceability across PRD, ADR, DESIGN, DECOMPOSITION, FEATURE, CODE, tasks, tests, and review artifacts.",
-            "      - If validation fails, explain the failing checks and propose or apply fixes.",
-        ])
-        out.write_text("\n".join(lines) + "\n")
-
-        # Env file for Codium/Continue extension host
-        env = Path("/home/developer/.constructor-fabric-ai.env")
-        env.write_text("\n".join([
-            f"API_TOKEN={token}",
-            f"OPENAI_API_KEY={openai_key}",
-            f"ANTHROPIC_API_KEY={anthropic_key}",
-            f"LLM_PROVIDER={provider}",
-            f"OPENAI_MODEL={openai_model}",
-            f"CLAUDE_MODEL={claude_model}",
-        ]) + "\n")
-        env.chmod(0o600)
-
-        print(f"Continue config written: provider={provider}, model={model}, api_key_len={len(api_key)}")
-        PYCFG
-        python3 /tmp/write-continue-config.py
-
-        # VS Codium settings
-        cat >/home/developer/.config/VSCodium/User/settings.json <<'VSCODESETTINGS'
-        {
-          "workbench.startupEditor": "none",
-          "security.workspace.trust.enabled": false,
-          "security.workspace.trust.startupPrompt": "never",
-          "continue.telemetryEnabled": false,
-          "continue.showInlineTip": false
-        }
-        VSCODESETTINGS
-        cat >/home/developer/.config/VSCodium/User/keybindings.json <<'VSCODEKEYS'
-        [
-          { "key": "ctrl+alt+c", "command": "continue.focusContinueInput" }
-        ]
-        VSCODEKEYS
-
-        # --- Patch Codium webview for Jelastic proxy ---
-        cat >/tmp/patch-codium-webview-transfer.py <<'PYWEBVIEW'
-        import re
-        from pathlib import Path
-
-        roots = [Path('/home/developer'), Path('/usr/share'), Path('/usr/lib'), Path('/opt')]
-        candidates = []
-        for root in roots:
-            if not root.exists():
-                continue
-            for path in root.rglob('index.html'):
-                s = str(path)
-                if 'webview' in s and 'browser' in s and 'pre' in s:
-                    candidates.append(path)
-
-        patched = []
-        pattern = re.compile(
-            r"(hostMessaging\.onMessage\('did-load-resource', \(_event, data\) => \{\s*)"
-            r"(assertIsDefined\(navigator\.serviceWorker\.controller\)\.postMessage\(\{ channel: 'did-load-resource', data \}\);)"
-            r"(\s*\}\);)",
-            re.MULTILINE,
-        )
-        replacement = (
-            "\\1"
-            "const transfer = data.stream ? [data.stream] : [];\n"
-            "\t\t\t\tassertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-resource', data }, transfer);"
-            "\\3"
-        )
-        for path in candidates:
-            text = path.read_text(errors='replace')
-            original = text
-            text = text.replace(
-                "const disableServiceWorker = searchParams.has('disableServiceWorker');",
-                "const disableServiceWorker = true; // patched for Jelastic proxy"
-            )
-            new_text, count = pattern.subn(replacement, text, count=1)
-            text = new_text
-            changes = []
-            if original != text:
-                if "const disableServiceWorker = true; // patched for Jelastic proxy" in text:
-                    changes.append("disableServiceWorker")
-                if count or "const transfer = data.stream ? [data.stream] : []" in text:
-                    changes.append("transfer")
-                path.write_text(text)
-                patched.append(f"patched {','.join(changes)}: {path}")
-            elif "const disableServiceWorker = true; // patched for Jelastic proxy" in text:
-                patched.append(f"already patched: {path}")
-        if not patched:
-            raise SystemExit("No Codium webview patched; candidates=" + ",".join(map(str, candidates[:20])))
-        print("\n".join(patched))
-        PYWEBVIEW
-        python3 /tmp/patch-codium-webview-transfer.py | tee /tmp/codium-webview-transfer-patch.log
-
-        # --- Patch Codium workbench transferable streams ---
-        cat >/tmp/patch-codium-workbench-no-streams.py <<'PYWORKBENCH'
-        import re
-        from pathlib import Path
-
-        roots = [Path('/home/developer'), Path('/usr/share'), Path('/usr/lib'), Path('/opt')]
-        files = []
-        for root in roots:
-            if root.exists():
-                files.extend(root.rglob('workbench.js'))
-        pattern = re.compile(
-            r"this\._supportsTransferableStreams=new Ws\(\(\)=>\{try\{const e=new ReadableStream,t=new MessageChannel;return t\.port1\.postMessage\(e,\[e\]\),t\.port1\.close\(\),t\.port2\.close\(\),!0\}catch\{return!1\}\}\)"
-        )
-        replacement = "this._supportsTransferableStreams=new Ws(()=>!1)"
-        patched = []
-        for path in files:
-            text = path.read_text(errors='replace')
-            new_text, count = pattern.subn(replacement, text)
-            if count:
-                path.write_text(new_text)
-                patched.append(f"patched workbench streams: {path}")
-            elif replacement in text:
-                patched.append(f"already patched workbench streams: {path}")
-        if not patched:
-            raise SystemExit("No Codium workbench.js patched")
-        print("\n".join(patched))
-        PYWORKBENCH
-        python3 /tmp/patch-codium-workbench-no-streams.py | tee /tmp/codium-workbench-no-streams-patch.log
-
-        # --- Kill VNC/noVNC stack (no longer needed) ---
-        for _kill_round in $(seq 1 8); do
-          sudo pkill -9 -f "tini.*supervisord" 2>/dev/null || true
-          sudo supervisorctl stop all 2>/dev/null || true
-          sudo supervisorctl shutdown 2>/dev/null || true
-          sudo pkill -9 -f supervisord 2>/dev/null || true
-          sudo pkill -9 -f nginx 2>/dev/null || true
-          sudo pkill -9 -f Xvfb 2>/dev/null || true
-          sudo pkill -9 -f x11vnc 2>/dev/null || true
-          sudo pkill -9 -f websockify 2>/dev/null || true
-          sudo pkill -9 -f lxsession 2>/dev/null || true
-          sudo pkill -9 -f lxpanel 2>/dev/null || true
-          sudo pkill -9 -f openbox 2>/dev/null || true
-          sudo pkill -9 -f "codium.*serve-web" 2>/dev/null || true
-          sudo pkill -9 -f codium-server 2>/dev/null || true
-          sleep 2
-          if ! ss -tlnp 2>/dev/null | grep -q ":80 "; then break; fi
-        done
-
-        # --- Start Xvfb (needed for Electron trainer) ---
-        mkdir -p /home/developer/constructor-fabric
-        setsid /usr/bin/Xvfb :1 -screen 0 1280x720x24 -ac +extension GLX +render -noreset </dev/null >/home/developer/constructor-fabric/xvfb.log 2>&1 &
-        sleep 1
-
-        # --- Start codium serve-web on port 8080 ---
-        CODIUM_BIN="$(command -v codium || echo /usr/share/codium/bin/codium)"
-        mkdir -p /home/developer/.codium-server/data/Machine
-        cat >/home/developer/constructor-fabric/start-codium-web.sh <<'STARTWEB'
-        #!/bin/sh
-        set -u
-        case "${HOME:-}" in
-          ""|-*) HOME=/home/developer ;;
-        esac
-        export HOME
-        if [ -f "${HOME}/.constructor-fabric-ai.env" ]; then
-          set -a
-          . "${HOME}/.constructor-fabric-ai.env"
-          set +a
-        fi
-        export DISPLAY=:1
-        export PATH="${HOME}/.local/bin:/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
-        workspace="${HOME}/workspaces/constructor-fabric-workspace"
-        mkdir -p "$workspace"
-        cd "$workspace" || exit 1
-        exec codium serve-web --port 8080 --host 0.0.0.0 \
-          --without-connection-token \
-          --accept-server-license-terms \
-          --server-data-dir "${HOME}/.codium-server"
-        STARTWEB
-        chmod +x /home/developer/constructor-fabric/start-codium-web.sh
-        /bin/sh -c "DISPLAY=:1 /home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1 &"
-
-        # --- Start trainer HTTP server on port 8082 ---
-        if [ -d /home/developer/workspaces/constructor-fabric-workspace/trainer ]; then
-          /bin/sh -c "python3 -m http.server 8082 --directory /home/developer/workspaces/constructor-fabric-workspace/trainer --bind 0.0.0.0 > /home/developer/trainer-http.log 2>&1 &"
-        fi
-
-        # --- Start app server ---
-        /bin/sh -c "DISPLAY=:1 python3 /home/developer/constructor-fabric/app/server.py > /home/developer/app.log 2>&1 &"
-
-        # --- Install nginx landing page with codium + trainer iframes ---
-        mkdir -p /usr/local/lib/web/frontend
-        cat >/usr/local/lib/web/frontend/index.html <<'LANDING'
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>Constructor Fabric</title>
-        <style>
-          * { margin:0; padding:0; box-sizing:border-box; }
-          html,body { height:100%; background:#0a0a0a; color:#e0e0e0; font-family:system-ui,-apple-system,sans-serif; }
-          .header {
-            display:flex; align-items:center; justify-content:space-between;
-            padding:8px 16px; background:#141414; border-bottom:1px solid #2a2a2a;
-            height:44px; flex-shrink:0;
-          }
-          .header h1 { font-size:15px; font-weight:600; letter-spacing:0.5px; color:#8b5cf6; }
-          .tabs { display:flex; gap:2px; }
-          .tab {
-            padding:6px 18px; border-radius:6px 6px 0 0; cursor:pointer;
-            font-size:13px; font-weight:500; color:#888; background:#1a1a1a;
-            border:1px solid transparent; border-bottom:none;
-            transition: all 0.15s;
-          }
-          .tab:hover { color:#bbb; background:#222; }
-          .tab.active { color:#e0e0e0; background:#0a0a0a; border-color:#2a2a2a; }
-          .frames { position:relative; height:calc(100% - 44px); }
-          .frames iframe {
-            position:absolute; top:0; left:0; width:100%; height:100%;
-            border:none; display:none;
-          }
-          .frames iframe.active { display:block; }
-          .status {
-            display:flex; align-items:center; gap:6px; font-size:12px; color:#666;
-          }
-          .status .dot { width:8px; height:8px; border-radius:50%; }
-          .status .dot.ok { background:#22c55e; }
-          .status .dot.err { background:#ef4444; }
-          .status .dot.wait { background:#eab308; }
-        </style>
-        </head>
-        <body>
-        <div class="header">
-          <h1>Constructor Fabric</h1>
-          <div class="tabs">
-            <div class="tab active" data-frame="codium">Codium</div>
-            <div class="tab" data-frame="trainer">Trainer</div>
-          </div>
-          <div class="status">
-            <span class="dot wait" id="codium-status"></span>
-            <span class="dot wait" id="trainer-status"></span>
-          </div>
-        </div>
-        <div class="frames">
-          <iframe id="codium" class="active" src="/ide/"></iframe>
-          <iframe id="trainer" src="/trainer/"></iframe>
-        </div>
-        <script>
-        document.querySelectorAll('.tab').forEach(tab => {
-          tab.addEventListener('click', () => {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.frames iframe').forEach(f => f.classList.remove('active'));
-            tab.classList.add('active');
-            document.getElementById(tab.dataset.frame).classList.add('active');
-          });
-        });
-        async function check(url, el) {
-          try {
-            const r = await fetch(url, {method:'HEAD', signal: AbortSignal.timeout(5000)});
-            document.getElementById(el).className = 'dot ' + (r.ok ? 'ok' : 'err');
-          } catch { document.getElementById(el).className = 'dot err'; }
-        }
-        check('/ide/', 'codium-status');
-        check('/trainer/', 'trainer-status');
-        </script>
-        </body>
-        </html>
-        LANDING
-
-        # --- Configure nginx: landing page on :80, proxy /ide/ to 8080, /trainer/ to 8082 ---
-        # Start fresh nginx config (base image noVNC config is dead)
-        cat >/etc/nginx/sites-enabled/default <<'NGINX'
-        server {
-            listen 80 default_server;
-            listen [::]:80 default_server;
-            server_name _;
-            root /usr/local/lib/web/frontend;
-            index index.html;
-
-            location / {
-                try_files $uri $uri/ /index.html;
-            }
-
-            location /ide/ {
-                proxy_pass http://127.0.0.1:8080/;
-                proxy_set_header Host $host;
-                proxy_set_header Upgrade $http_upgrade;
-                proxy_set_header Connection "upgrade";
-                proxy_set_header X-Real-IP $remote_addr;
-                proxy_read_timeout 86400;
-            }
-
-            location /trainer/ {
-                proxy_pass http://127.0.0.1:8082/;
-                proxy_set_header Host $host;
-            }
-
-            location = /health {
-                proxy_set_header Host $host;
-                proxy_set_header X-Real-IP $remote_addr;
-                proxy_pass http://127.0.0.1:8081/health;
-            }
-
-            location /api/ {
-                proxy_set_header Host $host;
-                proxy_set_header X-Real-IP $remote_addr;
-                proxy_pass http://127.0.0.1:8081;
-            }
-        }
-        NGINX
-        nginx -t && nginx || service nginx start || true
-
-        # Fix all ownership
-        chown -R developer:developer /home/developer
-
-  verify:
-    - cmd[cp]: |-
-        set -euo pipefail
-        export NO_PROXY=localhost,127.0.0.1,::1
-        export no_proxy=$NO_PROXY
-
-        # Wait for codium serve-web on 8080
-        codium_ready=0
-        for i in $(seq 1 60); do
-          if curl --noproxy "*" -fsS http://127.0.0.1:8080/ >/dev/null 2>&1; then
-            echo "VS Codium web server is up on port 8080"
-            codium_ready=1
-            break
-          fi
-          sleep 2
-        done
-        if [ "$codium_ready" != "1" ]; then
-          echo "VS Codium web server did not start on port 8080" >&2
-          tail -80 /home/developer/codium-web.log >&2 2>/dev/null || true
-          exit 1
-        fi
-
-        # Wait for trainer on 8082
-        trainer_ready=0
-        for i in $(seq 1 30); do
-          if curl --noproxy "*" -fsS http://127.0.0.1:8082/ >/dev/null 2>&1; then
-            echo "Trainer HTTP server is up on port 8082"
-            trainer_ready=1
-            break
-          fi
-          sleep 2
-        done
-        if [ "$trainer_ready" != "1" ]; then
-          echo "WARNING: Trainer HTTP server did not start on port 8082" >&2
-        fi
-
-        # Wait for nginx landing page on port 80
-        nginx_ready=0
-        for i in $(seq 1 30); do
-          page=$(curl --noproxy "*" -fsS http://127.0.0.1:80/ 2>/dev/null || true)
-          if [ -n "$page" ] && echo "$page" | grep -q "Constructor Fabric"; then
-            echo "Nginx landing page is up on port 80"
-            nginx_ready=1
-            break
-          fi
-          sleep 2
-        done
-        if [ "$nginx_ready" != "1" ]; then
-          echo "Nginx landing page did not start on port 80" >&2
-          nginx -t >&2 || true
-          cat /var/log/nginx/error.log >&2 2>/dev/null | tail -20 || true
-          exit 1
-        fi
-
-        # Verify landing page has codium and trainer iframes
-        if echo "$page" | grep -q 'iframe.*id="codium"'; then
-          echo "Landing page has codium iframe"
-        else
-          echo "Landing page missing codium iframe" >&2
-          exit 1
-        fi
-        if echo "$page" | grep -q 'iframe.*id="trainer"'; then
-          echo "Landing page has trainer iframe"
-        else
-          echo "Landing page missing trainer iframe" >&2
-          exit 1
-        fi
-
-        # Verify nginx proxies work
-        if curl --noproxy "*" -fsS http://127.0.0.1:80/ide/ >/dev/null 2>&1; then
-          echo "/ide/ proxy works"
-        else
-          echo "/ide/ proxy failed" >&2
-          exit 1
-        fi
-
-        # Verify Continue config
-        test -f /home/developer/.continue/config.yaml || { echo "Continue config missing" >&2; exit 1; }
-        grep -q "provider: " /home/developer/.continue/config.yaml || { echo "Continue provider missing" >&2; exit 1; }
-        grep -q "model: " /home/developer/.continue/config.yaml || { echo "Continue model missing" >&2; exit 1; }
-        test -d /home/developer/.config/VSCodium/extensions/continue.continue-* || { echo "Continue extension missing" >&2; exit 1; }
-        echo "Continue extension is configured"
-
-        # Verify cfc
-        cd /home/developer/cyber-constructor
-        cfc --version
-        cfc info --json >/tmp/cfc-info.json
-        cfc validate --json >/tmp/cfc-validate.json
-        python3 <<PYCHECK
-        import json
-        info=json.load(open("/tmp/cfc-info.json"))
-        assert info["status"] == "FOUND", info
-        validate=json.load(open("/tmp/cfc-validate.json"))
-        assert validate["status"] == "PASS", validate
-        print("cyber-constructor info is FOUND")
-        print("cyber-constructor validate is PASS")
-        PYCHECK
-
-        echo ""
-        echo "=== All checks passed ==="
-
-success: |
-  ### Constructor Fabric is ready
-
-  [Open Constructor Fabric](https://${env.domain}/)
-
-  The landing page has two tabs:
-  - **Codium** — VS Codium web IDE with Continue extension pre-configured
-  - **Trainer** — Constructor Fabric trainer interface
-
-  No token is required — VS Codium is served without a connection token.
-
-  #### Workspace
-
-  `/home/developer/workspaces/constructor-fabric-workspace`
-
-  #### Install options used
-
-  | Setting | Value |
-  |---------|-------|
-  | LLM provider | `${settings.llm-provider}` |
-  | Model | `${settings.openai-model:}${settings.claude-model:}` |
-  | API Token | configured from install form when provided |
+     1|type: install
+     2|version: 0.5.0
+     3|id: constructor-fabric
+     4|baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
+     5|name: Constructor Fabric
+     6|logo: assets/constructor-fabric-logo.png
+     7|categories:
+     8|  - apps/dev-and-admin-tools
+     9|  - apps/collaboration
+    10|  - apps/productivity
+    11|
+    12|description:
+    13|  text: Lets AI define, build, and run software end to end -- with reusable components, operational automation, and built-in productivity measurement and insights.
+    14|  short: Constructor Fabric
+    15|
+    16|targetRegions:
+    17|  type: vz7
+    18|
+    19|ssl: true
+    20|skipNodeEmails: true
+    21|
+    22|globals:
+    23|  CF_PORT: 8081
+    24|  APP_PORT: 8081
+    25|  LLM_PROVIDER: openai
+    26|  OPENAI_MODEL: gpt-5.5
+    27|  CLAUDE_MODEL: claude-sonnet-4-6
+    28|  SCRIPT_VERSION: landing-v050-20260605
+    29|  CF_SOURCE_REF: 620b955714282949deb815da13d9ae1c0e387ada
+    30|
+    31|settings:
+    32|  fields:
+    33|    - caption: LLM provider
+    34|      type: list
+    35|      inputType: string
+    36|      name: llm-provider
+    37|      default: openai
+    38|      values:
+    39|        openai: OpenAI
+    40|        claude: Claude
+    41|      tooltip: Select which LLM provider the Constructor Fabric workflow should use.
+    42|      showIf:
+    43|        openai:
+    44|          - caption: OpenAI model
+    45|            type: list
+    46|            inputType: string
+    47|            name: openai-model
+    48|            default: gpt-5.5
+    49|            values:
+    50|              gpt-5.5: OpenAI GPT-5.5
+    51|              gpt-5.4: OpenAI GPT-5.4
+    52|            tooltip: Select the OpenAI model used by the Constructor Fabric workflow.
+    53|        claude:
+    54|          - caption: Anthropic model
+    55|            type: list
+    56|            inputType: string
+    57|            name: claude-model
+    58|            default: claude-sonnet-4-6
+    59|            values:
+    60|              claude-sonnet-4-6: Claude Sonnet 4.6
+    61|              claude-opus-4-8: Claude Opus 4.8
+    62|              claude-haiku-4-5: Claude Haiku 4.5
+    63|            tooltip: Select the Anthropic Claude model used by the Constructor Fabric workflow.
+    64|    - caption: API Token
+    65|      type: string
+    66|      inputType: password
+    67|      name: api-token
+    68|      value: ""
+    69|      required: false
+    70|      tooltip: API token for the selected provider. Use an OpenAI key for openai or an Anthropic/Claude key for claude.
+    71|
+    72|nodes:
+    73|  - image: ihorman/constructor-fabric:latest
+    74|    nodeType: docker
+    75|    displayName: Constructor Fabric
+    76|    cloudlets: 64
+    77|    nodeGroup: cp
+    78|    ports:
+    79|      - 80
+    80|    endpoints:
+    81|      - name: Constructor Fabric
+    82|        privatePort: 80
+    83|        protocol: TCP
+    84|    env:
+    85|      TZ: Europe/Kyiv
+    86|      USER: developer
+    87|      LLM_PROVIDER: ${settings.llm-provider}
+    88|      API_TOKEN: ${settings.api-token}
+    89|      OPENAI_API_KEY: ${settings.api-token}
+    90|      ANTHROPIC_API_KEY: ${settings.api-token}
+    91|      OPENAI_MODEL: ${settings.openai-model}
+    92|      CLAUDE_MODEL: ${settings.claude-model:claude-sonnet-4-6}
+    93|      CF_IDE_PROFILE: codium
+    94|      CF_HOME: /home/developer/constructor-fabric
+    95|      CF_PORT: ${globals.CF_PORT}
+    96|      NO_PROXY: localhost,127.0.0.1,::1
+    97|      no_proxy: localhost,127.0.0.1,::1
+    98|      JELASTIC_EXPOSE: 80
+    99|      JELASTIC_PORTS: 80
+   100|      SCRIPT_VERSION: ${globals.SCRIPT_VERSION}
+   101|      CF_SOURCE_REF: ${globals.CF_SOURCE_REF}
+   102|
+   103|onInstall:
+   104|  - bootstrap
+   105|  - verify
+   106|
+   107|actions:
+   108|  bootstrap:
+   109|    - cmd[cp]: |-
+   110|        set -euo pipefail
+   111|        export DEBIAN_FRONTEND=noninteractive
+   112|
+   113|        # Repair XKB if the base image is missing it (needed for electron trainer)
+   114|        if [ ! -d /usr/share/X11/xkb/keycodes ] || [ ! -d /usr/share/X11/xkb/symbols ]; then
+   115|          find /etc/apt -type f \( -name '*.list' -o -name '*.sources' \) -print0 | xargs -0 grep -l 'api.cursor.com/apt' 2>/dev/null | xargs -r rm -f
+   116|          apt-get update
+   117|          apt-get install -y --reinstall xkb-data || { apt-get purge -y xkb-data; apt-get update; apt-get install -y xkb-data; }
+   118|          rm -rf /var/lib/apt/lists/*
+   119|        fi
+   120|
+   121|        # Ensure electron is available for the trainer
+   122|        if ! command -v electron >/dev/null 2>&1 && [ -x /opt/node-current/bin/npm ]; then
+   123|          /opt/node-current/bin/npm install -g electron@latest
+   124|          ln -sf /opt/node-current/bin/electron /usr/local/bin/electron 2>/dev/null || true
+   125|        fi
+   126|
+   127|        # Fix ownership before downloading scripts
+   128|        chown -R developer:developer /home/developer
+   129|
+   130|        # Download and run bootstrap (installs cfc, trainer, codium profile, etc.)
+   131|        curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/scripts/bootstrap.sh?v=${globals.SCRIPT_VERSION}" -o /tmp/constructor-fabric-bootstrap.sh
+   132|        chmod +x /tmp/constructor-fabric-bootstrap.sh
+   133|        chown developer:developer /tmp/constructor-fabric-bootstrap.sh
+   134|        su - developer -c "/tmp/constructor-fabric-bootstrap.sh"
+   135|
+   136|        # --- Continue extension config ---
+   137|        mkdir -p /home/developer/.continue /home/developer/.config/VSCodium/User /home/developer/constructor-fabric /home/developer/workspaces/constructor-fabric-workspace/.vscode
+   138|
+   139|        # Download trainer HTML
+   140|        mkdir -p /home/developer/workspaces/constructor-fabric-workspace/trainer
+   141|        curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/trainer/index.html" -o /home/developer/workspaces/constructor-fabric-workspace/trainer/index.html 2>/dev/null || true
+   142|
+   143|        cat >/tmp/write-continue-config.py <<'PYCFG'
+   144|        import json
+   145|        import os
+   146|        from pathlib import Path
+   147|
+   148|        def clean(value, default=""):
+   149|            value = (value or "").strip()
+   150|            bad = {"", "-", "null", "None", "undefined"}
+   151|            if value in bad or value.startswith("$" + "{") or value.startswith("-"):
+   152|                return default
+   153|            return value
+   154|
+   155|        provider = clean(os.environ.get("LLM_PROVIDER"), "openai")
+   156|        if provider == "claude":
+   157|            provider = "anthropic"
+   158|        if provider not in {"openai", "anthropic"}:
+   159|            provider = "openai"
+   160|
+   161|        token = clean(os.environ.get("API_TOKEN"), "")
+   162|        openai_key = clean(os.environ.get("OPENAI_API_KEY"), token)
+   163|        anthropic_key = clean(os.environ.get("ANTHROPIC_API_KEY"), token)
+   164|        openai_model = clean(os.environ.get("OPENAI_MODEL"), "gpt-5.5")
+   165|        claude_model = clean(os.environ.get("CLAUDE_MODEL"), "claude-sonnet-4-6")
+   166|        model = claude_model if provider == "anthropic" else openai_model
+   167|        api_key = anthropic_key if provider == "anthropic" else openai_key
+   168|
+   169|        out = Path("/home/developer/.continue/config.yaml")
+   170|        out.parent.mkdir(parents=True, exist_ok=True)
+   171|
+   172|        def q(value):
+   173|            return json.dumps(str(value))
+   174|
+   175|        lines = [
+   176|            "name: Constructor Fabric",
+   177|            "version: 1.0.0",
+   178|            "schema: v1",
+   179|            "env:",
+   180|            f"  OPENAI_API_KEY: {q(openai_key)}",
+   181|            f"  ANTHROPIC_API_KEY: {q(anthropic_key)}",
+   182|            f"  API_TOKEN: {q(token)}",
+   183|            "models:",
+   184|            "  - name: Constructor Fabric Chat",
+   185|            f"    provider: {q(provider)}",
+   186|            f"    model: {q(model)}",
+   187|        ]
+   188|        if api_key:
+   189|            lines.append(f"    apiKey: {q(api_key)}")
+   190|        lines.extend([
+   191|            "    roles:",
+   192|            "      - chat",
+   193|            "      - edit",
+   194|            "      - apply",
+   195|            "      - autocomplete",
+   196|            "context:",
+   197|            "  - provider: code",
+   198|            "  - provider: docs",
+   199|            "prompts:",
+   200|            "  - name: cf-constructor",
+   201|            "    description: Run the Constructor Fabric SDLC workflow.",
+   202|            "    prompt: |",
+   203|            "      You are Constructor Fabric inside the pre-initialized workspace.",
+   204|            "",
+   205|            "      User request:",
+   206|            "      {{{ input }}}",
+   207|            "",
+   208|            "      Use the local Constructor Fabric setup in this workspace:",
+   209|            "      - Read AGENTS.md and .cf-constructor/.gen/AGENTS.md before making changes.",
+   210|            "      - Use .cf-constructor as the Constructor Fabric adapter path.",
+   211|            "      - Use cfc/cf-constructor CLI commands for info, validation, artifacts, traceability.",
+   212|            "      - Preserve traceability across PRD, ADR, DESIGN, DECOMPOSITION, FEATURE, CODE, tasks, tests, and review artifacts.",
+   213|            "      - If validation fails, explain the failing checks and propose or apply fixes.",
+   214|        ])
+   215|        out.write_text("\n".join(lines) + "\n")
+   216|
+   217|        # Env file for Codium/Continue extension host
+   218|        env = Path("/home/developer/.constructor-fabric-ai.env")
+   219|        env.write_text("\n".join([
+   220|            f"API_TOKEN={token}",
+   221|            f"OPENAI_API_KEY={openai_key}",
+   222|            f"ANTHROPIC_API_KEY={anthropic_key}",
+   223|            f"LLM_PROVIDER={provider}",
+   224|            f"OPENAI_MODEL={openai_model}",
+   225|            f"CLAUDE_MODEL={claude_model}",
+   226|        ]) + "\n")
+   227|        env.chmod(0o600)
+   228|
+   229|        print(f"Continue config written: provider={provider}, model={model}, api_key_len={len(api_key)}")
+   230|        PYCFG
+   231|        python3 /tmp/write-continue-config.py
+   232|
+   233|        # VS Codium settings
+   234|        cat >/home/developer/.config/VSCodium/User/settings.json <<'VSCODESETTINGS'
+   235|        {
+   236|          "workbench.startupEditor": "none",
+   237|          "security.workspace.trust.enabled": false,
+   238|          "security.workspace.trust.startupPrompt": "never",
+   239|          "continue.telemetryEnabled": false,
+   240|          "continue.showInlineTip": false
+   241|        }
+   242|        VSCODESETTINGS
+   243|        cat >/home/developer/.config/VSCodium/User/keybindings.json <<'VSCODEKEYS'
+   244|        [
+   245|          { "key": "ctrl+alt+c", "command": "continue.focusContinueInput" }
+   246|        ]
+   247|        VSCODEKEYS
+   248|
+   249|        # --- Patch Codium webview for Jelastic proxy ---
+   250|        cat >/tmp/patch-codium-webview-transfer.py <<'PYWEBVIEW'
+   251|        import re
+   252|        from pathlib import Path
+   253|
+   254|        roots = [Path('/home/developer'), Path('/usr/share'), Path('/usr/lib'), Path('/opt')]
+   255|        candidates = []
+   256|        for root in roots:
+   257|            if not root.exists():
+   258|                continue
+   259|            for path in root.rglob('index.html'):
+   260|                s = str(path)
+   261|                if 'webview' in s and 'browser' in s and 'pre' in s:
+   262|                    candidates.append(path)
+   263|
+   264|        patched = []
+   265|        pattern = re.compile(
+   266|            r"(hostMessaging\.onMessage\('did-load-resource', \(_event, data\) => \{\s*)"
+   267|            r"(assertIsDefined\(navigator\.serviceWorker\.controller\)\.postMessage\(\{ channel: 'did-load-resource', data \}\);)"
+   268|            r"(\s*\}\);)",
+   269|            re.MULTILINE,
+   270|        )
+   271|        replacement = (
+   272|            "\\1"
+   273|            "const transfer = data.stream ? [data.stream] : [];\n"
+   274|            "\t\t\t\tassertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-resource', data }, transfer);"
+   275|            "\\3"
+   276|        )
+   277|        for path in candidates:
+   278|            text = path.read_text(errors='replace')
+   279|            original = text
+   280|            text = text.replace(
+   281|                "const disableServiceWorker = searchParams.has('disableServiceWorker');",
+   282|                "const disableServiceWorker = true; // patched for Jelastic proxy"
+   283|            )
+   284|            new_text, count = pattern.subn(replacement, text, count=1)
+   285|            text = new_text
+   286|            changes = []
+   287|            if original != text:
+   288|                if "const disableServiceWorker = true; // patched for Jelastic proxy" in text:
+   289|                    changes.append("disableServiceWorker")
+   290|                if count or "const transfer = data.stream ? [data.stream] : []" in text:
+   291|                    changes.append("transfer")
+   292|                path.write_text(text)
+   293|                patched.append(f"patched {','.join(changes)}: {path}")
+   294|            elif "const disableServiceWorker = true; // patched for Jelastic proxy" in text:
+   295|                patched.append(f"already patched: {path}")
+   296|        if not patched:
+   297|            raise SystemExit("No Codium webview patched; candidates=" + ",".join(map(str, candidates[:20])))
+   298|        print("\n".join(patched))
+   299|        PYWEBVIEW
+   300|        python3 /tmp/patch-codium-webview-transfer.py | tee /tmp/codium-webview-transfer-patch.log
+   301|
+   302|        # --- Patch Codium workbench transferable streams ---
+   303|        cat >/tmp/patch-codium-workbench-no-streams.py <<'PYWORKBENCH'
+   304|        import re
+   305|        from pathlib import Path
+   306|
+   307|        roots = [Path('/home/developer'), Path('/usr/share'), Path('/usr/lib'), Path('/opt')]
+   308|        files = []
+   309|        for root in roots:
+   310|            if root.exists():
+   311|                files.extend(root.rglob('workbench.js'))
+   312|        pattern = re.compile(
+   313|            r"this\._supportsTransferableStreams=new Ws\(\(\)=>\{try\{const e=new ReadableStream,t=new MessageChannel;return t\.port1\.postMessage\(e,\[e\]\),t\.port1\.close\(\),t\.port2\.close\(\),!0\}catch\{return!1\}\}\)"
+   314|        )
+   315|        replacement = "this._supportsTransferableStreams=new Ws(()=>!1)"
+   316|        patched = []
+   317|        for path in files:
+   318|            text = path.read_text(errors='replace')
+   319|            new_text, count = pattern.subn(replacement, text)
+   320|            if count:
+   321|                path.write_text(new_text)
+   322|                patched.append(f"patched workbench streams: {path}")
+   323|            elif replacement in text:
+   324|                patched.append(f"already patched workbench streams: {path}")
+   325|        if not patched:
+   326|            raise SystemExit("No Codium workbench.js patched")
+   327|        print("\n".join(patched))
+   328|        PYWORKBENCH
+   329|        python3 /tmp/patch-codium-workbench-no-streams.py | tee /tmp/codium-workbench-no-streams-patch.log
+   330|
+   331|        # --- Kill VNC/noVNC stack (no longer needed) ---
+   332|        for _kill_round in $(seq 1 8); do
+   333|          sudo pkill -9 -f "tini.*supervisord" 2>/dev/null || true
+   334|          sudo supervisorctl stop all 2>/dev/null || true
+   335|          sudo supervisorctl shutdown 2>/dev/null || true
+   336|          sudo pkill -9 -f supervisord 2>/dev/null || true
+   337|          sudo pkill -9 -f nginx 2>/dev/null || true
+   338|          sudo pkill -9 -f Xvfb 2>/dev/null || true
+   339|          sudo pkill -9 -f x11vnc 2>/dev/null || true
+   340|          sudo pkill -9 -f websockify 2>/dev/null || true
+   341|          sudo pkill -9 -f lxsession 2>/dev/null || true
+   342|          sudo pkill -9 -f lxpanel 2>/dev/null || true
+   343|          sudo pkill -9 -f openbox 2>/dev/null || true
+   344|          sudo pkill -9 -f "codium.*serve-web" 2>/dev/null || true
+   345|          sudo pkill -9 -f codium-server 2>/dev/null || true
+   346|          sleep 2
+   347|          if ! ss -tlnp 2>/dev/null | grep -q ":80 "; then break; fi
+   348|        done
+   349|
+   350|        # --- Start Xvfb (needed for Electron trainer) ---
+   351|        mkdir -p /home/developer/constructor-fabric
+   352|        setsid /usr/bin/Xvfb :1 -screen 0 1280x720x24 -ac +extension GLX +render -noreset </dev/null >/home/developer/constructor-fabric/xvfb.log 2>&1 &
+   353|        sleep 1
+   354|
+   355|        # --- Start codium serve-web on port 8080 ---
+   356|        CODIUM_BIN="$(command -v codium || echo /usr/share/codium/bin/codium)"
+   357|        mkdir -p /home/developer/.codium-server/data/Machine
+   358|        cat >/home/developer/constructor-fabric/start-codium-web.sh <<'STARTWEB'
+   359|        #!/bin/sh
+   360|        set -u
+   361|        case "${HOME:-}" in
+   362|          ""|-*) HOME=/home/developer ;;
+   363|        esac
+   364|        export HOME
+   365|        if [ -f "${HOME}/.constructor-fabric-ai.env" ]; then
+   366|          set -a
+   367|          . "${HOME}/.constructor-fabric-ai.env"
+   368|          set +a
+   369|        fi
+   370|        export DISPLAY=:1
+   371|        export PATH="${HOME}/.local/bin:/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+   372|        workspace="${HOME}/workspaces/constructor-fabric-workspace"
+   373|        mkdir -p "$workspace"
+   374|        cd "$workspace" || exit 1
+   375|        exec codium serve-web --port 8080 --host 0.0.0.0 \
+   376|          --without-connection-token \
+   377|          --accept-server-license-terms \
+   378|          --server-data-dir "${HOME}/.codium-server"
+   379|        STARTWEB
+   380|        chmod +x /home/developer/constructor-fabric/start-codium-web.sh
+   381|        /bin/sh -c "DISPLAY=:1 /home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1 &"
+   382|
+   383|        # --- Start trainer HTTP server on port 8082 ---
+   384|        if [ -d /home/developer/workspaces/constructor-fabric-workspace/trainer ]; then
+   385|          /bin/sh -c "python3 -m http.server 8082 --directory /home/developer/workspaces/constructor-fabric-workspace/trainer --bind 0.0.0.0 > /home/developer/trainer-http.log 2>&1 &"
+   386|        fi
+   387|
+   388|        # --- Start app server ---
+   389|        /bin/sh -c "DISPLAY=:1 python3 /home/developer/constructor-fabric/app/server.py > /home/developer/app.log 2>&1 &"
+   390|
+   391|        # --- Install nginx landing page with codium + trainer iframes ---
+   392|        mkdir -p /usr/local/lib/web/frontend
+   393|        cat >/usr/local/lib/web/frontend/index.html <<'LANDING'
+   394|        <!DOCTYPE html>
+   395|        <html lang="en">
+   396|        <head>
+   397|        <meta charset="utf-8">
+   398|        <meta name="viewport" content="width=device-width,initial-scale=1">
+   399|        <title>Constructor Fabric</title>
+   400|        <style>
+   401|          * { margin:0; padding:0; box-sizing:border-box; }
+   402|          html,body { height:100%; background:#0a0a0a; color:#e0e0e0; font-family:system-ui,-apple-system,sans-serif; }
+   403|          .header {
+   404|            display:flex; align-items:center; justify-content:space-between;
+   405|            padding:8px 16px; background:#141414; border-bottom:1px solid #2a2a2a;
+   406|            height:44px; flex-shrink:0;
+   407|          }
+   408|          .header h1 { font-size:15px; font-weight:600; letter-spacing:0.5px; color:#8b5cf6; }
+   409|          .tabs { display:flex; gap:2px; }
+   410|          .tab {
+   411|            padding:6px 18px; border-radius:6px 6px 0 0; cursor:pointer;
+   412|            font-size:13px; font-weight:500; color:#888; background:#1a1a1a;
+   413|            border:1px solid transparent; border-bottom:none;
+   414|            transition: all 0.15s;
+   415|          }
+   416|          .tab:hover { color:#bbb; background:#222; }
+   417|          .tab.active { color:#e0e0e0; background:#0a0a0a; border-color:#2a2a2a; }
+   418|          .frames { position:relative; height:calc(100% - 44px); }
+   419|          .frames iframe {
+   420|            position:absolute; top:0; left:0; width:100%; height:100%;
+   421|            border:none; display:none;
+   422|          }
+   423|          .frames iframe.active { display:block; }
+   424|          .status {
+   425|            display:flex; align-items:center; gap:6px; font-size:12px; color:#666;
+   426|          }
+   427|          .status .dot { width:8px; height:8px; border-radius:50%; }
+   428|          .status .dot.ok { background:#22c55e; }
+   429|          .status .dot.err { background:#ef4444; }
+   430|          .status .dot.wait { background:#eab308; }
+   431|        </style>
+   432|        </head>
+   433|        <body>
+   434|        <div class="header">
+   435|          <h1>Constructor Fabric</h1>
+   436|          <div class="tabs">
+   437|            <div class="tab active" data-frame="codium">Codium</div>
+   438|            <div class="tab" data-frame="trainer">Trainer</div>
+   439|          </div>
+   440|          <div class="status">
+   441|            <span class="dot wait" id="codium-status"></span>
+   442|            <span class="dot wait" id="trainer-status"></span>
+   443|          </div>
+   444|        </div>
+   445|        <div class="frames">
+   446|          <iframe id="codium" class="active" src="/ide/"></iframe>
+   447|          <iframe id="trainer" src="/trainer/"></iframe>
+   448|        </div>
+   449|        <script>
+   450|        document.querySelectorAll('.tab').forEach(tab => {
+   451|          tab.addEventListener('click', () => {
+   452|            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+   453|            document.querySelectorAll('.frames iframe').forEach(f => f.classList.remove('active'));
+   454|            tab.classList.add('active');
+   455|            document.getElementById(tab.dataset.frame).classList.add('active');
+   456|          });
+   457|        });
+   458|        async function check(url, el) {
+   459|          try {
+   460|            const r = await fetch(url, {method:'HEAD', signal: AbortSignal.timeout(5000)});
+   461|            document.getElementById(el).className = 'dot ' + (r.ok ? 'ok' : 'err');
+   462|          } catch { document.getElementById(el).className = 'dot err'; }
+   463|        }
+   464|        check('/ide/', 'codium-status');
+   465|        check('/trainer/', 'trainer-status');
+   466|        </script>
+   467|        </body>
+   468|        </html>
+   469|        LANDING
+   470|
+   471|        # --- Configure nginx: landing page on :80, proxy /ide/ to 8080, /trainer/ to 8082 ---
+   472|        # Start fresh nginx config (base image noVNC config is dead)
+   473|        cat >/etc/nginx/sites-enabled/default <<'NGINX'
+   474|        server {
+   475|            listen 80 default_server;
+   476|            listen [::]:80 default_server;
+   477|            server_name _;
+   478|            root /usr/local/lib/web/frontend;
+   479|            index index.html;
+   480|
+   481|            location / {
+   482|                try_files $uri $uri/ /index.html;
+   483|            }
+   484|
+   485|            location /ide/ {
+   486|                proxy_pass http://127.0.0.1:8080/;
+   487|                proxy_set_header Host $host;
+   488|                proxy_set_header Upgrade $http_upgrade;
+   489|                proxy_set_header Connection "upgrade";
+   490|                proxy_set_header X-Real-IP $remote_addr;
+   491|                proxy_read_timeout 86400;
+   492|            }
+   493|
+   494|            location /trainer/ {
+   495|                proxy_pass http://127.0.0.1:8082/;
+   496|                proxy_set_header Host $host;
+   497|            }
+   498|
+   499|            location = /health {
+   500|                proxy_set_header Host $host;
+   501|
