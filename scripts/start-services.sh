@@ -177,6 +177,19 @@ if p.exists():
 \t\tproxy_set_header Host $host;
 \t}
 """
+    # Add /stable-<hash>/ proxy for codium serve-web assets
+    # Codium HTML references absolute paths like /stable-<commit-hash>/static/...
+    # which need to be proxied to port 8080
+    if 'location ~ ^/stable-' not in s:
+        additions += """
+\tlocation ~ ^/stable-[a-f0-9]+/ {
+\t\tproxy_pass http://127.0.0.1:8080;
+\t\tproxy_set_header Host $host;
+\t\tproxy_set_header Upgrade $http_upgrade;
+\t\tproxy_set_header Connection "upgrade";
+\t\tproxy_read_timeout 86400;
+\t}
+"""
     if additions:
         marker = '\n\tlocation / {\n'
         if marker in s:

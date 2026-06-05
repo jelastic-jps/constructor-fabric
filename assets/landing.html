@@ -65,7 +65,7 @@ document.querySelectorAll('.tab').forEach(tab => {
 // Status checks
 async function check(url, el) {
   try {
-    const r = await fetch(url, {method:'HEAD', signal: AbortSignal.timeout(5000)});
+    const r = await fetch(url, {method:'GET', signal: AbortSignal.timeout(5000)});
     document.getElementById(el).className = 'dot ' + (r.ok ? 'ok' : 'err');
   } catch { document.getElementById(el).className = 'dot err'; }
 }
