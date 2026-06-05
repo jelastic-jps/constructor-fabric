@@ -537,12 +537,83 @@ if 'location = /health' not in s:
         s=s.replace('\n}\n', insert+'\n}\n', 1)
 p.write_text(s)
 PY
+  # --- Landing page with iframes for codium, trainer, novnc ---
+  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+  LANDING_SRC="${SCRIPT_DIR}/../assets/landing.html"
+  if [ -f "$LANDING_SRC" ]; then
+    sudo cp "$LANDING_SRC" /usr/local/lib/web/frontend/index.html
+  elif [ -f "${HOME}/constructor-fabric/app/landing.html" ]; then
+    sudo cp "${HOME}/constructor-fabric/app/landing.html" /usr/local/lib/web/frontend/index.html
+  fi
+  # Add proxy locations for codium (/ide/), trainer (/trainer/), novnc (/novnc/)
+  sudo python3 <<'PY'
+from pathlib import Path
+p = Path('/etc/nginx/sites-enabled/default')
+if p.exists():
+    s = p.read_text()
+    additions = ''
+    if 'location /ide/' not in s:
+        additions += """
+\tlocation /ide/ {
+\t\tproxy_pass http://127.0.0.1:8080/;
+\t\tproxy_set_header Host $host;
+\t\tproxy_set_header Upgrade $http_upgrade;
+\t\tproxy_set_header Connection "upgrade";
+\t\tproxy_read_timeout 86400;
+\t}
+"""
+    if 'location /trainer/' not in s:
+        additions += """
+\tlocation /trainer/ {
+\t\tproxy_pass http://127.0.0.1:8082/;
+\t\tproxy_set_header Host $host;
+\t}
+"""
+    if 'location /novnc/' not in s:
+        additions += """
+\tlocation /novnc/ {
+\t\tproxy_pass http://127.0.0.1:6081/;
+\t\tproxy_set_header Host $host;
+\t\tproxy_set_header Upgrade $http_upgrade;
+\t\tproxy_set_header Connection "upgrade";
+\t\tproxy_read_timeout 86400;
+\t}
+"""
+    if additions:
+        marker = '\n\tlocation / {\n'
+        if marker in s:
+            s = s.replace(marker, additions + marker, 1)
+        else:
+            s = s.replace('\n}\n', additions + '\n}\n', 1)
+        p.write_text(s)
+PY
   NGINX_BIN="$(command -v nginx || command -v /usr/sbin/nginx || true)"
   if [ -n "$NGINX_BIN" ]; then
     sudo "$NGINX_BIN" -t >"${HOME}/constructor-fabric/nginx-test.log" 2>&1 && (sudo "$NGINX_BIN" -s reload || sudo service nginx reload || true) >"${HOME}/constructor-fabric/nginx-reload.log" 2>&1 || true
   fi
 fi
 start_detached "${HOME}/constructor-fabric/app/server.py" "${HOME}/constructor-fabric/app.log" python3 "${HOME}/constructor-fabric/app/server.py"
+# --- Codium serve-web on port 8080 ---
+if command -v codium >/dev/null 2>&1 || [ -x /usr/share/codium/bin/codium ]; then
+  CODIUM_BIN="$(command -v codium || echo /usr/share/codium/bin/codium)"
+  mkdir -p "${HOME}/.codium-server/data/Machine"
+  # Write default settings for Continue extension
+  if [ ! -f "${HOME}/.codium-server/data/Machine/settings.json" ]; then
+    cat > "${HOME}/.codium-server/data/Machine/settings.json" <<'JSON'
+{
+  "workbench.startupEditor": "none",
+  "terminal.integrated.defaultProfile.linux": "bash"
+}
+JSON
+  fi
+  start_detached "codium serve-web" "${HOME}/constructor-fabric/codium-serve.log" \
+    "${CODIUM_BIN}" serve-web --port 8080 --host 0.0.0.0 --without-connection-token --server-data-dir "${HOME}/.codium-server"
+fi
+# --- Trainer HTTP server on port 8082 ---
+if [ -d "${HOME}/constructor-fabric/trainer" ]; then
+  start_detached "trainer http" "${HOME}/constructor-fabric/trainer-http.log" \
+    python3 -m http.server 8082 --directory "${HOME}/constructor-fabric/trainer" --bind 0.0.0.0
+fi
 if [ -x "${HOME}/cyber-constructor/auto-bootstrap.sh" ]; then
   start_detached "${HOME}/cyber-constructor/auto-bootstrap.sh" "${HOME}/cyber-constructor/auto-bootstrap-launch.log" "${HOME}/cyber-constructor/auto-bootstrap.sh"
 fi
