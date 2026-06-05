@@ -141,59 +141,59 @@ if p.exists():
     s = p.read_text()
     # Remove HTTP basic auth
     import re
-    s = re.sub(r'\n\s*auth_basic\s+[^;]+;\s*\n\s*auth_basic_user_file\s+[^;]+;\s*\n', '\n\t# Constructor Fabric: no HTTP basic auth.\n\tauth_basic off;\n', s, count=1)
+    s = re.sub(r'\n\s*auth_basic\s+[^;]+;\s*\n\s*auth_basic_user_file\s+[^;]+;\s*\n', '\n    # Constructor Fabric: no HTTP basic auth.\n    auth_basic off;\n', s, count=1)
     # Add /health endpoint
     if 'location = /health' not in s:
         health_loc = """
-\tlocation = /health {
-\t\tauth_basic off;
-\t\tproxy_set_header Host $host;
-\t\tproxy_set_header X-Real-IP $remote_addr;
-\t\tproxy_pass http://127.0.0.1:8081/health;
-\t}
+    location = /health {
+        auth_basic off;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_pass http://127.0.0.1:8081/health;
+    }
 """
-        marker = '\n\tlocation / {\n'
-        if marker in s:
-            s = s.replace(marker, health_loc + marker, 1)
+        for mk in ['\n    location / {\n', '\n\tlocation / {\n']:
+            if mk in s:
+                s = s.replace(mk, health_loc + mk, 1)
+                break
         else:
             s = s.replace('\n}\n', health_loc + '\n}\n', 1)
     # Add /ide/ proxy
     additions = ''
     if 'location /ide/' not in s:
         additions += """
-\tlocation /ide/ {
-\t\tproxy_pass http://127.0.0.1:8080/;
-\t\tproxy_set_header Host $host;
-\t\tproxy_set_header Upgrade $http_upgrade;
-\t\tproxy_set_header Connection "upgrade";
-\t\tproxy_read_timeout 86400;
-\t}
+    location /ide/ {
+        proxy_pass http://127.0.0.1:8080/;
+        proxy_set_header Host $host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 86400;
+    }
 """
     # Add /trainer/ proxy
     if 'location /trainer/' not in s:
         additions += """
-\tlocation /trainer/ {
-\t\tproxy_pass http://127.0.0.1:8082/;
-\t\tproxy_set_header Host $host;
-\t}
+    location /trainer/ {
+        proxy_pass http://127.0.0.1:8082/;
+        proxy_set_header Host $host;
+    }
 """
     # Add /stable-<hash>/ proxy for codium serve-web assets
     # Codium HTML references absolute paths like /stable-<commit-hash>/static/...
     # which need to be proxied to port 8080
-    if 'location ~ ^/stable-' not in s:
+    if 'location ~' not in s:
         additions += """
-\tlocation ~ ^/stable-[a-f0-9]+/ {
-\t\tproxy_pass http://127.0.0.1:8080;
-\t\tproxy_set_header Host $host;
-\t\tproxy_set_header Upgrade $http_upgrade;
-\t\tproxy_set_header Connection "upgrade";
-\t\tproxy_read_timeout 86400;
-\t}
+    location ~ ^/stable-[a-f0-9]+/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+    }
 """
     if additions:
-        marker = '\n\tlocation / {\n'
-        if marker in s:
-            s = s.replace(marker, additions + marker, 1)
+        # Try space-indented markers first, then tab-indented
+        for mk in ['\n    location / {\n', '\n\tlocation / {\n']:
+            if mk in s:
+                s = s.replace(mk, additions + mk, 1)
+                break
         else:
             s = s.replace('\n}\n', additions + '\n}\n', 1)
     p.write_text(s)
