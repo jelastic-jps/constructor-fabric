@@ -41,20 +41,17 @@
 <div class="header">
   <h1>⚡ Constructor Fabric</h1>
   <div class="tabs">
-    <div class="tab active" data-frame="codium">Codrium</div>
+    <div class="tab active" data-frame="codium">Codium</div>
     <div class="tab" data-frame="trainer">Trainer</div>
-    <div class="tab" data-frame="novnc">Desktop</div>
   </div>
   <div class="status">
     <span class="dot wait" id="codium-status"></span>
     <span class="dot wait" id="trainer-status"></span>
-    <span class="dot wait" id="novnc-status"></span>
   </div>
 </div>
 <div class="frames">
   <iframe id="codium" class="active" src="/ide/"></iframe>
   <iframe id="trainer" src="/trainer/"></iframe>
-  <iframe id="novnc" src="/novnc/"></iframe>
 </div>
 <script>
 document.querySelectorAll('.tab').forEach(tab => {
@@ -74,7 +71,6 @@ async function check(url, el) {
 }
 check('/ide/', 'codium-status');
 check('/trainer/', 'trainer-status');
-check('/novnc/', 'novnc-status');
 </script>
 </body>
 </html>

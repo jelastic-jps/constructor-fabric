@@ -462,67 +462,19 @@ PYVNC
   fi
   sleep 1
 done
-# Bypass the base image's Vue noVNC wrapper: it can throw
-# `Vnc.vue:120 TypeError: this.$t is not a function` in some browsers.
-# Serve a tiny redirector to the upstream noVNC page directly, with the
-# generated VNC password and websocket path filled in.
-if [ -d /usr/local/lib/web/frontend ]; then
-  cat > /tmp/constructor-fabric-novnc-index.html <<'HTML'
-<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Constructor Fabric noVNC</title>
-<style>html,body{margin:0;width:100%;height:100%;background:#050505;color:#eee;font-family:system-ui,sans-serif}.msg{padding:24px}</style></head>
-<body><div class="msg">Opening Constructor Fabric noVNC...</div><script>
-(function(){
-  var host = window.location.hostname;
-  var port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
-  var pass = window.__VNC_PASSWORD__ || '';
-  var qs = new URLSearchParams({host: host, port: port, path: 'websockify', autoconnect: 'true', resize: 'remote'});
-  if (pass) qs.set('password', pass);
-  window.location.replace('/static/novnc/vnc.html?' + qs.toString());
-})();
-</script></body></html>
-HTML
-  python3 - <<'PY'
-from pathlib import Path
-import os
-p=Path('/tmp/constructor-fabric-novnc-index.html')
-s=p.read_text()
-passwd=os.environ.get('VNC_PASSWORD') or os.environ.get('PASSWORD') or ''
-s=s.replace("window.__VNC_PASSWORD__ || ''", repr(passwd))
-p.write_text(s)
-PY
-  sudo cp /tmp/constructor-fabric-novnc-index.html /usr/local/lib/web/frontend/index.html
-fi
+# --- Landing page with iframes for codium and trainer ---
 if [ -f /etc/nginx/sites-enabled/default ]; then
   sudo rm -f /etc/nginx/sites-enabled/default.bak.*
+  # Add health proxy if missing
   sudo python3 <<'PY'
 from pathlib import Path
 p=Path('/etc/nginx/sites-enabled/default')
-s=p.read_text()
-import re
-s=re.sub(r'\n\s*auth_basic\s+[^;]+;\s*\n\s*auth_basic_user_file\s+[^;]+;\s*\n', '\n\t# Constructor Fabric: no HTTP basic auth; VNC itself is password-protected.\n\tauth_basic off;\n', s, count=1)
-if 'location /websockify' not in s:
-    ws="""
-\tlocation /websockify {
-\t\tproxy_connect_timeout 7d;
-\t\tproxy_send_timeout 7d;
-\t\tproxy_read_timeout 7d;
-\t\tproxy_buffering off;
-\t\tproxy_http_version 1.1;
-\t\tproxy_set_header Upgrade $http_upgrade;
-\t\tproxy_set_header Connection "upgrade";
-\t\tproxy_set_header Host $host;
-\t\tproxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
-\t\tproxy_pass http://127.0.0.1:6081;
-\t}
-"""
-    marker='\n\tlocation ~ .*/(api/.*|websockify) {\n'
-    if marker in s:
-        s=s.replace(marker, ws+marker, 1)
-    else:
-        s=s.replace('\n\tlocation / {\n', ws+'\n\tlocation / {\n', 1)
-if 'location = /health' not in s:
-    insert="""
+if p.exists():
+    s = p.read_text()
+    import re
+    s=re.sub(r'\n\s*auth_basic\s+[^;]+;\s*\n\s*auth_basic_user_file\s+[^;]+;\s*\n', '\n\t# Constructor Fabric: no HTTP basic auth.\n\tauth_basic off;\n', s, count=1)
+    if 'location = /health' not in s:
+        insert="""
 \tlocation = /health {
 \t\tauth_basic off;
 \t\tproxy_set_header Host $host;
@@ -530,14 +482,13 @@ if 'location = /health' not in s:
 \t\tproxy_pass http://127.0.0.1:8081/health;
 \t}
 """
-    marker='\n\tlocation / {\n'
-    if marker in s:
-        s=s.replace(marker, insert+marker, 1)
-    else:
-        s=s.replace('\n}\n', insert+'\n}\n', 1)
-p.write_text(s)
+        marker='\n\tlocation / {\n'
+        if marker in s:
+            s=s.replace(marker, insert+marker, 1)
+        else:
+            s=s.replace('\n}\n', insert+'\n}\n', 1)
+    p.write_text(s)
 PY
-  # --- Landing page with iframes for codium, trainer, novnc ---
   SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
   LANDING_SRC="${SCRIPT_DIR}/../assets/landing.html"
   if [ -f "$LANDING_SRC" ]; then
@@ -545,7 +496,7 @@ PY
   elif [ -f "${HOME}/constructor-fabric/app/landing.html" ]; then
     sudo cp "${HOME}/constructor-fabric/app/landing.html" /usr/local/lib/web/frontend/index.html
   fi
-  # Add proxy locations for codium (/ide/), trainer (/trainer/), novnc (/novnc/)
+  # Add proxy locations for codium (/ide/) and trainer (/trainer/)
   sudo python3 <<'PY'
 from pathlib import Path
 p = Path('/etc/nginx/sites-enabled/default')
@@ -567,16 +518,6 @@ if p.exists():
 \tlocation /trainer/ {
 \t\tproxy_pass http://127.0.0.1:8082/;
 \t\tproxy_set_header Host $host;
-\t}
-"""
-    if 'location /novnc/' not in s:
-        additions += """
-\tlocation /novnc/ {
-\t\tproxy_pass http://127.0.0.1:6081/;
-\t\tproxy_set_header Host $host;
-\t\tproxy_set_header Upgrade $http_upgrade;
-\t\tproxy_set_header Connection "upgrade";
-\t\tproxy_read_timeout 86400;
 \t}
 """
     if additions:
