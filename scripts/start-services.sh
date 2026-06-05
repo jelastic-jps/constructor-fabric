@@ -232,8 +232,15 @@ if command -v codium >/dev/null 2>&1 || [ -x /usr/share/codium/bin/codium ]; the
 }
 JSON
   fi
-  # Clear extension cache so codium re-discovers extensions
+  # Symlink baked-in extensions to where codium serve-web looks
+  CODIUM_EXT_DIR="${HOME}/.codium-server/extensions"
   CODIUM_CACHE="${HOME}/.codium-server/data/CachedProfilesData/__default__profile__/extensions.builtin.cache"
+  BAKED_EXT_DIR="${HOME}/.config/VSCodium/extensions"
+  if [ -d "$BAKED_EXT_DIR" ] && [ ! -L "$CODIUM_EXT_DIR" ]; then
+    rm -rf "$CODIUM_EXT_DIR" 2>/dev/null || true
+    ln -sf "$BAKED_EXT_DIR" "$CODIUM_EXT_DIR"
+    echo "Symlinked extensions: ${CODIUM_EXT_DIR} -> ${BAKED_EXT_DIR}"
+  fi
   rm -f "${CODIUM_CACHE}" 2>/dev/null || true
   # Configure Continue extension with API key
   CONTINUE_CONFIG="${HOME}/.continue/config.json"
@@ -264,8 +271,7 @@ CONTINUEJSON
   fi
   start_detached "codium serve-web" "${LOG_DIR}/codium-serve.log" \
     "${CODIUM_BIN}" serve-web --port 8080 --host 0.0.0.0 --without-connection-token \
-    --server-data-dir "${HOME}/.codium-server" \
-    --extensions-dir "${HOME}/.config/VSCodium/extensions"
+    --server-data-dir "${HOME}/.codium-server"
 fi
 
 # --- Trainer HTTP server on port 8082 ---

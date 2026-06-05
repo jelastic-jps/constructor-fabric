@@ -355,6 +355,12 @@ actions:
         # --- Start codium serve-web on port 8080 ---
         CODIUM_BIN="$(command -v codium || echo /usr/share/codium/bin/codium)"
         mkdir -p /home/developer/.codium-server/data/Machine
+        # Symlink baked-in extensions to where codium serve-web looks
+        if [ -d /home/developer/.config/VSCodium/extensions ] && [ ! -L /home/developer/.codium-server/extensions ]; then
+          rm -rf /home/developer/.codium-server/extensions 2>/dev/null || true
+          ln -sf /home/developer/.config/VSCodium/extensions /home/developer/.codium-server/extensions
+        fi
+        rm -f /home/developer/.codium-server/data/CachedProfilesData/__default__profile__/extensions.builtin.cache 2>/dev/null || true
         cat >/home/developer/constructor-fabric/start-codium-web.sh <<'STARTWEB'
         #!/bin/sh
         set -u
@@ -375,8 +381,7 @@ actions:
         exec codium serve-web --port 8080 --host 0.0.0.0 \
           --without-connection-token \
           --accept-server-license-terms \
-          --server-data-dir "${HOME}/.codium-server" \
-          --extensions-dir "${HOME}/.config/VSCodium/extensions"
+          --server-data-dir "${HOME}/.codium-server"
         STARTWEB
         chmod +x /home/developer/constructor-fabric/start-codium-web.sh
         /bin/sh -c "DISPLAY=:1 /home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1 &"
