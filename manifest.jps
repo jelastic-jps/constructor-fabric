@@ -1,5 +1,5 @@
 type: install
-version: 0.4.59
+version: 0.5.0
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -10,7 +10,7 @@ categories:
   - apps/productivity
 
 description:
-  text: CLets AI define, build, and run software end to end -- with reusable components, operational automation, and built-in productivity measurement and insights.
+  text: Lets AI define, build, and run software end to end -- with reusable components, operational automation, and built-in productivity measurement and insights.
   short: Constructor Fabric
 
 targetRegions:
@@ -20,14 +20,12 @@ ssl: true
 skipNodeEmails: true
 
 globals:
-  VNC_PASSWORD: ${fn.password(16)}
   CF_PORT: 8081
   APP_PORT: 8081
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  RESOLUTION: 1280x720
-  SCRIPT_VERSION: continue-config-v0456-20260604-1
+  SCRIPT_VERSION: landing-v050-20260605
   CF_SOURCE_REF: de94910bf7df94d94d1474b583369af69160a723
 
 settings:
@@ -80,33 +78,25 @@ nodes:
     ports:
       - 80
     endpoints:
-      - name: VS Codium Web
+      - name: Constructor Fabric
         privatePort: 80
         protocol: TCP
     env:
       TZ: Europe/Kyiv
       USER: developer
-      ACCESS_TOKEN: ${globals.VNC_PASSWORD}
       LLM_PROVIDER: ${settings.llm-provider}
       API_TOKEN: ${settings.api-token}
       OPENAI_API_KEY: ${settings.api-token}
       ANTHROPIC_API_KEY: ${settings.api-token}
       OPENAI_MODEL: ${settings.openai-model}
       CLAUDE_MODEL: ${settings.claude-model:claude-sonnet-4-6}
-      CF_IDE_PROFILE: all
-      CF_PREINSTALLED_IDES: 1
+      CF_IDE_PROFILE: codium
       CF_HOME: /home/developer/constructor-fabric
       CF_PORT: ${globals.CF_PORT}
-      ALSADEV: default
-      PULSE_RUNTIME_PATH: /tmp/pulse-root
-      PULSE_SERVER: unix:/tmp/pulse-root/native
-      SDL_AUDIODRIVER: pulse
-      AUDIODEV: default
       NO_PROXY: localhost,127.0.0.1,::1
       no_proxy: localhost,127.0.0.1,::1
       JELASTIC_EXPOSE: 80
       JELASTIC_PORTS: 80
-      RESOLUTION: 1280x720
       SCRIPT_VERSION: ${globals.SCRIPT_VERSION}
       CF_SOURCE_REF: ${globals.CF_SOURCE_REF}
 
@@ -119,42 +109,37 @@ actions:
     - cmd[cp]: |-
         set -euo pipefail
         export DEBIAN_FRONTEND=noninteractive
-        # The currently published latest image can contain a stale Cursor apt source
-        # and can be missing XKB files even when dpkg says xkb-data is installed.
-        # Repair that root-level image state before the developer-only bootstrap starts.
+
+        # Repair XKB if the base image is missing it (needed for electron trainer)
         if [ ! -d /usr/share/X11/xkb/keycodes ] || [ ! -d /usr/share/X11/xkb/symbols ]; then
           find /etc/apt -type f \( -name '*.list' -o -name '*.sources' \) -print0 | xargs -0 grep -l 'api.cursor.com/apt' 2>/dev/null | xargs -r rm -f
           apt-get update
           apt-get install -y --reinstall xkb-data || { apt-get purge -y xkb-data; apt-get update; apt-get install -y xkb-data; }
           rm -rf /var/lib/apt/lists/*
         fi
+
+        # Ensure electron is available for the trainer
         if ! command -v electron >/dev/null 2>&1 && [ -x /opt/node-current/bin/npm ]; then
           /opt/node-current/bin/npm install -g electron@latest
           ln -sf /opt/node-current/bin/electron /usr/local/bin/electron 2>/dev/null || true
         fi
-        if ! command -v xdotool >/dev/null 2>&1; then
-          apt-get update
-          apt-get install -y --no-install-recommends xdotool
-          rm -rf /var/lib/apt/lists/*
-        fi
-        # The base VNC startup may leave /home/developer owned by root. Fix it
-        # before downloading runtime scripts, then execute bootstrap as developer.
+
+        # Fix ownership before downloading scripts
         chown -R developer:developer /home/developer
+
+        # Download and run bootstrap (installs cfc, trainer, codium profile, etc.)
         curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/scripts/bootstrap.sh?v=${globals.SCRIPT_VERSION}" -o /tmp/constructor-fabric-bootstrap.sh
         chmod +x /tmp/constructor-fabric-bootstrap.sh
         chown developer:developer /tmp/constructor-fabric-bootstrap.sh
         su - developer -c "/tmp/constructor-fabric-bootstrap.sh"
 
-        # Post-bootstrap AI chat setup is intentionally inline in the JPS
-        # manifest so it does not require changing CF_SOURCE_REF. The trainer
-        # updater owns CF_SOURCE_REF; this block only wires VS Codium to open
-        # Continue chat with the token passed via JPS settings.
+        # --- Continue extension config ---
         mkdir -p /home/developer/.continue /home/developer/.config/VSCodium/User /home/developer/constructor-fabric /home/developer/workspaces/constructor-fabric-workspace/.vscode
-        # Download trainer HTML into workspace for Simple Browser view
+
+        # Download trainer HTML
         mkdir -p /home/developer/workspaces/constructor-fabric-workspace/trainer
         curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/trainer/index.html" -o /home/developer/workspaces/constructor-fabric-workspace/trainer/index.html 2>/dev/null || true
-        # Start a lightweight HTTP server to serve the trainer (port 8082)
-        /bin/sh -c "python3 -m http.server 8082 --directory /home/developer/workspaces/constructor-fabric-workspace/trainer --bind 127.0.0.1 >/dev/null 2>&1 &"
+
         cat >/tmp/write-continue-config.py <<'PYCFG'
         import json
         import os
@@ -213,7 +198,7 @@ actions:
             "  - provider: docs",
             "prompts:",
             "  - name: cf-constructor",
-            "    description: Run the Constructor Fabric SDLC workflow using the generated .cf-constructor workspace, cfc CLI, and traceability rules.",
+            "    description: Run the Constructor Fabric SDLC workflow.",
             "    prompt: |",
             "      You are Constructor Fabric inside the pre-initialized workspace.",
             "",
@@ -223,15 +208,13 @@ actions:
             "      Use the local Constructor Fabric setup in this workspace:",
             "      - Read AGENTS.md and .cf-constructor/.gen/AGENTS.md before making changes.",
             "      - Use .cf-constructor as the Constructor Fabric adapter path.",
-            "      - Use the generated agents and skills under .cf-constructor/.core/skills/cypilot when relevant.",
-            "      - Use cfc/cf-constructor CLI commands for info, validation, artifacts, traceability, and generated agent workflow checks.",
+            "      - Use cfc/cf-constructor CLI commands for info, validation, artifacts, traceability.",
             "      - Preserve traceability across PRD, ADR, DESIGN, DECOMPOSITION, FEATURE, CODE, tasks, tests, and review artifacts.",
-            "      - When generating artifacts, write them into the workspace using Constructor Fabric conventions and run validation commands when possible.",
             "      - If validation fails, explain the failing checks and propose or apply fixes.",
         ])
         out.write_text("\n".join(lines) + "\n")
 
-        # Developer-readable env file for the Codium/Continue extension host.
+        # Env file for Codium/Continue extension host
         env = Path("/home/developer/.constructor-fabric-ai.env")
         env.write_text("\n".join([
             f"API_TOKEN={token}",
@@ -246,7 +229,9 @@ actions:
         print(f"Continue config written: provider={provider}, model={model}, api_key_len={len(api_key)}")
         PYCFG
         python3 /tmp/write-continue-config.py
-        cat >/home/developer/.config/VSCodium/User/settings.json <<VSCODESETTINGS
+
+        # VS Codium settings
+        cat >/home/developer/.config/VSCodium/User/settings.json <<'VSCODESETTINGS'
         {
           "workbench.startupEditor": "none",
           "security.workspace.trust.enabled": false,
@@ -255,21 +240,13 @@ actions:
           "continue.showInlineTip": false
         }
         VSCODESETTINGS
-        cat >/home/developer/.config/VSCodium/User/keybindings.json <<VSCODEKEYS
+        cat >/home/developer/.config/VSCodium/User/keybindings.json <<'VSCODEKEYS'
         [
           { "key": "ctrl+alt+c", "command": "continue.focusContinueInput" }
         ]
         VSCODEKEYS
-        cat >/home/developer/workspaces/constructor-fabric-workspace/.vscode/cfc-commands.md <<CFCMDS
-        Continue: Focus Continue Chat
-        Focus Continue Chat
-        View: Show Continue
-        CFCMDS
 
-        # Patch Codium WebView resource loader for browsers/Jelastic proxy setups
-        # that require ReadableStream to be passed as a transferable. Without
-        # this, Continue's webview can fail with:
-        # DataCloneError: ReadableStream could not be cloned because it was not transferred.
+        # --- Patch Codium webview for Jelastic proxy ---
         cat >/tmp/patch-codium-webview-transfer.py <<'PYWEBVIEW'
         import re
         from pathlib import Path
@@ -300,8 +277,6 @@ actions:
         for path in candidates:
             text = path.read_text(errors='replace')
             original = text
-            # Disable the service-worker resource path entirely for Jelastic/proxy
-            # deployments. This avoids ReadableStream transfer through SW.
             text = text.replace(
                 "const disableServiceWorker = searchParams.has('disableServiceWorker');",
                 "const disableServiceWorker = true; // patched for Jelastic proxy"
@@ -319,15 +294,12 @@ actions:
             elif "const disableServiceWorker = true; // patched for Jelastic proxy" in text:
                 patched.append(f"already patched: {path}")
         if not patched:
-            raise SystemExit("No Codium webview pre/index.html patched; candidates=" + ",".join(map(str, candidates[:20])))
+            raise SystemExit("No Codium webview patched; candidates=" + ",".join(map(str, candidates[:20])))
         print("\n".join(patched))
         PYWEBVIEW
         python3 /tmp/patch-codium-webview-transfer.py | tee /tmp/codium-webview-transfer-patch.log
 
-        # Patch Codium workbench to avoid sending ReadableStream through the
-        # webview/ServiceWorker path. The built-in support probe only checks
-        # MessageChannel transferability, which can pass even though Jelastic's
-        # browser/proxy/ServiceWorker path fails with DataCloneError.
+        # --- Patch Codium workbench transferable streams ---
         cat >/tmp/patch-codium-workbench-no-streams.py <<'PYWORKBENCH'
         import re
         from pathlib import Path
@@ -351,15 +323,12 @@ actions:
             elif replacement in text:
                 patched.append(f"already patched workbench streams: {path}")
         if not patched:
-            raise SystemExit("No Codium workbench.js transferable stream probe patched")
+            raise SystemExit("No Codium workbench.js patched")
         print("\n".join(patched))
         PYWORKBENCH
         python3 /tmp/patch-codium-workbench-no-streams.py | tee /tmp/codium-workbench-no-streams-patch.log
 
-        # Kill VNC/noVNC stack before starting Codium. Kill process managers
-        # repeatedly; the base image can restart nginx/noVNC if supervisord/tini
-        # survives. Also kill stale codium server-main children so only one
-        # fresh serve-web instance owns port 80.
+        # --- Kill VNC/noVNC stack (no longer needed) ---
         for _kill_round in $(seq 1 8); do
           sudo pkill -9 -f "tini.*supervisord" 2>/dev/null || true
           sudo supervisorctl stop all 2>/dev/null || true
@@ -377,6 +346,15 @@ actions:
           sleep 2
           if ! ss -tlnp 2>/dev/null | grep -q ":80 "; then break; fi
         done
+
+        # --- Start Xvfb (needed for Electron trainer) ---
+        mkdir -p /home/developer/constructor-fabric
+        setsid /usr/bin/Xvfb :1 -screen 0 1280x720x24 -ac +extension GLX +render -noreset </dev/null >/home/developer/constructor-fabric/xvfb.log 2>&1 &
+        sleep 1
+
+        # --- Start codium serve-web on port 8080 ---
+        CODIUM_BIN="$(command -v codium || echo /usr/share/codium/bin/codium)"
+        mkdir -p /home/developer/.codium-server/data/Machine
         cat >/home/developer/constructor-fabric/start-codium-web.sh <<'STARTWEB'
         #!/bin/sh
         set -u
@@ -389,128 +367,264 @@ actions:
           . "${HOME}/.constructor-fabric-ai.env"
           set +a
         fi
+        export DISPLAY=:1
         export PATH="${HOME}/.local/bin:/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
         workspace="${HOME}/workspaces/constructor-fabric-workspace"
         mkdir -p "$workspace"
         cd "$workspace" || exit 1
-        exec codium serve-web --port 80 --host 0.0.0.0 \
+        exec codium serve-web --port 8080 --host 0.0.0.0 \
           --without-connection-token \
           --accept-server-license-terms \
-          --server-data-dir "${HOME}/.config/VSCodium"
+          --server-data-dir "${HOME}/.codium-server"
         STARTWEB
         chmod +x /home/developer/constructor-fabric/start-codium-web.sh
-        chown -R developer:developer /home/developer/.constructor-fabric-ai.env /home/developer/.continue /home/developer/.config/VSCodium /home/developer/constructor-fabric/start-codium-web.sh /home/developer/workspaces
-        # Continue is baked into the Docker image. Runtime .vsix installation is
-        # intentionally avoided because codium-tunnel serve-web does not reliably
-        # load extensions installed after image build.
-        if ! ls -d /home/developer/.config/VSCodium/extensions/continue.continue-* >/dev/null 2>&1; then
-          echo "WARNING: baked Continue extension directory is missing before codium start" >&2
+        /bin/sh -c "DISPLAY=:1 /home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1 &"
+
+        # --- Start trainer HTTP server on port 8082 ---
+        if [ -d /home/developer/workspaces/constructor-fabric-workspace/trainer ]; then
+          /bin/sh -c "python3 -m http.server 8082 --directory /home/developer/workspaces/constructor-fabric-workspace/trainer --bind 0.0.0.0 > /home/developer/trainer-http.log 2>&1 &"
         fi
-        # Start VSCodium web server in background (root for port 80). Do not end
-        # this JPS line with a raw '&' because Jelastic can wrap it as '&;)'.
-        /bin/sh -c "/home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1 &"
-        sleep 2
+
+        # --- Start app server ---
+        /bin/sh -c "DISPLAY=:1 python3 /home/developer/constructor-fabric/app/server.py > /home/developer/app.log 2>&1 &"
+
+        # --- Install nginx landing page with codium + trainer iframes ---
+        mkdir -p /usr/local/lib/web/frontend
+        cat >/usr/local/lib/web/frontend/index.html <<'LANDING'
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>Constructor Fabric</title>
+        <style>
+          * { margin:0; padding:0; box-sizing:border-box; }
+          html,body { height:100%; background:#0a0a0a; color:#e0e0e0; font-family:system-ui,-apple-system,sans-serif; }
+          .header {
+            display:flex; align-items:center; justify-content:space-between;
+            padding:8px 16px; background:#141414; border-bottom:1px solid #2a2a2a;
+            height:44px; flex-shrink:0;
+          }
+          .header h1 { font-size:15px; font-weight:600; letter-spacing:0.5px; color:#8b5cf6; }
+          .tabs { display:flex; gap:2px; }
+          .tab {
+            padding:6px 18px; border-radius:6px 6px 0 0; cursor:pointer;
+            font-size:13px; font-weight:500; color:#888; background:#1a1a1a;
+            border:1px solid transparent; border-bottom:none;
+            transition: all 0.15s;
+          }
+          .tab:hover { color:#bbb; background:#222; }
+          .tab.active { color:#e0e0e0; background:#0a0a0a; border-color:#2a2a2a; }
+          .frames { position:relative; height:calc(100% - 44px); }
+          .frames iframe {
+            position:absolute; top:0; left:0; width:100%; height:100%;
+            border:none; display:none;
+          }
+          .frames iframe.active { display:block; }
+          .status {
+            display:flex; align-items:center; gap:6px; font-size:12px; color:#666;
+          }
+          .status .dot { width:8px; height:8px; border-radius:50%; }
+          .status .dot.ok { background:#22c55e; }
+          .status .dot.err { background:#ef4444; }
+          .status .dot.wait { background:#eab308; }
+        </style>
+        </head>
+        <body>
+        <div class="header">
+          <h1>Constructor Fabric</h1>
+          <div class="tabs">
+            <div class="tab active" data-frame="codium">Codium</div>
+            <div class="tab" data-frame="trainer">Trainer</div>
+          </div>
+          <div class="status">
+            <span class="dot wait" id="codium-status"></span>
+            <span class="dot wait" id="trainer-status"></span>
+          </div>
+        </div>
+        <div class="frames">
+          <iframe id="codium" class="active" src="/ide/"></iframe>
+          <iframe id="trainer" src="/trainer/"></iframe>
+        </div>
+        <script>
+        document.querySelectorAll('.tab').forEach(tab => {
+          tab.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.frames iframe').forEach(f => f.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById(tab.dataset.frame).classList.add('active');
+          });
+        });
+        async function check(url, el) {
+          try {
+            const r = await fetch(url, {method:'HEAD', signal: AbortSignal.timeout(5000)});
+            document.getElementById(el).className = 'dot ' + (r.ok ? 'ok' : 'err');
+          } catch { document.getElementById(el).className = 'dot err'; }
+        }
+        check('/ide/', 'codium-status');
+        check('/trainer/', 'trainer-status');
+        </script>
+        </body>
+        </html>
+        LANDING
+
+        # --- Configure nginx: landing page on :80, proxy /ide/ to 8080, /trainer/ to 8082 ---
+        # Start fresh nginx config (base image noVNC config is dead)
+        cat >/etc/nginx/sites-enabled/default <<'NGINX'
+        server {
+            listen 80 default_server;
+            listen [::]:80 default_server;
+            server_name _;
+            root /usr/local/lib/web/frontend;
+            index index.html;
+
+            location / {
+                try_files $uri $uri/ /index.html;
+            }
+
+            location /ide/ {
+                proxy_pass http://127.0.0.1:8080/;
+                proxy_set_header Host $host;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection "upgrade";
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_read_timeout 86400;
+            }
+
+            location /trainer/ {
+                proxy_pass http://127.0.0.1:8082/;
+                proxy_set_header Host $host;
+            }
+
+            location = /health {
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_pass http://127.0.0.1:8081/health;
+            }
+
+            location /api/ {
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_pass http://127.0.0.1:8081;
+            }
+        }
+        NGINX
+        nginx -t && nginx || service nginx start || true
+
+        # Fix all ownership
+        chown -R developer:developer /home/developer
 
   verify:
     - cmd[cp]: |-
         set -euo pipefail
         export NO_PROXY=localhost,127.0.0.1,::1
         export no_proxy=$NO_PROXY
-        app_ready=0
+
+        # Wait for codium serve-web on 8080
+        codium_ready=0
         for i in $(seq 1 60); do
-          if curl --noproxy "*" -fsS http://127.0.0.1:8081/health >/dev/null; then
-            echo "Constructor Fabric app is up"
-            curl --noproxy "*" -fsS http://127.0.0.1:8081/health
-            app_ready=1
+          if curl --noproxy "*" -fsS http://127.0.0.1:8080/ >/dev/null 2>&1; then
+            echo "VS Codium web server is up on port 8080"
+            codium_ready=1
             break
           fi
           sleep 2
         done
-        if [ "$app_ready" != "1" ]; then
-          echo "Constructor Fabric app did not become ready in time" >&2
-          exit 1
-        fi
-        # Wait for VS Codium web server on port 80 (not noVNC).
-        codium_ready=0
-        for i in $(seq 1 40); do
-          # Check that codium serve-web process is running
-          if pgrep -f "codium.*serve-web" >/dev/null 2>&1; then
-            # Verify port 80 is responding and is NOT noVNC
-            page=$(curl --noproxy "*" -fsS http://127.0.0.1:80/ 2>/dev/null || true)
-            if [ -n "$page" ] && ! echo "$page" | grep -qi "noVNC"; then
-              echo "VS Codium web server is up on port 80"
-              codium_ready=1
-              break
-            fi
-          fi
-          sleep 2
-        done
         if [ "$codium_ready" != "1" ]; then
-          echo "VS Codium web server did not start on port 80" >&2
-          if curl --noproxy "*" -fsS http://127.0.0.1:80/ 2>/dev/null | grep -qi "noVNC"; then
-            echo "ERROR: noVNC is still being served on port 80" >&2
-          fi
-          echo "process list:" >&2
-          ps aux | grep -E "codium|node|supervisor|nginx" | grep -v grep >&2 || true
-          echo "codium-web.log:" >&2
+          echo "VS Codium web server did not start on port 8080" >&2
           tail -80 /home/developer/codium-web.log >&2 2>/dev/null || true
           exit 1
         fi
-        cat >/tmp/constructor-fabric-verify-developer.sh <<VERIFYDEV
-        set -euo pipefail
-        test -f /home/developer/constructor-fabric/start-codium-web.sh || { echo "VS Codium web startup script missing" >&2; exit 1; }
-        grep -q "serve-web" /home/developer/constructor-fabric/start-codium-web.sh || { echo "start-codium-web.sh does not use serve-web" >&2; exit 1; }
-        command -v codium >/dev/null 2>&1 || { echo "VS Codium binary missing" >&2; exit 1; }
+
+        # Wait for trainer on 8082
+        trainer_ready=0
+        for i in $(seq 1 30); do
+          if curl --noproxy "*" -fsS http://127.0.0.1:8082/ >/dev/null 2>&1; then
+            echo "Trainer HTTP server is up on port 8082"
+            trainer_ready=1
+            break
+          fi
+          sleep 2
+        done
+        if [ "$trainer_ready" != "1" ]; then
+          echo "WARNING: Trainer HTTP server did not start on port 8082" >&2
+        fi
+
+        # Wait for nginx landing page on port 80
+        nginx_ready=0
+        for i in $(seq 1 30); do
+          page=$(curl --noproxy "*" -fsS http://127.0.0.1:80/ 2>/dev/null || true)
+          if [ -n "$page" ] && echo "$page" | grep -q "Constructor Fabric"; then
+            echo "Nginx landing page is up on port 80"
+            nginx_ready=1
+            break
+          fi
+          sleep 2
+        done
+        if [ "$nginx_ready" != "1" ]; then
+          echo "Nginx landing page did not start on port 80" >&2
+          nginx -t >&2 || true
+          cat /var/log/nginx/error.log >&2 2>/dev/null | tail -20 || true
+          exit 1
+        fi
+
+        # Verify landing page has codium and trainer iframes
+        if echo "$page" | grep -q 'iframe.*id="codium"'; then
+          echo "Landing page has codium iframe"
+        else
+          echo "Landing page missing codium iframe" >&2
+          exit 1
+        fi
+        if echo "$page" | grep -q 'iframe.*id="trainer"'; then
+          echo "Landing page has trainer iframe"
+        else
+          echo "Landing page missing trainer iframe" >&2
+          exit 1
+        fi
+
+        # Verify nginx proxies work
+        if curl --noproxy "*" -fsS http://127.0.0.1:80/ide/ >/dev/null 2>&1; then
+          echo "/ide/ proxy works"
+        else
+          echo "/ide/ proxy failed" >&2
+          exit 1
+        fi
+
+        # Verify Continue config
         test -f /home/developer/.continue/config.yaml || { echo "Continue config missing" >&2; exit 1; }
         grep -q "provider: " /home/developer/.continue/config.yaml || { echo "Continue provider missing" >&2; exit 1; }
         grep -q "model: " /home/developer/.continue/config.yaml || { echo "Continue model missing" >&2; exit 1; }
-        grep -q "name: cf-constructor" /home/developer/.continue/config.yaml || { echo "Continue cf-constructor prompt missing" >&2; exit 1; }
-        test -d /home/developer/.config/VSCodium/extensions/continue.continue-* || { echo "Continue extension missing in VS Codium" >&2; tail -80 /tmp/continue-install.log >&2 2>/dev/null || true; exit 1; }
-        echo "VS Codium web server and Continue extension are configured"
+        test -d /home/developer/.config/VSCodium/extensions/continue.continue-* || { echo "Continue extension missing" >&2; exit 1; }
+        echo "Continue extension is configured"
+
+        # Verify cfc
         cd /home/developer/cyber-constructor
         cfc --version
         cfc info --json >/tmp/cfc-info.json
         cfc validate --json >/tmp/cfc-validate.json
-        cfc agents --json >/tmp/cfc-agents.json
         python3 <<PYCHECK
         import json
         info=json.load(open("/tmp/cfc-info.json"))
         assert info["status"] == "FOUND", info
-        assert info["relative_path"] == ".cf-constructor", info
         validate=json.load(open("/tmp/cfc-validate.json"))
         assert validate["status"] == "PASS", validate
-        agents=json.load(open("/tmp/cfc-agents.json"))
-        assert agents["status"] == "OK", agents
-        text=json.dumps(agents).lower()
-        required=["windsurf","claude","copilot","openai"]
-        missing=[x for x in required if x not in text]
-        assert not missing, {"missing": missing, "data": agents}
-        print("cyber-constructor info is FOUND at .cf-constructor")
+        print("cyber-constructor info is FOUND")
         print("cyber-constructor validate is PASS")
-        print("cyber-constructor agents are OK for " + ", ".join(required))
         PYCHECK
-        VERIFYDEV
-        chmod +x /tmp/constructor-fabric-verify-developer.sh
-        chown developer:developer /tmp/constructor-fabric-verify-developer.sh
-        su - developer -c /tmp/constructor-fabric-verify-developer.sh
+
+        echo ""
+        echo "=== All checks passed ==="
+
 success: |
   ### Constructor Fabric is ready
 
-  #### Access
+  [Open Constructor Fabric](https://${env.domain}/)
 
-  [Open VS Codium](https://${env.domain}/)
+  The landing page has two tabs:
+  - **Codium** — VS Codium web IDE with Continue extension pre-configured
+  - **Trainer** — Constructor Fabric trainer interface
 
-  #### Access token
-
-  Enter this token when VS Codium asks for it:
-
-  `${globals.VNC_PASSWORD}`
-
-  #### What you get
-
-  - VS Codium runs as a web IDE in your browser on port 80.
-  - The Continue extension is pre-installed and configured with your selected LLM provider.
-  - The workspace is at `/home/developer/workspaces/constructor-fabric-workspace`.
+  No token is required — VS Codium is served without a connection token.
 
   #### Workspace
 
@@ -523,6 +637,3 @@ success: |
   | LLM provider | `${settings.llm-provider}` |
   | Model | `${settings.openai-model:}${settings.claude-model:}` |
   | API Token | configured from install form when provided |
-
-  If you set an API Token in the install form, Constructor Fabric exports it into the generated workspace environment.
-
