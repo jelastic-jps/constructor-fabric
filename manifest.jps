@@ -127,16 +127,14 @@ actions:
 
         # Install code-server if not present
         if ! command -v code-server >/dev/null 2>&1; then
-          echo "Installing code-server..."
-          curl -fsSL https://code-server.dev/install.sh | sh 2>&1 || {
-            # Fallback: install from GitHub releases
-            CS_VER="4.123.0"
-            curl --noproxy '*' -fsSL "https://github.com/coder/code-server/releases/download/v${CS_VER}/code-server_${CS_VER}_amd64.deb" -o /tmp/code-server.deb \
-              && dpkg -i /tmp/code-server.deb \
-              && rm -f /tmp/code-server.deb
-          }
+          echo "Installing code-server from GitHub releases..."
+          CS_VER="4.123.0"
+          curl --noproxy '*' -fsSL --retry 3 "https://github.com/coder/code-server/releases/download/v${CS_VER}/code-server_${CS_VER}_amd64.deb" -o /tmp/code-server.deb \
+            && dpkg -i /tmp/code-server.deb \
+            && rm -f /tmp/code-server.deb \
+            && echo "code-server $(code-server --version 2>/dev/null | head -1) installed" \
+            || echo "WARNING: code-server install failed"
         fi
-        code-server --version 2>/dev/null || echo "WARNING: code-server install failed"
 
         # Fix ownership before downloading scripts
         chown -R developer:developer /home/developer
