@@ -393,11 +393,11 @@ actions:
           --server-base-path /ide
         STARTWEB
         chmod +x /home/developer/constructor-fabric/start-codium-web.sh
-        /bin/sh -c "DISPLAY=:1 /home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1 &"
+        sudo -u developer -H /bin/sh -c "DISPLAY=:1 /home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1 &"
 
         # --- Start trainer HTTP server on port 8082 ---
         if [ -d /home/developer/workspaces/constructor-fabric-workspace/trainer ]; then
-          /bin/sh -c "python3 -m http.server 8082 --directory /home/developer/workspaces/constructor-fabric-workspace/trainer --bind 0.0.0.0 > /home/developer/trainer-http.log 2>&1 &"
+          sudo -u developer -H /bin/sh -c "python3 -m http.server 8082 --directory /home/developer/workspaces/constructor-fabric-workspace/trainer --bind 0.0.0.0 > /home/developer/trainer-http.log 2>&1 &"
         fi
 
         # --- Start app server ---

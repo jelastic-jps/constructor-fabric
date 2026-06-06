@@ -100,7 +100,11 @@ start_detached() {
   if pgrep -f "$name" >/dev/null 2>&1; then
     echo "$name already running"
   else
-    setsid "$@" </dev/null >"$logfile" 2>&1 &
+    if [ -n "${RUN_AS_USER:-}" ]; then
+      setsid sudo -u "$RUN_AS_USER" -H "$@" </dev/null >"$logfile" 2>&1 &
+    else
+      setsid "$@" </dev/null >"$logfile" 2>&1 &
+    fi
   fi
 }
 
@@ -266,7 +270,7 @@ JSON
 CONTINUEJSON
     chown -R "$(id -u):$(id -g)" "${HOME}/.continue" 2>/dev/null || true
   fi
-  start_detached "codium serve-web" "${LOG_DIR}/codium-serve.log" \
+  RUN_AS_USER=developer start_detached "codium serve-web" "${LOG_DIR}/codium-serve.log" \
     "${CODIUM_BIN}" serve-web --port 8080 --host 0.0.0.0 --without-connection-token \
     --server-data-dir "${HOME}/.codium-server" \
     --server-base-path /ide
@@ -274,7 +278,7 @@ fi
 
 # --- Trainer HTTP server on port 8082 ---
 if [ -d "${HOME}/constructor-fabric/trainer" ]; then
-  start_detached "trainer http" "${LOG_DIR}/trainer-http.log" \
+  RUN_AS_USER=developer start_detached "trainer http" "${LOG_DIR}/trainer-http.log" \
     python3 -m http.server 8082 --directory "${HOME}/constructor-fabric/trainer" --bind 0.0.0.0
 fi
 
