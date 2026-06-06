@@ -272,7 +272,7 @@ actions:
         chown -R developer:developer /home/developer/.config/code-server
 
         # Start code-server as developer
-        sudo -u developer -H /bin/sh -c "code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry --base-path /ide $CS_WORKSPACE > /home/developer/code-server.log 2>&1 &"
+        sudo -u developer -H /bin/sh -c "code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry $CS_WORKSPACE > /home/developer/code-server.log 2>&1 &"
 
 
         # --- Start trainer HTTP server on port 8082 ---
@@ -418,7 +418,7 @@ actions:
             }
 
             location /ide/ {
-                proxy_pass http://127.0.0.1:8080;
+                proxy_pass http://127.0.0.1:8080/;
                 proxy_set_header Host $host;
                 proxy_set_header X-Real-IP $remote_addr;
                 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
