@@ -222,9 +222,9 @@ actions:
         # Env file for Codium/Continue extension host
         env = Path("/home/developer/.constructor-fabric-ai.env")
         env.write_text("\n".join([
-            f"API_TOKEN=***
-            f"OPENAI_API_KEY=***
-            f"ANTHROPIC_API_KEY=***
+            f"API_TOKEN={token}",
+            f"OPENAI_API_KEY={openai_key}",
+            f"ANTHROPIC_API_KEY={anthropic_key}",
             f"LLM_PROVIDER={provider}",
             f"OPENAI_MODEL={openai_model}",
             f"CLAUDE_MODEL={claude_model}",
