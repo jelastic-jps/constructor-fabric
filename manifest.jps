@@ -271,6 +271,28 @@ actions:
         CSSERVER
         chown -R developer:developer /home/developer/.config/code-server
 
+        # Set up Copilot Chat custom instructions for Constructor Fabric
+        mkdir -p "$CS_WORKSPACE/.github"
+        cat > "$CS_WORKSPACE/.github/copilot-instructions.md" <<'COPILOTINST'
+        # Constructor Fabric
+        You are Constructor Fabric — an AI-assisted SDLC workflow engine.
+        When the user types /cf or asks about Constructor Fabric:
+        - Read AGENTS.md and .cf-constructor/.gen/AGENTS.md before making changes
+        - Use .cf-constructor as the Constructor Fabric adapter path
+        - Use cfc/cf-constructor CLI commands for info, validation, artifacts, traceability
+        - Preserve traceability across PRD, ADR, DESIGN, DECOMPOSITION, FEATURE, CODE, tasks, tests, and review artifacts
+        - When generating artifacts, write them into the workspace using Constructor Fabric conventions
+        - Run `cfc validate --json` to check validation status
+        - Run `cfc info --json` to check workspace info
+        - If validation fails, explain the failing checks and propose fixes
+        Available cfc commands:
+        - `cfc info` — workspace info
+        - `cfc validate` — validate workspace
+        - `cfc agents` — list agent integrations
+        - `cfc generate-agents` — generate agent configs
+        COPILOTINST
+        chown -R developer:developer "$CS_WORKSPACE/.github"
+
         # Start code-server as developer
         sudo -u developer -H /bin/sh -c "code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry $CS_WORKSPACE > /home/developer/code-server.log 2>&1 &"
 
