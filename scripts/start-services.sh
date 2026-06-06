@@ -227,17 +227,18 @@ if command -v codium >/dev/null 2>&1 || [ -x /usr/share/codium/bin/codium ]; the
 }
 JSON
   fi
-  # Symlink baked-in extensions to where codium serve-web looks
-  # NOTE: codium serve-web uses .vscodium-server (with 'v'), NOT .codium-server
-  CODIUM_EXT_DIR="${HOME}/.vscodium-server/extensions"
-  CODIUM_CACHE="${HOME}/.codium-server/data/CachedProfilesData/__default__profile__/extensions.builtin.cache"
-  BAKED_EXT_DIR="${HOME}/.config/VSCodium/extensions"
+  # Symlink baked-in extensions so codium serve-web discovers them
+  # Baked-in extensions live at ~/.vscodium-server/extensions (Docker image)
+  # codium serve-web --server-data-dir ~/.codium-server looks at ~/.codium-server/extensions
+  BAKED_EXT_DIR="${HOME}/.vscodium-server/extensions"
+  CODIUM_EXT_DIR="${HOME}/.codium-server/extensions"
   if [ -d "$BAKED_EXT_DIR" ] && [ ! -L "$CODIUM_EXT_DIR" ]; then
     rm -rf "$CODIUM_EXT_DIR" 2>/dev/null || true
     ln -sf "$BAKED_EXT_DIR" "$CODIUM_EXT_DIR"
+    chown -h "$(id -u):$(id -g)" "$CODIUM_EXT_DIR" 2>/dev/null || true
     echo "Symlinked extensions: ${CODIUM_EXT_DIR} -> ${BAKED_EXT_DIR}"
   fi
-  rm -f "${CODIUM_CACHE}" 2>/dev/null || true
+  rm -f "${HOME}/.codium-server/data/CachedProfilesData" 2>/dev/null || true
   # Configure Continue extension with API key
   CONTINUE_CONFIG="${HOME}/.continue/config.json"
   if [ -n "${CONTINUE_API_KEY:-}" ] && [ ! -f "${CONTINUE_CONFIG}" ]; then
