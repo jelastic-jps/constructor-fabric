@@ -575,9 +575,8 @@ actions:
                 proxy_set_header Accept-Encoding "";
                 proxy_http_version 1.1;
                 sub_filter_once on;
-                sub_filter_types application/javascript;
+                sub_filter_types *;
                 sub_filter_last_modified on;
-                # Disable TransferableStreams — the ReadableStream cannot be cloned through ServiceWorker.postMessage
                 sub_filter 'this._supportsTransferableStreams=new Ws(()=>{try{const e=new ReadableStream,t=new MessageChannel;return t.port1.postMessage(e,[e]),t.port1.close(),t.port2.close(),!0}catch{return!1}})' 'this._supportsTransferableStreams=new Ws(()=>!1)';
             }
 
