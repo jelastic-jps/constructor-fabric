@@ -245,11 +245,11 @@ fi
 # --- App server on port 8081 ---
 start_detached "${HOME}/constructor-fabric/app/server.py" "${LOG_DIR}/app.log" python3 "${HOME}/constructor-fabric/app/server.py"
 
-# --- Codium serve-web on port 8080 ---
+# --- Codium serve-web on port 8080 (supervisor-managed) ---
 if command -v codium >/dev/null 2>&1 || [ -x /usr/share/codium/bin/codium ]; then
   CODIUM_BIN="$(command -v codium || echo /usr/share/codium/bin/codium)"
   mkdir -p "${HOME}/.codium-server/data/Machine"
-  # Write default settings for Continue extension
+  # Write default settings
   if [ ! -f "${HOME}/.codium-server/data/Machine/settings.json" ]; then
     cat > "${HOME}/.codium-server/data/Machine/settings.json" <<'JSON'
 {
@@ -259,8 +259,6 @@ if command -v codium >/dev/null 2>&1 || [ -x /usr/share/codium/bin/codium ]; the
 JSON
   fi
   # Symlink baked-in extensions so codium serve-web discovers them
-  # Baked-in extensions live at ~/.vscodium-server/extensions (Docker image)
-  # codium serve-web --server-data-dir ~/.codium-server looks at ~/.codium-server/extensions
   BAKED_EXT_DIR="${HOME}/.vscodium-server/extensions"
   CODIUM_EXT_DIR="${HOME}/.codium-server/extensions"
   if [ -d "$BAKED_EXT_DIR" ] && [ ! -L "$CODIUM_EXT_DIR" ]; then
@@ -269,46 +267,67 @@ JSON
     chown -h "$(id -u):$(id -g)" "$CODIUM_EXT_DIR" 2>/dev/null || true
     echo "Symlinked extensions: ${CODIUM_EXT_DIR} -> ${BAKED_EXT_DIR}"
   fi
-  rm -f "${HOME}/.codium-server/data/CachedProfilesData" 2>/dev/null || true
-  # Configure Continue extension with API key
-  CONTINUE_CONFIG="${HOME}/.continue/config.json"
-  if [ -n "${CONTINUE_API_KEY:-}" ] && [ ! -f "${CONTINUE_CONFIG}" ]; then
-    mkdir -p "${HOME}/.continue"
-    CONTINUE_API_BASE="${CONTINUE_API_BASE:-https://api.openai.com/v1}"
-    CONTINUE_MODEL="${CONTINUE_MODEL:-gpt-4o}"
-    cat > "${CONTINUE_CONFIG}" <<CONTINUEJSON
-{
-  "models": [{
-    "title": "${CONTINUE_MODEL}",
-    "provider": "openai",
-    "model": "${CONTINUE_MODEL}",
-    "apiBase": "${CONTINUE_API_BASE}",
-    "apiKey": "${CONTINUE_API_KEY}"
-  }],
-  "tabAutocompleteModel": {
-    "title": "${CONTINUE_MODEL}",
-    "provider": "openai",
-    "model": "${CONTINUE_MODEL}",
-    "apiBase": "${CONTINUE_API_BASE}",
-    "apiKey": "${CONTINUE_API_KEY}"
-  },
-  "allowAnonymousTelemetry": false
-}
-CONTINUEJSON
-    chown -R developer:developer "${HOME}/.continue" 2>/dev/null || true
+  # Also symlink to .config/VSCodium/extensions (secondary registry)
+  CONFIG_EXT_DIR="${HOME}/.config/VSCodium/extensions"
+  mkdir -p "${HOME}/.config/VSCodium"
+  if [ -d "$BAKED_EXT_DIR" ] && [ ! -L "$CONFIG_EXT_DIR" ]; then
+    rm -rf "$CONFIG_EXT_DIR" 2>/dev/null || true
+    ln -sf "$BAKED_EXT_DIR" "$CONFIG_EXT_DIR"
+    chown -h "$(id -u):$(id -g)" "$CONFIG_EXT_DIR" 2>/dev/null || true
   fi
-  # Ensure developer owns their entire home (prevents EACCES on .continue/index etc.)
+  rm -f "${HOME}/.codium-server/data/CachedProfilesData" 2>/dev/null || true
+  # Ensure developer owns their entire home
   chown -R developer:developer "${HOME}"
-  RUN_AS_USER=developer start_detached "codium serve-web" "${LOG_DIR}/codium-serve.log" \
-    "${CODIUM_BIN}" serve-web --port 8080 --host 0.0.0.0 --without-connection-token \
-    --server-data-dir "${HOME}/.codium-server" \
-    --server-base-path /ide
+  # Install Cody AI extension (web-compatible, unlike Continue)
+  if [ -x "$CODIUM_BIN" ]; then
+    sudo -u developer -H "$CODIUM_BIN" --install-extension sourcegraph.cody-ai 2>/dev/null || true
+    sudo -u developer -H "$CODIUM_BIN" --install-extension tabbyml.vscode-tabby 2>/dev/null || true
+    # Remove .obsolete markers that block extension loading
+    rm -f "${HOME}/.codium-server/extensions/.obsolete" 2>/dev/null || true
+    rm -f "${HOME}/.config/VSCodium/extensions/.obsolete" 2>/dev/null || true
+  fi
+  # Create supervisor config for codium (persistent, auto-restart)
+  sudo tee /etc/supervisor/conf.d/codium.conf > /dev/null <<SUPERVISOR
+[program:codium]
+command=${CODIUM_BIN} --no-sandbox serve-web --port 8080 --host 0.0.0.0 --without-connection-token --server-base-path /ide
+user=developer
+environment=HOME="${HOME}"
+directory=${HOME}
+autostart=true
+autorestart=true
+startsecs=5
+stdout_logfile=${LOG_DIR}/codium-serve.log
+stderr_logfile=${LOG_DIR}/codium-serve.log
+stdout_logfile_maxbytes=5MB
+SUPERVISOR
+  echo "Supervisor codium config created"
 fi
 
-# --- Trainer HTTP server on port 8082 ---
+# --- Trainer HTTP server on port 8082 (supervisor-managed) ---
 if [ -d "${HOME}/constructor-fabric/trainer" ]; then
-  RUN_AS_USER=developer start_detached "trainer http" "${LOG_DIR}/trainer-http.log" \
-    python3 -m http.server 8082 --directory "${HOME}/constructor-fabric/trainer" --bind 0.0.0.0
+  # Kill any existing manual trainer process
+  fuser -k 8082/tcp 2>/dev/null || true
+  sudo tee /etc/supervisor/conf.d/trainer.conf > /dev/null <<SUPERVISOR
+[program:trainer]
+command=python3 -m http.server 8082 --directory ${HOME}/constructor-fabric/trainer --bind 0.0.0.0
+user=developer
+directory=${HOME}/constructor-fabric/trainer
+autostart=true
+autorestart=true
+startsecs=3
+stdout_logfile=${LOG_DIR}/trainer-http.log
+stderr_logfile=${LOG_DIR}/trainer-http.log
+stdout_logfile_maxbytes=2MB
+SUPERVISOR
+  echo "Supervisor trainer config created"
+fi
+
+# --- Apply supervisor configs ---
+if command -v supervisorctl >/dev/null 2>&1; then
+  sudo supervisorctl reread 2>/dev/null || true
+  sudo supervisorctl update 2>/dev/null || true
+  sleep 3
+  sudo supervisorctl status 2>/dev/null || true
 fi
 
 # --- Cyber-constructor auto-bootstrap (if present) ---
