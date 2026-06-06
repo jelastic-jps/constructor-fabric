@@ -25,7 +25,7 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: iframe-v100-codium-fix-20260605
+  SCRIPT_VERSION: https-extip-v1-20260606
   CF_SOURCE_REF: 7a55aeaebed2422cc74e5f991d63597057e5dddd
 
 settings:
