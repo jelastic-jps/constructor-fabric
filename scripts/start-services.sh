@@ -16,16 +16,10 @@ sudo pkill -9 -f novnc 2>/dev/null || true
 sudo pkill -9 -f Xvfb 2>/dev/null || true
 # Stop supervisor from restarting VNC
 if [ -f /etc/supervisor/conf.d/supervisord.conf ]; then
-  sudo python3 -c "
-from pathlib import Path
-p = Path('/etc/supervisor/conf.d/supervisord.conf')
-s = p.read_text()
-# Comment out all VNC-related programs
-import re
-s = re.sub(r'(^\[program:(x11vnc|novnc|websockify)\])', r'# DISABLED \1', s, flags=re.MULTILINE)
-s = re.sub(r'(^(?:command|autostart)\s*=)', r'# DISABLED \1', s, flags=re.MULTILINE)
-p.write_text(s)
-" 2>/dev/null || true
+  # Remove x11vnc from supervisor config using sed
+  sudo sed -i '/\[program:x11vnc\]/,/\[program:/d' /etc/supervisor/conf.d/supervisord.conf 2>/dev/null || true
+  # If x11vnc was the last block, remove to end of file
+  sudo sed -i '/\[program:x11vnc\]/,$d' /etc/supervisor/conf.d/supervisord.conf 2>/dev/null || true
   sudo supervisorctl stop x11vnc 2>/dev/null || true
   sudo supervisorctl stop novnc 2>/dev/null || true
   sudo supervisorctl stop websockify 2>/dev/null || true
@@ -163,11 +157,18 @@ if p.exists():
     if 'location /ide/' not in s:
         additions += """
     location /ide/ {
-        proxy_pass http://127.0.0.1:8080/;
+        proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_read_timeout 86400;
+        # Rewrite localhost:8080 in codium HTML so browser connects to correct host
+        sub_filter "localhost:8080" "$host";
+        sub_filter_once off;
+        sub_filter_types text/html application/javascript;
     }
 """
     # Add /trainer/ proxy
@@ -178,19 +179,8 @@ if p.exists():
         proxy_set_header Host $host;
     }
 """
-    # Add /stable-<hash>/ proxy for codium serve-web assets
-    # Codium HTML references absolute paths like /stable-<commit-hash>/static/...
-    # which need to be proxied to port 8080
-    if 'location ~' not in s:
-        additions += """
-    location ~ ^/stable-[a-f0-9]+/ {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_set_header Host $host;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_read_timeout 86400;
-    }
-"""
+    # /stable-<hash>/ assets are now served under /ide/ prefix via --server-base-path /ide
+    # No separate location block needed
     if additions:
         # Try space-indented markers first, then tab-indented
         for mk in ['\n    location / {\n', '\n\tlocation / {\n']:
@@ -201,13 +191,16 @@ if p.exists():
             s = s.replace('\n}\n', additions + '\n}\n', 1)
     p.write_text(s)
 PY
-  # Deploy landing page
+  # Deploy landing page to nginx root directory
   SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
   LANDING_SRC="${SCRIPT_DIR}/../assets/landing.html"
+  LANDING_DST="${HOME}/constructor-fabric/landing.html"
   if [ -f "$LANDING_SRC" ]; then
-    sudo cp "$LANDING_SRC" /usr/local/lib/web/frontend/index.html
+    sudo cp "$LANDING_SRC" "$LANDING_DST"
+    sudo chown developer:developer "$LANDING_DST"
   elif [ -f "${HOME}/constructor-fabric/app/landing.html" ]; then
-    sudo cp "${HOME}/constructor-fabric/app/landing.html" /usr/local/lib/web/frontend/index.html
+    sudo cp "${HOME}/constructor-fabric/app/landing.html" "$LANDING_DST"
+    sudo chown developer:developer "$LANDING_DST"
   fi
   NGINX_BIN="$(command -v nginx || command -v /usr/sbin/nginx || true)"
   if [ -n "$NGINX_BIN" ]; then
@@ -233,7 +226,8 @@ if command -v codium >/dev/null 2>&1 || [ -x /usr/share/codium/bin/codium ]; the
 JSON
   fi
   # Symlink baked-in extensions to where codium serve-web looks
-  CODIUM_EXT_DIR="${HOME}/.codium-server/extensions"
+  # NOTE: codium serve-web uses .vscodium-server (with 'v'), NOT .codium-server
+  CODIUM_EXT_DIR="${HOME}/.vscodium-server/extensions"
   CODIUM_CACHE="${HOME}/.codium-server/data/CachedProfilesData/__default__profile__/extensions.builtin.cache"
   BAKED_EXT_DIR="${HOME}/.config/VSCodium/extensions"
   if [ -d "$BAKED_EXT_DIR" ] && [ ! -L "$CODIUM_EXT_DIR" ]; then
@@ -271,7 +265,8 @@ CONTINUEJSON
   fi
   start_detached "codium serve-web" "${LOG_DIR}/codium-serve.log" \
     "${CODIUM_BIN}" serve-web --port 8080 --host 0.0.0.0 --without-connection-token \
-    --server-data-dir "${HOME}/.codium-server"
+    --server-data-dir "${HOME}/.codium-server" \
+    --server-base-path /ide
 fi
 
 # --- Trainer HTTP server on port 8082 ---
