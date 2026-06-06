@@ -485,6 +485,24 @@ actions:
         </html>
         LANDING
 
+        # Generate favicon.ico
+        python3 -c "
+        import struct, zlib
+        width, height = 16, 16
+        raw = b''
+        for y in range(height):
+            raw += b'\\x00'
+            for x in range(width):
+                raw += b'\\x33\\x33\\x33\\xff'
+        def chunk(ctype, data):
+            c = ctype + data
+            return struct.pack('>I', len(data)) + c + struct.pack('>I', zlib.crc32(c) & 0xffffffff)
+        ihdr = struct.pack('>IIBBBBB', width, height, 8, 6, 0, 0, 0)
+        png = b'\\x89PNG\\r\\n\\x1a\\n' + chunk(b'IHDR', ihdr) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b'')
+        with open('/home/developer/constructor-fabric/landing/favicon.ico', 'wb') as f:
+            f.write(png)
+        " || true
+
         # --- Configure nginx with HTTPS (self-signed cert for crypto.subtle) ---
         # Generate self-signed TLS cert with IP SAN
         DETECTED_IP="$(hostname -I | awk '{print $1}')"
@@ -516,6 +534,11 @@ actions:
             index landing.html;
 
             auth_basic off;
+
+            location = /favicon.ico {
+                try_files /landing/favicon.ico /favicon.ico =404;
+                access_log off;
+            }
 
             location / {
                 try_files $uri $uri/ /landing.html;
