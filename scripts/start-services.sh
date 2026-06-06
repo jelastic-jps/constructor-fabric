@@ -268,8 +268,10 @@ JSON
   "allowAnonymousTelemetry": false
 }
 CONTINUEJSON
-    chown -R "$(id -u):$(id -g)" "${HOME}/.continue" 2>/dev/null || true
+    chown -R developer:developer "${HOME}/.continue" 2>/dev/null || true
   fi
+  # Ensure developer owns their entire home (prevents EACCES on .continue/index etc.)
+  chown -R developer:developer "${HOME}"
   RUN_AS_USER=developer start_detached "codium serve-web" "${LOG_DIR}/codium-serve.log" \
     "${CODIUM_BIN}" serve-web --port 8080 --host 0.0.0.0 --without-connection-token \
     --server-data-dir "${HOME}/.codium-server" \
