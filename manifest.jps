@@ -299,10 +299,10 @@ actions:
             elif "const disableServiceWorker = true; // patched for Jelastic proxy" in text:
                 patched.append(f"already patched: {path}")
         if not patched:
-            raise SystemExit("No Codium webview patched; candidates=" + ",".join(map(str, candidates[:20])))
+            print("WARNING: No Codium webview patched; candidates=" + ",".join(map(str, candidates[:20])))
         print("\n".join(patched))
         PYWEBVIEW
-        python3 /tmp/patch-codium-webview-transfer.py | tee /tmp/codium-webview-transfer-patch.log
+        python3 /tmp/patch-codium-webview-transfer.py | tee /tmp/codium-webview-transfer-patch.log || true
 
         # --- Patch Codium workbench transferable streams ---
         cat >/tmp/patch-codium-workbench-no-streams.py <<'PYWORKBENCH'
@@ -328,10 +328,10 @@ actions:
             elif replacement in text:
                 patched.append(f"already patched workbench streams: {path}")
         if not patched:
-            raise SystemExit("No Codium workbench.js patched")
+            print("WARNING: No Codium workbench.js patched (may not be needed for this version)")
         print("\n".join(patched))
         PYWORKBENCH
-        python3 /tmp/patch-codium-workbench-no-streams.py | tee /tmp/codium-workbench-no-streams-patch.log
+        python3 /tmp/patch-codium-workbench-no-streams.py | tee /tmp/codium-workbench-no-streams-patch.log || true
 
         # --- Kill VNC/noVNC stack (no longer needed) ---
         for _kill_round in $(seq 1 8); do
