@@ -25,7 +25,7 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: landing-v050-ws-fix-20260605
+  SCRIPT_VERSION: iframe-v100-codium-fix-20260605
   CF_SOURCE_REF: de94910bf7df94d94d1474b583369af69160a723
 
 settings:
@@ -356,9 +356,11 @@ actions:
         CODIUM_BIN="$(command -v codium || echo /usr/share/codium/bin/codium)"
         mkdir -p /home/developer/.codium-server/data/Machine
         # Symlink baked-in extensions to where codium serve-web looks
-        if [ -d /home/developer/.config/VSCodium/extensions ] && [ ! -L /home/developer/.codium-server/extensions ]; then
-          rm -rf /home/developer/.codium-server/extensions 2>/dev/null || true
-          ln -sf /home/developer/.config/VSCodium/extensions /home/developer/.codium-server/extensions
+        # NOTE: codium serve-web uses .vscodium-server (with 'v'), NOT .codium-server
+        if [ -d /home/developer/.config/VSCodium/extensions ] && [ ! -L /home/developer/.vscodium-server/extensions ]; then
+          mkdir -p /home/developer/.vscodium-server
+          rm -rf /home/developer/.vscodium-server/extensions 2>/dev/null || true
+          ln -sf /home/developer/.config/VSCodium/extensions /home/developer/.vscodium-server/extensions
         fi
         rm -f /home/developer/.codium-server/data/CachedProfilesData/__default__profile__/extensions.builtin.cache 2>/dev/null || true
         cat >/home/developer/constructor-fabric/start-codium-web.sh <<'STARTWEB'
@@ -381,7 +383,8 @@ actions:
         exec codium serve-web --port 8080 --host 0.0.0.0 \
           --without-connection-token \
           --accept-server-license-terms \
-          --server-data-dir "${HOME}/.codium-server"
+          --server-data-dir "${HOME}/.codium-server" \
+          --server-base-path /ide
         STARTWEB
         chmod +x /home/developer/constructor-fabric/start-codium-web.sh
         /bin/sh -c "DISPLAY=:1 /home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1 &"
@@ -395,8 +398,8 @@ actions:
         /bin/sh -c "DISPLAY=:1 python3 /home/developer/constructor-fabric/app/server.py > /home/developer/app.log 2>&1 &"
 
         # --- Install nginx landing page with codium + trainer iframes ---
-        mkdir -p /usr/local/lib/web/frontend
-        cat >/usr/local/lib/web/frontend/index.html <<'LANDING'
+        mkdir -p /home/developer/constructor-fabric
+        cat >/home/developer/constructor-fabric/landing.html <<'LANDING'
         <!DOCTYPE html>
         <html lang="en">
         <head>
@@ -481,33 +484,33 @@ actions:
             listen 80 default_server;
             listen [::]:80 default_server;
             server_name _;
-            root /usr/local/lib/web/frontend;
-            index index.html;
+            root /home/developer/constructor-fabric;
+            index landing.html;
 
             location / {
-                try_files $uri $uri/ /index.html;
+                try_files $uri $uri/ /landing.html;
             }
 
             location /ide/ {
-                proxy_pass http://127.0.0.1:8080/;
+                proxy_pass http://127.0.0.1:8080;
                 proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_http_version 1.1;
                 proxy_set_header Upgrade $http_upgrade;
                 proxy_set_header Connection "upgrade";
-                proxy_set_header X-Real-IP $remote_addr;
-                proxy_read_timeout 86400;
+                # Rewrite localhost:8080 in codium HTML so browser connects to correct host
+                sub_filter "localhost:8080" "$host";
+                sub_filter_once off;
+                sub_filter_types text/html application/javascript;
             }
 
             location /trainer/ {
                 proxy_pass http://127.0.0.1:8082/;
                 proxy_set_header Host $host;
             }
-            location ~ ^/stable-[a-f0-9]+/ {
-                proxy_pass http://127.0.0.1:8080;
-                proxy_set_header Host $host;
-                proxy_set_header Upgrade $http_upgrade;
-                proxy_set_header Connection "upgrade";
-                proxy_read_timeout 86400;
-            }
+            # /stable-<hash>/ assets are now served under /ide/ prefix via --server-base-path /ide
 
             location = /health {
                 proxy_set_header Host $host;
