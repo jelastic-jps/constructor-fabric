@@ -261,6 +261,7 @@ JSON
   # Symlink baked-in extensions so codium serve-web discovers them
   BAKED_EXT_DIR="${HOME}/.vscodium-server/extensions"
   CODIUM_EXT_DIR="${HOME}/.codium-server/extensions"
+  mkdir -p "$BAKED_EXT_DIR"  # ensure parent dir exists
   if [ -d "$BAKED_EXT_DIR" ] && [ ! -L "$CODIUM_EXT_DIR" ]; then
     rm -rf "$CODIUM_EXT_DIR" 2>/dev/null || true
     ln -sf "$BAKED_EXT_DIR" "$CODIUM_EXT_DIR"
