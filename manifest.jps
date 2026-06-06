@@ -26,7 +26,7 @@ globals:
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
   SCRIPT_VERSION: https-extip-v1-20260606
-  CF_SOURCE_REF: 7a55aeaebed2422cc74e5f991d63597057e5dddd
+  CF_SOURCE_REF: fccc0d28344da09c790f1f32093810b0dabef161
 
 settings:
   fields:
@@ -103,7 +103,7 @@ nodes:
       JELASTIC_EXPOSE: 80
       JELASTIC_PORTS: 80
       SCRIPT_VERSION: ${globals.SCRIPT_VERSION}
-      CF_SOURCE_REF: 7a55aeaebed2422cc74e5f991d63597057e5dddd
+      CF_SOURCE_REF: fccc0d28344da09c790f1f32093810b0dabef161
 
 onInstall:
   - bootstrap
@@ -363,6 +363,7 @@ actions:
         # Symlink baked-in extensions so codium serve-web discovers them
         # Baked-in: ~/.vscodium-server/extensions (Docker image)
         # codium serve-web looks at: ~/.codium-server/extensions (--server-data-dir)
+        mkdir -p /home/developer/.vscodium-server/extensions
         if [ -d /home/developer/.vscodium-server/extensions ] && [ ! -L /home/developer/.codium-server/extensions ]; then
           rm -rf /home/developer/.codium-server/extensions 2>/dev/null || true
           ln -sf /home/developer/.vscodium-server/extensions /home/developer/.codium-server/extensions
