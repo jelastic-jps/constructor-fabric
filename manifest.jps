@@ -563,7 +563,7 @@ actions:
                 proxy_set_header Connection "upgrade";
                 # Rewrite localhost:8080 in codium HTML so browser connects to correct host
                 sub_filter_once off;
-                sub_filter_types text/html application/javascript;
+                sub_filter_types application/javascript;
                 sub_filter "localhost:8080" "$host";
             }
 
@@ -577,7 +577,6 @@ actions:
                 sub_filter_once on;
                 sub_filter_types application/javascript;
                 sub_filter_last_modified on;
-                sub_filter_buffers 16 16k;
                 # Disable TransferableStreams — the ReadableStream cannot be cloned through ServiceWorker.postMessage
                 sub_filter 'this._supportsTransferableStreams=new Ws(()=>{try{const e=new ReadableStream,t=new MessageChannel;return t.port1.postMessage(e,[e]),t.port1.close(),t.port2.close(),!0}catch{return!1}})' 'this._supportsTransferableStreams=new Ws(()=>!1)';
             }
