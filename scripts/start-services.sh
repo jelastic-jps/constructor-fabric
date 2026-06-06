@@ -191,6 +191,11 @@ server {
         proxy_set_header Host $host;
     }
 
+    location = /favicon.ico {
+        try_files /landing/favicon.ico /favicon.ico =404;
+        access_log off;
+    }
+
     location / {
         try_files $uri $uri/ =404;
     }
@@ -207,6 +212,28 @@ NGINX
   elif [ -f "${HOME}/constructor-fabric/app/landing.html" ]; then
     sudo cp "${HOME}/constructor-fabric/app/landing.html" "$LANDING_DST"
     sudo chown developer:developer "$LANDING_DST"
+  fi
+  # Generate favicon.ico (16x16 dark grey PNG)
+  FAVICON_DST="${HOME}/constructor-fabric/landing/favicon.ico"
+  if [ ! -f "$FAVICON_DST" ]; then
+    mkdir -p "${HOME}/constructor-fabric/landing"
+    python3 -c "
+import struct, zlib
+width, height = 16, 16
+raw = b''
+for y in range(height):
+    raw += b'\\x00'
+    for x in range(width):
+        raw += b'\\x33\\x33\\x33\\xff'
+def chunk(ctype, data):
+    c = ctype + data
+    return struct.pack('>I', len(data)) + c + struct.pack('>I', zlib.crc32(c) & 0xffffffff)
+ihdr = struct.pack('>IIBBBBB', width, height, 8, 6, 0, 0, 0)
+png = b'\\x89PNG\\r\\n\\x1a\\n' + chunk(b'IHDR', ihdr) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b'')
+with open('$FAVICON_DST', 'wb') as f:
+    f.write(png)
+" 2>/dev/null || true
+    sudo chown developer:developer "$FAVICON_DST" 2>/dev/null || true
   fi
   NGINX_BIN="$(command -v nginx || command -v /usr/sbin/nginx || true)"
   if [ -n "$NGINX_BIN" ]; then
