@@ -127,35 +127,47 @@ fi
 
 # --- Landing page with nginx proxies for codium and trainer ---
 if [ -f /etc/nginx/sites-enabled/default ]; then
-  sudo rm -f /etc/nginx/sites-enabled/default.bak.*
-  sudo python3 <<'PY'
-from pathlib import Path
-p = Path('/etc/nginx/sites-enabled/default')
-if p.exists():
-    s = p.read_text()
-    # Remove HTTP basic auth
-    import re
-    s = re.sub(r'\n\s*auth_basic\s+[^;]+;\s*\n\s*auth_basic_user_file\s+[^;]+;\s*\n', '\n    # Constructor Fabric: no HTTP basic auth.\n    auth_basic off;\n', s, count=1)
-    # Add /health endpoint
-    if 'location = /health' not in s:
-        health_loc = """
+  # Generate self-signed TLS cert for secure context (crypto.subtle requires HTTPS)
+  sudo mkdir -p /etc/nginx/ssl
+  if [ ! -f /etc/nginx/ssl/server.crt ]; then
+    DETECTED_IP="$(hostname -I 2>/dev/null | awk '{print $1}' || echo '127.0.0.1')"
+    sudo openssl req -x509 -nodes -days 3650 \
+      -newkey rsa:2048 \
+      -keyout /etc/nginx/ssl/server.key \
+      -out /etc/nginx/ssl/server.crt \
+      -subj "/CN=constructor-fabric/O=Virtuozzo/C=US" \
+      -addext "subjectAltName=IP:${DETECTED_IP},DNS:$(hostname)" \
+      2>/dev/null || true
+    echo "Self-signed TLS cert generated for ${DETECTED_IP}"
+  fi
+  # Write complete HTTPS nginx config (replaces Jelastic default)
+  sudo tee /etc/nginx/sites-enabled/default > /dev/null <<'NGINX'
+server {
+    listen 80;
+    server_name _;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name _;
+
+    ssl_certificate /etc/nginx/ssl/server.crt;
+    ssl_certificate_key /etc/nginx/ssl/server.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    root /home/developer/constructor-fabric;
+    index landing.html;
+
+    auth_basic off;
+
     location = /health {
         auth_basic off;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_pass http://127.0.0.1:8081/health;
     }
-"""
-        for mk in ['\n    location / {\n', '\n\tlocation / {\n']:
-            if mk in s:
-                s = s.replace(mk, health_loc + mk, 1)
-                break
-        else:
-            s = s.replace('\n}\n', health_loc + '\n}\n', 1)
-    # Add /ide/ proxy
-    additions = ''
-    if 'location /ide/' not in s:
-        additions += """
+
     location /ide/ {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
@@ -165,32 +177,22 @@ if p.exists():
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-        # Rewrite localhost:8080 in codium HTML so browser connects to correct host
         sub_filter "localhost:8080" "$host";
         sub_filter_once off;
         sub_filter_types text/html application/javascript;
     }
-"""
-    # Add /trainer/ proxy
-    if 'location /trainer/' not in s:
-        additions += """
+
     location /trainer/ {
         proxy_pass http://127.0.0.1:8082/;
         proxy_set_header Host $host;
     }
-"""
-    # /stable-<hash>/ assets are now served under /ide/ prefix via --server-base-path /ide
-    # No separate location block needed
-    if additions:
-        # Try space-indented markers first, then tab-indented
-        for mk in ['\n    location / {\n', '\n\tlocation / {\n']:
-            if mk in s:
-                s = s.replace(mk, additions + mk, 1)
-                break
-        else:
-            s = s.replace('\n}\n', additions + '\n}\n', 1)
-    p.write_text(s)
-PY
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}
+NGINX
+  sudo rm -f /etc/nginx/sites-enabled/default.bak.*
   # Deploy landing page to nginx root directory
   SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
   LANDING_SRC="${SCRIPT_DIR}/../assets/landing.html"
