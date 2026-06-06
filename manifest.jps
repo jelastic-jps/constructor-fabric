@@ -562,9 +562,39 @@ actions:
                 proxy_set_header Upgrade $http_upgrade;
                 proxy_set_header Connection "upgrade";
                 # Rewrite localhost:8080 in codium HTML so browser connects to correct host
-                sub_filter "localhost:8080" "$host";
                 sub_filter_once off;
                 sub_filter_types text/html application/javascript;
+                sub_filter "localhost:8080" "$host";
+            }
+
+            # Patch workbench.js to disable TransferableStreams (fixes DataCloneError in webviews)
+            location ~ "^/ide/.*/workbench\.js$" {
+                proxy_pass http://127.0.0.1:8080;
+                proxy_set_header Host $host;
+                proxy_set_header X-Forwarded-Proto $x_proto;
+                proxy_set_header Accept-Encoding "";
+                proxy_http_version 1.1;
+                sub_filter_once on;
+                sub_filter_types application/javascript;
+                sub_filter_last_modified on;
+                # Disable TransferableStreams — the ReadableStream cannot be cloned through ServiceWorker.postMessage
+                sub_filter '_supportsTransferableStreams=new Ws(()=>{try{const e=new ReadableStream,t=new MessageChannel;return t.port1.postMessage(e,[e]),t.port1.close(),t.port2.close(),!0}catch{return!1}})' '_supportsTransferableStreams=new Ws(()=>!1)';
+            }
+
+            # Patch webview index.html to disable ServiceWorker (fixes DataCloneError)
+            location ~ "^/ide/.*/pre/index\.html$" {
+                proxy_pass http://127.0.0.1:8080;
+                proxy_set_header Host $host;
+                proxy_set_header X-Forwarded-Proto $x_proto;
+                proxy_set_header Accept-Encoding "";
+                proxy_http_version 1.1;
+                sub_filter_once on;
+                sub_filter_types text/html;
+                sub_filter_last_modified on;
+                # Force disableServiceWorker = true to bypass broken ServiceWorker resource loading
+                sub_filter "searchParams.has('disableServiceWorker')" "true";
+                # Also fix the resource transfer for postMessage
+                sub_filter "assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-resource', data });" "const transfer = data.stream ? [data.stream] : []; assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-resource', data }, transfer);";
             }
 
             location /trainer/ {
