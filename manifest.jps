@@ -368,7 +368,23 @@ actions:
           ln -sf /home/developer/.vscodium-server/extensions /home/developer/.codium-server/extensions
           chown -h developer:developer /home/developer/.codium-server/extensions 2>/dev/null || true
         fi
+        # Symlink extensions installed by codium --install-extension (~/.vscode-oss/extensions/)
+        # into the serve-web extensions dir (~/.codium-server/extensions/) so they are discovered
+        USER_EXT_DIR="/home/developer/.vscode-oss/extensions"
+        CODIUM_EXT_DIR="/home/developer/.codium-server/extensions"
+        if [ -d "$USER_EXT_DIR" ] && [ -d "$CODIUM_EXT_DIR" ]; then
+          for ext in "$USER_EXT_DIR"/sourcegraph.cody-ai-* "$USER_EXT_DIR"/TabbyML.vscode-tabby-*; do
+            [ -d "$ext" ] || continue
+            ext_name="$(basename "$ext")"
+            if [ ! -d "${CODIUM_EXT_DIR}/${ext_name}" ]; then
+              ln -sf "$ext" "${CODIUM_EXT_DIR}/${ext_name}" 2>/dev/null || true
+            fi
+          done
+        fi
         rm -rf /home/developer/.codium-server/data/CachedProfilesData 2>/dev/null || true
+        # Remove .obsolete markers that block extension loading
+        rm -f "${CODIUM_EXT_DIR}/.obsolete" 2>/dev/null || true
+        rm -f "${USER_EXT_DIR}/.obsolete" 2>/dev/null || true
         # Ensure developer owns their entire home (prevents EACCES on .continue/index etc.)
         chown -R developer:developer /home/developer
         cat >/home/developer/constructor-fabric/start-codium-web.sh <<'STARTWEB'
@@ -661,10 +677,19 @@ actions:
           exit 1
         fi
 
-        # Verify Continue config
-        test -f /home/developer/.continue/config.yaml || { echo "WARNING: Continue config not found (will be created on first launch)" >&2; }
-        ls /home/developer/.codium-server/extensions/continue.continue-* >/dev/null 2>&1 || { echo "Continue extension missing from extensions dir" >&2; exit 1; }
-        echo "Continue extension is configured"
+        # Verify Cody AI extension (replaces Continue for web compatibility)
+        su - developer -c "export HOME=/home/developer PATH=/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin; codium --list-extensions 2>/dev/null" | grep -qi 'sourcegraph.cody-ai' || {
+          # Fallback: check extensions directory directly
+          ls /home/developer/.codium-server/extensions/sourcegraph.cody-ai-* >/dev/null 2>&1 || {
+            ls /home/developer/.vscodium-server/extensions/sourcegraph.cody-ai-* >/dev/null 2>&1 || {
+              echo "Cody AI extension missing from extensions" >&2
+              ls /home/developer/.codium-server/extensions/ >&2 2>/dev/null || true
+              ls /home/developer/.vscodium-server/extensions/ >&2 2>/dev/null || true
+              exit 1
+            }
+          }
+        }
+        echo "Cody AI extension is installed"
 
         # Verify cfc
         cd /home/developer/cyber-constructor
@@ -690,13 +715,13 @@ success: |
   [Open Constructor Fabric](https://${env.domain}/)
 
   The landing page has two tabs:
-  - **Codium** — VS Codium web IDE with Continue extension pre-configured
+  - **Codium** — VS Codium web IDE with Cody AI extension pre-installed
   - **Trainer** — Constructor Fabric trainer interface
 
   No token is required — VS Codium is served without a connection token.
 
   > **Note**: You will see a self-signed certificate warning. Click through it to proceed.
-  > HTTPS is required for the Continue extension webview to function (crypto.subtle).
+  > HTTPS is required for the Cody AI extension webview to function (crypto.subtle).
 
   If the environment has a public IP, access via `https://<public-ip>/` as well.
 
