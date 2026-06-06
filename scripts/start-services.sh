@@ -282,9 +282,25 @@ JSON
   if [ -x "$CODIUM_BIN" ]; then
     sudo -u developer -H "$CODIUM_BIN" --install-extension sourcegraph.cody-ai 2>/dev/null || true
     sudo -u developer -H "$CODIUM_BIN" --install-extension tabbyml.vscode-tabby 2>/dev/null || true
+    # Ensure extensions installed to standard path (~/.vscode-oss/extensions/) are
+    # discoverable by codium serve-web which uses ~/.codium-server/extensions/
+    USER_EXT_DIR="${HOME}/.vscode-oss/extensions"
+    if [ -d "$USER_EXT_DIR" ] && [ -d "$CODIUM_EXT_DIR" ]; then
+      for ext in "$USER_EXT_DIR"/sourcegraph.cody-ai-* "$USER_EXT_DIR"/TabbyML.vscode-tabby-*; do
+        [ -d "$ext" ] || continue
+        ext_name="$(basename "$ext")"
+        if [ ! -d "${CODIUM_EXT_DIR}/${ext_name}" ]; then
+          ln -sf "$ext" "${CODIUM_EXT_DIR}/${ext_name}" 2>/dev/null || true
+          echo "Symlinked extension: ${ext_name} -> ${CODIUM_EXT_DIR}/"
+        fi
+      done
+    fi
     # Remove .obsolete markers that block extension loading
     rm -f "${HOME}/.codium-server/extensions/.obsolete" 2>/dev/null || true
     rm -f "${HOME}/.config/VSCodium/extensions/.obsolete" 2>/dev/null || true
+    rm -f "${USER_EXT_DIR}/.obsolete" 2>/dev/null || true
+    # Fix ownership after extension install
+    chown -R developer:developer "${HOME}/.vscode-oss" "${HOME}/.codium-server" "${HOME}/.config/VSCodium" 2>/dev/null || true
   fi
   # Create supervisor config for codium (persistent, auto-restart)
   sudo tee /etc/supervisor/conf.d/codium.conf > /dev/null <<SUPERVISOR
