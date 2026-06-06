@@ -78,14 +78,10 @@ nodes:
     extIPs: 1
     ports:
       - 80
-      - 443
     endpoints:
       - name: Constructor Fabric
         privatePort: 80
-        protocol: TCP
-      - name: Constructor Fabric HTTPS
-        privatePort: 443
-        protocol: TCP
+        protocol: HTTP
     env:
       TZ: Europe/Kyiv
       USER: developer
@@ -535,22 +531,17 @@ actions:
             listen 80 default_server;
             listen [::]:80 default_server;
             server_name _;
-            return 301 https://$host$request_uri;
-        }
-
-        server {
-            listen 443 ssl default_server;
-            listen [::]:443 ssl default_server;
-            server_name _;
-
-            ssl_certificate /etc/nginx/ssl/server.crt;
-            ssl_certificate_key /etc/nginx/ssl/server.key;
-            ssl_protocols TLSv1.2 TLSv1.3;
 
             root /home/developer/constructor-fabric;
             index landing.html;
 
             auth_basic off;
+
+            # Pass X-Forwarded-Proto from Jelastic load balancer
+            set $x_proto $http_x_forwarded_proto;
+            if ($x_proto = '') {
+                set $x_proto $scheme;
+            }
 
             location = /favicon.ico {
                 try_files /landing/favicon.ico /favicon.ico =404;
@@ -566,7 +557,7 @@ actions:
                 proxy_set_header Host $host;
                 proxy_set_header X-Real-IP $remote_addr;
                 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_set_header X-Forwarded-Proto $x_proto;
                 proxy_http_version 1.1;
                 proxy_set_header Upgrade $http_upgrade;
                 proxy_set_header Connection "upgrade";
@@ -643,19 +634,19 @@ actions:
           echo "WARNING: Trainer HTTP server did not start on port 8082" >&2
         fi
 
-        # Wait for nginx landing page on port 443 (HTTPS, port 80 redirects)
+        # Wait for nginx landing page on port 80 (Jelastic handles SSL at load balancer)
         nginx_ready=0
         for i in $(seq 1 30); do
-          page=$(curl --noproxy "*" -fsSk https://127.0.0.1:443/ 2>/dev/null || true)
+          page=$(curl --noproxy "*" -fsS http://127.0.0.1:80/ 2>/dev/null || true)
           if [ -n "$page" ] && echo "$page" | grep -q "Constructor Fabric"; then
-            echo "Nginx landing page is up on port 443"
+            echo "Nginx landing page is up on port 80"
             nginx_ready=1
             break
           fi
           sleep 2
         done
         if [ "$nginx_ready" != "1" ]; then
-          echo "Nginx landing page did not start on port 443" >&2
+          echo "Nginx landing page did not start on port 80" >&2
           $(command -v nginx || echo /usr/sbin/nginx) -t >&2 || true
           cat /var/log/nginx/error.log >&2 2>/dev/null | tail -20 || true
           exit 1
@@ -676,7 +667,7 @@ actions:
         fi
 
         # Verify nginx proxies work
-        if curl --noproxy "*" -fsSk https://127.0.0.1:443/ide/ >/dev/null 2>&1; then
+        if curl --noproxy "*" -fsS http://127.0.0.1:80/ide/ >/dev/null 2>&1; then
           echo "/ide/ proxy works"
         else
           echo "/ide/ proxy failed" >&2
