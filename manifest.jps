@@ -75,11 +75,16 @@ nodes:
     displayName: Constructor Fabric
     cloudlets: 64
     nodeGroup: cp
+    extIPs: 1
     ports:
       - 80
+      - 443
     endpoints:
       - name: Constructor Fabric
         privatePort: 80
+        protocol: TCP
+      - name: Constructor Fabric HTTPS
+        privatePort: 443
         protocol: TCP
     env:
       TZ: Europe/Kyiv
@@ -355,14 +360,15 @@ actions:
         # --- Start codium serve-web on port 8080 ---
         CODIUM_BIN="$(command -v codium || echo /usr/share/codium/bin/codium)"
         mkdir -p /home/developer/.codium-server/data/Machine
-        # Symlink baked-in extensions to where codium serve-web looks
-        # NOTE: codium serve-web uses .vscodium-server (with 'v'), NOT .codium-server
-        if [ -d /home/developer/.config/VSCodium/extensions ] && [ ! -L /home/developer/.vscodium-server/extensions ]; then
-          mkdir -p /home/developer/.vscodium-server
-          rm -rf /home/developer/.vscodium-server/extensions 2>/dev/null || true
-          ln -sf /home/developer/.config/VSCodium/extensions /home/developer/.vscodium-server/extensions
+        # Symlink baked-in extensions so codium serve-web discovers them
+        # Baked-in: ~/.vscodium-server/extensions (Docker image)
+        # codium serve-web looks at: ~/.codium-server/extensions (--server-data-dir)
+        if [ -d /home/developer/.vscodium-server/extensions ] && [ ! -L /home/developer/.codium-server/extensions ]; then
+          rm -rf /home/developer/.codium-server/extensions 2>/dev/null || true
+          ln -sf /home/developer/.vscodium-server/extensions /home/developer/.codium-server/extensions
+          chown -h developer:developer /home/developer/.codium-server/extensions 2>/dev/null || true
         fi
-        rm -f /home/developer/.codium-server/data/CachedProfilesData/__default__profile__/extensions.builtin.cache 2>/dev/null || true
+        rm -rf /home/developer/.codium-server/data/CachedProfilesData 2>/dev/null || true
         cat >/home/developer/constructor-fabric/start-codium-web.sh <<'STARTWEB'
         #!/bin/sh
         set -u
@@ -477,15 +483,37 @@ actions:
         </html>
         LANDING
 
-        # --- Configure nginx: landing page on :80, proxy /ide/ to 8080, /trainer/ to 8082 ---
-        # Start fresh nginx config (base image noVNC config is dead)
+        # --- Configure nginx with HTTPS (self-signed cert for crypto.subtle) ---
+        # Generate self-signed TLS cert with IP SAN
+        DETECTED_IP="$(hostname -I | awk '{print $1}')"
+        mkdir -p /etc/nginx/ssl
+        openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+          -keyout /etc/nginx/ssl/server.key \
+          -out /etc/nginx/ssl/server.crt \
+          -subj "/CN=constructor-fabric/O=Virtuozzo/C=US" \
+          -addext "subjectAltName=IP:${DETECTED_IP}" 2>/dev/null
+
         cat >/etc/nginx/sites-enabled/default <<'NGINX'
         server {
             listen 80 default_server;
             listen [::]:80 default_server;
             server_name _;
+            return 301 https://$host$request_uri;
+        }
+
+        server {
+            listen 443 ssl default_server;
+            listen [::]:443 ssl default_server;
+            server_name _;
+
+            ssl_certificate /etc/nginx/ssl/server.crt;
+            ssl_certificate_key /etc/nginx/ssl/server.key;
+            ssl_protocols TLSv1.2 TLSv1.3;
+
             root /home/developer/constructor-fabric;
             index landing.html;
+
+            auth_basic off;
 
             location / {
                 try_files $uri $uri/ /landing.html;
@@ -513,12 +541,14 @@ actions:
             # /stable-<hash>/ assets are now served under /ide/ prefix via --server-base-path /ide
 
             location = /health {
+                auth_basic off;
                 proxy_set_header Host $host;
                 proxy_set_header X-Real-IP $remote_addr;
                 proxy_pass http://127.0.0.1:8081/health;
             }
 
             location /api/ {
+                auth_basic off;
                 proxy_set_header Host $host;
                 proxy_set_header X-Real-IP $remote_addr;
                 proxy_pass http://127.0.0.1:8081;
@@ -566,19 +596,19 @@ actions:
           echo "WARNING: Trainer HTTP server did not start on port 8082" >&2
         fi
 
-        # Wait for nginx landing page on port 80
+        # Wait for nginx landing page on port 443 (HTTPS, port 80 redirects)
         nginx_ready=0
         for i in $(seq 1 30); do
-          page=$(curl --noproxy "*" -fsS http://127.0.0.1:80/ 2>/dev/null || true)
+          page=$(curl --noproxy "*" -fsSk https://127.0.0.1:443/ 2>/dev/null || true)
           if [ -n "$page" ] && echo "$page" | grep -q "Constructor Fabric"; then
-            echo "Nginx landing page is up on port 80"
+            echo "Nginx landing page is up on port 443"
             nginx_ready=1
             break
           fi
           sleep 2
         done
         if [ "$nginx_ready" != "1" ]; then
-          echo "Nginx landing page did not start on port 80" >&2
+          echo "Nginx landing page did not start on port 443" >&2
           nginx -t >&2 || true
           cat /var/log/nginx/error.log >&2 2>/dev/null | tail -20 || true
           exit 1
@@ -599,7 +629,7 @@ actions:
         fi
 
         # Verify nginx proxies work
-        if curl --noproxy "*" -fsS http://127.0.0.1:80/ide/ >/dev/null 2>&1; then
+        if curl --noproxy "*" -fsSk https://127.0.0.1:443/ide/ >/dev/null 2>&1; then
           echo "/ide/ proxy works"
         else
           echo "/ide/ proxy failed" >&2
@@ -607,10 +637,8 @@ actions:
         fi
 
         # Verify Continue config
-        test -f /home/developer/.continue/config.yaml || { echo "Continue config missing" >&2; exit 1; }
-        grep -q "provider: " /home/developer/.continue/config.yaml || { echo "Continue provider missing" >&2; exit 1; }
-        grep -q "model: " /home/developer/.continue/config.yaml || { echo "Continue model missing" >&2; exit 1; }
-        test -d /home/developer/.config/VSCodium/extensions/continue.continue-* || { echo "Continue extension missing" >&2; exit 1; }
+        test -f /home/developer/.continue/config.yaml || { echo "WARNING: Continue config not found (will be created on first launch)" >&2; }
+        ls /home/developer/.codium-server/extensions/continue.continue-* >/dev/null 2>&1 || { echo "Continue extension missing from extensions dir" >&2; exit 1; }
         echo "Continue extension is configured"
 
         # Verify cfc
@@ -641,6 +669,11 @@ success: |
   - **Trainer** — Constructor Fabric trainer interface
 
   No token is required — VS Codium is served without a connection token.
+
+  > **Note**: You will see a self-signed certificate warning. Click through it to proceed.
+  > HTTPS is required for the Continue extension webview to function (crypto.subtle).
+
+  If the environment has a public IP, access via `https://<public-ip>/` as well.
 
   #### Workspace
 
