@@ -577,8 +577,9 @@ actions:
                 sub_filter_once on;
                 sub_filter_types application/javascript;
                 sub_filter_last_modified on;
+                sub_filter_buffers 16 16k;
                 # Disable TransferableStreams — the ReadableStream cannot be cloned through ServiceWorker.postMessage
-                sub_filter '_supportsTransferableStreams=new Ws(()=>{try{const e=new ReadableStream,t=new MessageChannel;return t.port1.postMessage(e,[e]),t.port1.close(),t.port2.close(),!0}catch{return!1}})' '_supportsTransferableStreams=new Ws(()=>!1)';
+                sub_filter 'this._supportsTransferableStreams=new Ws(()=>{try{const e=new ReadableStream,t=new MessageChannel;return t.port1.postMessage(e,[e]),t.port1.close(),t.port2.close(),!0}catch{return!1}})' 'this._supportsTransferableStreams=new Ws(()=>!1)';
             }
 
             # Patch webview index.html to disable ServiceWorker (fixes DataCloneError)
