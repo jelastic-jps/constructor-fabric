@@ -597,7 +597,12 @@ actions:
             }
         }
         NGINX
-        nginx -t && nginx || service nginx start || true
+        NGINX_BIN="$(command -v nginx || echo /usr/sbin/nginx)"
+        # Kill any old nginx that may be bound to port 80
+        fuser -k 80/tcp 2>/dev/null || true
+        fuser -k 443/tcp 2>/dev/null || true
+        sleep 2
+        $NGINX_BIN -t && $NGINX_BIN || service nginx start || $NGINX_BIN || true
 
         # Fix all ownership
         chown -R developer:developer /home/developer
@@ -651,7 +656,7 @@ actions:
         done
         if [ "$nginx_ready" != "1" ]; then
           echo "Nginx landing page did not start on port 443" >&2
-          nginx -t >&2 || true
+          $(command -v nginx || echo /usr/sbin/nginx) -t >&2 || true
           cat /var/log/nginx/error.log >&2 2>/dev/null | tail -20 || true
           exit 1
         fi
