@@ -473,6 +473,7 @@ actions:
         NGINX
         NGINX_BIN="$(command -v nginx || echo /usr/sbin/nginx)"
         # Kill any old nginx that may be bound to port 80
+        pkill -9 nginx 2>/dev/null || true
         fuser -k 80/tcp 2>/dev/null || true
         fuser -k 443/tcp 2>/dev/null || true
         sleep 2
