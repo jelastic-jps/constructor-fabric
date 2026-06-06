@@ -286,7 +286,7 @@ CSSERVER
   # Create supervisor config for code-server
   sudo tee /etc/supervisor/conf.d/code-server.conf > /dev/null <<SUPERVISOR
 [program:code-server]
-command=code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry --base-path /ide ${CS_WORKSPACE}
+command=code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry ${CS_WORKSPACE}
 user=developer
 environment=HOME="${HOME}"
 directory=${CS_WORKSPACE}
