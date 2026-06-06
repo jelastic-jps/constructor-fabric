@@ -245,79 +245,59 @@ fi
 # --- App server on port 8081 ---
 start_detached "${HOME}/constructor-fabric/app/server.py" "${LOG_DIR}/app.log" python3 "${HOME}/constructor-fabric/app/server.py"
 
-# --- Codium serve-web on port 8080 (supervisor-managed) ---
-if command -v codium >/dev/null 2>&1 || [ -x /usr/share/codium/bin/codium ]; then
-  CODIUM_BIN="$(command -v codium || echo /usr/share/codium/bin/codium)"
-  mkdir -p "${HOME}/.codium-server/data/Machine"
-  # Write default settings
-  if [ ! -f "${HOME}/.codium-server/data/Machine/settings.json" ]; then
-    cat > "${HOME}/.codium-server/data/Machine/settings.json" <<'JSON'
-{
-  "workbench.startupEditor": "none",
-  "terminal.integrated.defaultProfile.linux": "bash"
-}
-JSON
+# --- Code-server on port 8080 (supervisor-managed) ---
+if command -v code-server >/dev/null 2>&1; then
+  CS_WORKSPACE="${HOME}/workspaces/constructor-fabric-workspace"
+  mkdir -p "$CS_WORKSPACE" "${HOME}/.config/code-server"
+
+  # Configure code-server
+  cat > "${HOME}/.config/code-server/config.yaml" <<'CSSERVER'
+bind-addr: 0.0.0.0:8080
+auth: none
+cert: false
+CSSERVER
+
+  # Install Copilot extension from VSIX (not available on open-vsx)
+  if ! code-server --list-extensions 2>/dev/null | grep -qi 'github.copilot'; then
+    echo "Installing GitHub Copilot extension for code-server..."
+    COPIL_VSIX="/tmp/copilot.vsix"
+    curl --noproxy '*' -fsSL \
+      'https://marketplace.visualstudio.com/_apis/public/gallery/publishers/GitHub/vsextensions/copilot/latest/vspackage' \
+      -o "$COPIL_VSIX" 2>/dev/null \
+      && sudo -u developer -H code-server --install-extension "$COPIL_VSIX" 2>/dev/null \
+      || echo "Copilot VSIX install failed"
+    rm -f "$COPIL_VSIX" 2>/dev/null || true
   fi
-  # Symlink baked-in extensions so codium serve-web discovers them
-  BAKED_EXT_DIR="${HOME}/.vscodium-server/extensions"
-  CODIUM_EXT_DIR="${HOME}/.codium-server/extensions"
-  mkdir -p "$BAKED_EXT_DIR"  # ensure parent dir exists
-  if [ -d "$BAKED_EXT_DIR" ] && [ ! -L "$CODIUM_EXT_DIR" ]; then
-    rm -rf "$CODIUM_EXT_DIR" 2>/dev/null || true
-    ln -sf "$BAKED_EXT_DIR" "$CODIUM_EXT_DIR"
-    chown -h "$(id -u):$(id -g)" "$CODIUM_EXT_DIR" 2>/dev/null || true
-    echo "Symlinked extensions: ${CODIUM_EXT_DIR} -> ${BAKED_EXT_DIR}"
+
+  # Install Copilot Chat extension from VSIX
+  if ! code-server --list-extensions 2>/dev/null | grep -qi 'github.copilot-chat'; then
+    echo "Installing GitHub Copilot Chat extension for code-server..."
+    COPILCHAT_VSIX="/tmp/copilot-chat.vsix"
+    curl --noproxy '*' -fsSL \
+      'https://marketplace.visualstudio.com/_apis/public/gallery/publishers/GitHub/vsextensions/copilot-chat/latest/vspackage' \
+      -o "$COPILCHAT_VSIX" 2>/dev/null \
+      && sudo -u developer -H code-server --install-extension "$COPILCHAT_VSIX" 2>/dev/null \
+      || echo "Copilot Chat VSIX install failed"
+    rm -f "$COPILCHAT_VSIX" 2>/dev/null || true
   fi
-  # Also symlink to .config/VSCodium/extensions (secondary registry)
-  CONFIG_EXT_DIR="${HOME}/.config/VSCodium/extensions"
-  mkdir -p "${HOME}/.config/VSCodium"
-  if [ -d "$BAKED_EXT_DIR" ] && [ ! -L "$CONFIG_EXT_DIR" ]; then
-    rm -rf "$CONFIG_EXT_DIR" 2>/dev/null || true
-    ln -sf "$BAKED_EXT_DIR" "$CONFIG_EXT_DIR"
-    chown -h "$(id -u):$(id -g)" "$CONFIG_EXT_DIR" 2>/dev/null || true
-  fi
-  rm -f "${HOME}/.codium-server/data/CachedProfilesData" 2>/dev/null || true
-  # Ensure developer owns their entire home
-  chown -R developer:developer "${HOME}"
-  # Install Cody AI extension (web-compatible, unlike Continue)
-  if [ -x "$CODIUM_BIN" ]; then
-    sudo -u developer -H "$CODIUM_BIN" --install-extension sourcegraph.cody-ai 2>/dev/null || true
-    sudo -u developer -H "$CODIUM_BIN" --install-extension tabbyml.vscode-tabby 2>/dev/null || true
-    # Ensure extensions installed to standard path (~/.vscode-oss/extensions/) are
-    # discoverable by codium serve-web which uses ~/.codium-server/extensions/
-    USER_EXT_DIR="${HOME}/.vscode-oss/extensions"
-    if [ -d "$USER_EXT_DIR" ] && [ -d "$CODIUM_EXT_DIR" ]; then
-      for ext in "$USER_EXT_DIR"/sourcegraph.cody-ai-* "$USER_EXT_DIR"/TabbyML.vscode-tabby-*; do
-        [ -d "$ext" ] || continue
-        ext_name="$(basename "$ext")"
-        if [ ! -d "${CODIUM_EXT_DIR}/${ext_name}" ]; then
-          ln -sf "$ext" "${CODIUM_EXT_DIR}/${ext_name}" 2>/dev/null || true
-          echo "Symlinked extension: ${ext_name} -> ${CODIUM_EXT_DIR}/"
-        fi
-      done
-    fi
-    # Remove .obsolete markers that block extension loading
-    rm -f "${HOME}/.codium-server/extensions/.obsolete" 2>/dev/null || true
-    rm -f "${HOME}/.config/VSCodium/extensions/.obsolete" 2>/dev/null || true
-    rm -f "${USER_EXT_DIR}/.obsolete" 2>/dev/null || true
-    # Fix ownership after extension install
-    chown -R developer:developer "${HOME}/.vscode-oss" "${HOME}/.codium-server" "${HOME}/.config/VSCodium" 2>/dev/null || true
-  fi
-  # Create supervisor config for codium (persistent, auto-restart)
-  sudo tee /etc/supervisor/conf.d/codium.conf > /dev/null <<SUPERVISOR
-[program:codium]
-command=${CODIUM_BIN} --no-sandbox serve-web --port 8080 --host 0.0.0.0 --without-connection-token --server-base-path /ide
+
+  chown -R developer:developer "${HOME}/.config/code-server" "${HOME}/.local/share/code-server" 2>/dev/null || true
+
+  # Create supervisor config for code-server
+  sudo tee /etc/supervisor/conf.d/code-server.conf > /dev/null <<SUPERVISOR
+[program:code-server]
+command=code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry --base-path /ide ${CS_WORKSPACE}
 user=developer
 environment=HOME="${HOME}"
-directory=${HOME}
+directory=${CS_WORKSPACE}
 autostart=true
 autorestart=true
 startsecs=5
-stdout_logfile=${LOG_DIR}/codium-serve.log
-stderr_logfile=${LOG_DIR}/codium-serve.log
+stdout_logfile=${LOG_DIR}/code-server.log
+stderr_logfile=${LOG_DIR}/code-server.log
 stdout_logfile_maxbytes=5MB
 SUPERVISOR
-  echo "Supervisor codium config created"
+  echo "Supervisor code-server config created"
 fi
 
 # --- Trainer HTTP server on port 8082 (supervisor-managed) ---

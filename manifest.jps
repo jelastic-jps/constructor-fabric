@@ -247,168 +247,19 @@ actions:
         ]
         VSCODEKEYS
 
-        # --- Patch Codium webview for Jelastic proxy ---
-        cat >/tmp/patch-codium-webview-transfer.py <<'PYWEBVIEW'
-        import re
-        from pathlib import Path
+        # --- Start code-server on port 8080 ---
+        CS_WORKSPACE="/home/developer/workspaces/constructor-fabric-workspace"
+        mkdir -p "$CS_WORKSPACE" /home/developer/.config/code-server
+        cat > /home/developer/.config/code-server/config.yaml <<'CSSERVER'
+        bind-addr: 0.0.0.0:8080
+        auth: none
+        cert: false
+        CSSERVER
+        chown -R developer:developer /home/developer/.config/code-server
 
-        roots = [Path('/home/developer'), Path('/usr/share'), Path('/usr/lib'), Path('/opt')]
-        candidates = []
-        for root in roots:
-            if not root.exists():
-                continue
-            for path in root.rglob('index.html'):
-                s = str(path)
-                if 'webview' in s and 'browser' in s and 'pre' in s:
-                    candidates.append(path)
+        # Start code-server as developer
+        sudo -u developer -H /bin/sh -c "code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry --base-path /ide $CS_WORKSPACE > /home/developer/code-server.log 2>&1 &"
 
-        patched = []
-        pattern = re.compile(
-            r"(hostMessaging\.onMessage\('did-load-resource', \(_event, data\) => \{\s*)"
-            r"(assertIsDefined\(navigator\.serviceWorker\.controller\)\.postMessage\(\{ channel: 'did-load-resource', data \}\);)"
-            r"(\s*\}\);)",
-            re.MULTILINE,
-        )
-        replacement = (
-            "\\1"
-            "const transfer = data.stream ? [data.stream] : [];\n"
-            "\t\t\t\tassertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-resource', data }, transfer);"
-            "\\3"
-        )
-        for path in candidates:
-            text = path.read_text(errors='replace')
-            original = text
-            text = text.replace(
-                "const disableServiceWorker = searchParams.has('disableServiceWorker');",
-                "const disableServiceWorker = true; // patched for Jelastic proxy"
-            )
-            new_text, count = pattern.subn(replacement, text, count=1)
-            text = new_text
-            changes = []
-            if original != text:
-                if "const disableServiceWorker = true; // patched for Jelastic proxy" in text:
-                    changes.append("disableServiceWorker")
-                if count or "const transfer = data.stream ? [data.stream] : []" in text:
-                    changes.append("transfer")
-                path.write_text(text)
-                patched.append(f"patched {','.join(changes)}: {path}")
-            elif "const disableServiceWorker = true; // patched for Jelastic proxy" in text:
-                patched.append(f"already patched: {path}")
-        if not patched:
-            print("WARNING: No Codium webview patched; candidates=" + ",".join(map(str, candidates[:20])))
-        print("\n".join(patched))
-        PYWEBVIEW
-        python3 /tmp/patch-codium-webview-transfer.py | tee /tmp/codium-webview-transfer-patch.log || true
-
-        # --- Patch Codium workbench transferable streams ---
-        cat >/tmp/patch-codium-workbench-no-streams.py <<'PYWORKBENCH'
-        import re
-        from pathlib import Path
-
-        roots = [Path('/home/developer'), Path('/usr/share'), Path('/usr/lib'), Path('/opt')]
-        files = []
-        for root in roots:
-            if root.exists():
-                files.extend(root.rglob('workbench.js'))
-        pattern = re.compile(
-            r"this\._supportsTransferableStreams=new Ws\(\(\)=>\{try\{const e=new ReadableStream,t=new MessageChannel;return t\.port1\.postMessage\(e,\[e\]\),t\.port1\.close\(\),t\.port2\.close\(\),!0\}catch\{return!1\}\}\)"
-        )
-        replacement = "this._supportsTransferableStreams=new Ws(()=>!1)"
-        patched = []
-        for path in files:
-            text = path.read_text(errors='replace')
-            new_text, count = pattern.subn(replacement, text)
-            if count:
-                path.write_text(new_text)
-                patched.append(f"patched workbench streams: {path}")
-            elif replacement in text:
-                patched.append(f"already patched workbench streams: {path}")
-        if not patched:
-            print("WARNING: No Codium workbench.js patched (may not be needed for this version)")
-        print("\n".join(patched))
-        PYWORKBENCH
-        python3 /tmp/patch-codium-workbench-no-streams.py | tee /tmp/codium-workbench-no-streams-patch.log || true
-
-        # --- Kill VNC/noVNC stack (no longer needed) ---
-        for _kill_round in $(seq 1 8); do
-          sudo pkill -9 -f "tini.*supervisord" 2>/dev/null || true
-          sudo supervisorctl stop all 2>/dev/null || true
-          sudo supervisorctl shutdown 2>/dev/null || true
-          sudo pkill -9 -f supervisord 2>/dev/null || true
-          sudo pkill -9 -f nginx 2>/dev/null || true
-          sudo pkill -9 -f Xvfb 2>/dev/null || true
-          sudo pkill -9 -f x11vnc 2>/dev/null || true
-          sudo pkill -9 -f websockify 2>/dev/null || true
-          sudo pkill -9 -f lxsession 2>/dev/null || true
-          sudo pkill -9 -f lxpanel 2>/dev/null || true
-          sudo pkill -9 -f openbox 2>/dev/null || true
-          sudo pkill -9 -f "codium.*serve-web" 2>/dev/null || true
-          sudo pkill -9 -f codium-server 2>/dev/null || true
-          sleep 2
-          if ! ss -tlnp 2>/dev/null | grep -q ":80 "; then break; fi
-        done
-
-        # --- Start Xvfb (needed for Electron trainer) ---
-        mkdir -p /home/developer/constructor-fabric
-        setsid /usr/bin/Xvfb :1 -screen 0 1280x720x24 -ac +extension GLX +render -noreset </dev/null >/home/developer/constructor-fabric/xvfb.log 2>&1 &
-        sleep 1
-
-        # --- Start codium serve-web on port 8080 ---
-        CODIUM_BIN="$(command -v codium || echo /usr/share/codium/bin/codium)"
-        mkdir -p /home/developer/.codium-server/data/Machine
-        # Symlink baked-in extensions so codium serve-web discovers them
-        # Baked-in: ~/.vscodium-server/extensions (Docker image)
-        # codium serve-web looks at: ~/.codium-server/extensions (--server-data-dir)
-        mkdir -p /home/developer/.vscodium-server/extensions
-        if [ -d /home/developer/.vscodium-server/extensions ] && [ ! -L /home/developer/.codium-server/extensions ]; then
-          rm -rf /home/developer/.codium-server/extensions 2>/dev/null || true
-          ln -sf /home/developer/.vscodium-server/extensions /home/developer/.codium-server/extensions
-          chown -h developer:developer /home/developer/.codium-server/extensions 2>/dev/null || true
-        fi
-        # Symlink extensions installed by codium --install-extension (~/.vscode-oss/extensions/)
-        # into the serve-web extensions dir (~/.codium-server/extensions/) so they are discovered
-        USER_EXT_DIR="/home/developer/.vscode-oss/extensions"
-        CODIUM_EXT_DIR="/home/developer/.codium-server/extensions"
-        if [ -d "$USER_EXT_DIR" ] && [ -d "$CODIUM_EXT_DIR" ]; then
-          for ext in "$USER_EXT_DIR"/sourcegraph.cody-ai-* "$USER_EXT_DIR"/TabbyML.vscode-tabby-*; do
-            [ -d "$ext" ] || continue
-            ext_name="$(basename "$ext")"
-            if [ ! -d "${CODIUM_EXT_DIR}/${ext_name}" ]; then
-              ln -sf "$ext" "${CODIUM_EXT_DIR}/${ext_name}" 2>/dev/null || true
-            fi
-          done
-        fi
-        rm -rf /home/developer/.codium-server/data/CachedProfilesData 2>/dev/null || true
-        # Remove .obsolete markers that block extension loading
-        rm -f "${CODIUM_EXT_DIR}/.obsolete" 2>/dev/null || true
-        rm -f "${USER_EXT_DIR}/.obsolete" 2>/dev/null || true
-        # Ensure developer owns their entire home (prevents EACCES on .continue/index etc.)
-        chown -R developer:developer /home/developer
-        cat >/home/developer/constructor-fabric/start-codium-web.sh <<'STARTWEB'
-        #!/bin/sh
-        set -u
-        case "${HOME:-}" in
-          ""|-*) HOME=/home/developer ;;
-        esac
-        export HOME
-        if [ -f "${HOME}/.constructor-fabric-ai.env" ]; then
-          set -a
-          . "${HOME}/.constructor-fabric-ai.env"
-          set +a
-        fi
-        export DISPLAY=:1
-        export PATH="${HOME}/.local/bin:/opt/node-current/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
-        workspace="${HOME}/workspaces/constructor-fabric-workspace"
-        mkdir -p "$workspace"
-        cd "$workspace" || exit 1
-        exec codium serve-web --port 8080 --host 0.0.0.0 \
-          --without-connection-token \
-          --accept-server-license-terms \
-          --server-data-dir "${HOME}/.codium-server" \
-          --server-base-path /ide
-        STARTWEB
-        chmod +x /home/developer/constructor-fabric/start-codium-web.sh
-        sudo -u developer -H /bin/sh -c "DISPLAY=:1 /home/developer/constructor-fabric/start-codium-web.sh > /home/developer/codium-web.log 2>&1 &"
 
         # --- Start trainer HTTP server on port 8082 ---
         if [ -d /home/developer/workspaces/constructor-fabric-workspace/trainer ]; then
@@ -464,7 +315,7 @@ actions:
         <div class="header">
           <h1>Constructor Fabric</h1>
           <div class="tabs">
-            <div class="tab active" data-frame="codium">Codium</div>
+            <div class="tab active" data-frame="codium">Code</div>
             <div class="tab" data-frame="trainer">Trainer</div>
           </div>
           <div class="status">
@@ -561,39 +412,6 @@ actions:
                 proxy_http_version 1.1;
                 proxy_set_header Upgrade $http_upgrade;
                 proxy_set_header Connection "upgrade";
-                # Rewrite localhost:8080 in codium HTML so browser connects to correct host
-                sub_filter_once off;
-                sub_filter_types application/javascript;
-                sub_filter "localhost:8080" "$host";
-            }
-
-            # Patch workbench.js to disable TransferableStreams (fixes DataCloneError in webviews)
-            location ~ "^/ide/.*/workbench\.js$" {
-                proxy_pass http://127.0.0.1:8080;
-                proxy_set_header Host $host;
-                proxy_set_header X-Forwarded-Proto $x_proto;
-                proxy_set_header Accept-Encoding "";
-                proxy_http_version 1.1;
-                sub_filter_once on;
-                sub_filter_types *;
-                sub_filter_last_modified on;
-                sub_filter 'this._supportsTransferableStreams=new Ws(()=>{try{const e=new ReadableStream,t=new MessageChannel;return t.port1.postMessage(e,[e]),t.port1.close(),t.port2.close(),!0}catch{return!1}})' 'this._supportsTransferableStreams=new Ws(()=>!1)';
-            }
-
-            # Patch webview index.html to disable ServiceWorker (fixes DataCloneError)
-            location ~ "^/ide/.*/pre/index\.html$" {
-                proxy_pass http://127.0.0.1:8080;
-                proxy_set_header Host $host;
-                proxy_set_header X-Forwarded-Proto $x_proto;
-                proxy_set_header Accept-Encoding "";
-                proxy_http_version 1.1;
-                sub_filter_once on;
-                sub_filter_types text/html;
-                sub_filter_last_modified on;
-                # Force disableServiceWorker = true to bypass broken ServiceWorker resource loading
-                sub_filter "searchParams.has('disableServiceWorker')" "true";
-                # Also fix the resource transfer for postMessage
-                sub_filter "assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-resource', data });" "const transfer = data.stream ? [data.stream] : []; assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-resource', data }, transfer);";
             }
 
             location /trainer/ {
@@ -633,19 +451,19 @@ actions:
         export NO_PROXY=localhost,127.0.0.1,::1
         export no_proxy=$NO_PROXY
 
-        # Wait for codium serve-web on 8080
-        codium_ready=0
+        # Wait for code-server on 8080
+        ide_ready=0
         for i in $(seq 1 60); do
           if curl --noproxy "*" -fsS http://127.0.0.1:8080/ >/dev/null 2>&1; then
-            echo "VS Codium web server is up on port 8080"
-            codium_ready=1
+            echo "code-server is up on port 8080"
+            ide_ready=1
             break
           fi
           sleep 2
         done
-        if [ "$codium_ready" != "1" ]; then
-          echo "VS Codium web server did not start on port 8080" >&2
-          tail -80 /home/developer/codium-web.log >&2 2>/dev/null || true
+        if [ "$ide_ready" != "1" ]; then
+          echo "code-server did not start on port 8080" >&2
+          tail -80 /home/developer/code-server.log >&2 2>/dev/null || true
           exit 1
         fi
 
@@ -703,19 +521,13 @@ actions:
           exit 1
         fi
 
-        # Verify Cody AI extension (replaces Continue for web compatibility)
-        su - developer -c "export HOME=/home/developer PATH=/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin; codium --list-extensions 2>/dev/null" | grep -qi 'sourcegraph.cody-ai' || {
-          # Fallback: check extensions directory directly
-          ls /home/developer/.codium-server/extensions/sourcegraph.cody-ai-* >/dev/null 2>&1 || {
-            ls /home/developer/.vscodium-server/extensions/sourcegraph.cody-ai-* >/dev/null 2>&1 || {
-              echo "Cody AI extension missing from extensions" >&2
-              ls /home/developer/.codium-server/extensions/ >&2 2>/dev/null || true
-              ls /home/developer/.vscodium-server/extensions/ >&2 2>/dev/null || true
-              exit 1
-            }
-          }
+        # Verify Copilot extension is installed in code-server
+        code-server --list-extensions 2>/dev/null | grep -qi 'github.copilot' || {
+          echo "Copilot extension missing in code-server" >&2
+          code-server --list-extensions 2>/dev/null >&2 || true
+          tail -40 /home/developer/code-server.log >&2 2>/dev/null || true
         }
-        echo "Cody AI extension is installed"
+        echo "code-server with Copilot is running"
 
         # Verify cfc
         cd /home/developer/cyber-constructor
@@ -741,13 +553,12 @@ success: |
   [Open Constructor Fabric](https://${env.domain}/)
 
   The landing page has two tabs:
-  - **Codium** — VS Codium web IDE with Cody AI extension pre-installed
+  - **Code** — VS Code in browser (code-server) with GitHub Copilot
   - **Trainer** — Constructor Fabric trainer interface
 
-  No token is required — VS Codium is served without a connection token.
+  No token is required — code-server is served without authentication.
 
-  > **Note**: You will see a self-signed certificate warning. Click through it to proceed.
-  > HTTPS is required for the Cody AI extension webview to function (crypto.subtle).
+  Sign in to GitHub Copilot from the IDE sidebar to activate AI completions.
 
   If the environment has a public IP, access via `https://<public-ip>/` as well.
 
