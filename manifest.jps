@@ -271,6 +271,38 @@ actions:
         CSSERVER
         chown -R developer:developer /home/developer/.config/code-server
 
+        # Install Continue extension for code-server (uses API tokens from settings)
+        echo "Installing Continue extension..."
+        sudo -u developer -H code-server --install-extension Continue.continue 2>/dev/null || {
+          echo "Continue registry install failed, trying VSIX..."
+          CONT_VSIX="/tmp/continue.vsix"
+          curl --noproxy '*' -fsSL 'https://open-vsx.org/api/Continue/continue/linux-x64/latest' -o "$CONT_VSIX" 2>/dev/null \
+            && sudo -u developer -H code-server --install-extension "$CONT_VSIX" 2>/dev/null \
+            || echo "Continue VSIX install failed"
+          rm -f "$CONT_VSIX" 2>/dev/null || true
+        }
+        # Install Copilot as fallback
+        if ! sudo -u developer -H code-server --list-extensions 2>/dev/null | grep -qi 'github.copilot'; then
+          COPIL_VSIX="/tmp/copilot.vsix"
+          curl --noproxy '*' -fsSL 'https://marketplace.visualstudio.com/_apis/public/gallery/publishers/GitHub/vsextensions/copilot/latest/vspackage' -o "$COPIL_VSIX" 2>/dev/null \
+            && sudo -u developer -H code-server --install-extension "$COPIL_VSIX" 2>/dev/null \
+            || echo "Copilot install failed"
+          rm -f "$COPIL_VSIX" 2>/dev/null || true
+        fi
+
+        # Code-server user settings for Continue
+        mkdir -p /home/developer/.local/share/code-server/User
+        cat > /home/developer/.local/share/code-server/User/settings.json <<'CSSETTINGS'
+        {
+          "workbench.startupEditor": "none",
+          "security.workspace.trust.enabled": false,
+          "security.workspace.trust.startupPrompt": "never",
+          "continue.telemetryEnabled": false,
+          "continue.showInlineTip": false
+        }
+        CSSETTINGS
+        chown -R developer:developer /home/developer/.local/share/code-server
+
         # Set up Copilot Chat custom instructions for Constructor Fabric
         mkdir -p "$CS_WORKSPACE/.github"
         cat > "$CS_WORKSPACE/.github/copilot-instructions.md" <<'COPILOTINST'
