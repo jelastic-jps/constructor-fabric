@@ -356,105 +356,7 @@ actions:
         # --- Start app server ---
         /bin/sh -c "DISPLAY=:1 python3 /home/developer/constructor-fabric/app/server.py > /home/developer/app.log 2>&1 &"
 
-        # --- Install nginx landing page with codium + trainer iframes ---
-        mkdir -p /home/developer/constructor-fabric
-        cat >/home/developer/constructor-fabric/landing.html <<'LANDING'
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>Constructor Fabric</title>
-        <style>
-          * { margin:0; padding:0; box-sizing:border-box; }
-          html,body { height:100%; background:#0a0a0a; color:#e0e0e0; font-family:system-ui,-apple-system,sans-serif; }
-          .header {
-            display:flex; align-items:center; justify-content:space-between;
-            padding:8px 16px; background:#141414; border-bottom:1px solid #2a2a2a;
-            height:44px; flex-shrink:0;
-          }
-          .header h1 { font-size:15px; font-weight:600; letter-spacing:0.5px; color:#8b5cf6; }
-          .tabs { display:flex; gap:2px; }
-          .tab {
-            padding:6px 18px; border-radius:6px 6px 0 0; cursor:pointer;
-            font-size:13px; font-weight:500; color:#888; background:#1a1a1a;
-            border:1px solid transparent; border-bottom:none;
-            transition: all 0.15s;
-          }
-          .tab:hover { color:#bbb; background:#222; }
-          .tab.active { color:#e0e0e0; background:#0a0a0a; border-color:#2a2a2a; }
-          .frames { position:relative; height:calc(100% - 44px); }
-          .frames iframe {
-            position:absolute; top:0; left:0; width:100%; height:100%;
-            border:none; display:none;
-          }
-          .frames iframe.active { display:block; }
-          .status {
-            display:flex; align-items:center; gap:6px; font-size:12px; color:#666;
-          }
-          .status .dot { width:8px; height:8px; border-radius:50%; }
-          .status .dot.ok { background:#22c55e; }
-          .status .dot.err { background:#ef4444; }
-          .status .dot.wait { background:#eab308; }
-        </style>
-        </head>
-        <body>
-        <div class="header">
-          <h1>Constructor Fabric</h1>
-          <div class="tabs">
-            <div class="tab" data-frame="codium">Code</div>
-            <div class="tab active" data-frame="trainer">Trainer</div>
-          </div>
-          <div class="status">
-            <span class="dot wait" id="codium-status"></span>
-            <span class="dot wait" id="trainer-status"></span>
-          </div>
-        </div>
-        <div class="frames">
-          <iframe id="codium" src="/ide/"></iframe>
-          <iframe id="trainer" class="active" src="/trainer/"></iframe>
-        </div>
-        <script>
-        document.querySelectorAll('.tab').forEach(tab => {
-          tab.addEventListener('click', () => {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.frames iframe').forEach(f => f.classList.remove('active'));
-            tab.classList.add('active');
-            document.getElementById(tab.dataset.frame).classList.add('active');
-          });
-        });
-        async function check(url, el) {
-          try {
-            const r = await fetch(url, {method:'GET', signal: AbortSignal.timeout(5000)});
-            document.getElementById(el).className = 'dot ' + (r.ok ? 'ok' : 'err');
-          } catch { document.getElementById(el).className = 'dot err'; }
-        }
-        check('/ide/', 'codium-status');
-        check('/trainer/', 'trainer-status');
-        </script>
-        </body>
-        </html>
-        LANDING
-
-        # Generate favicon.ico
-        python3 -c "
-        import struct, zlib
-        width, height = 16, 16
-        raw = b''
-        for y in range(height):
-            raw += b'\\x00'
-            for x in range(width):
-                raw += b'\\x33\\x33\\x33\\xff'
-        def chunk(ctype, data):
-            c = ctype + data
-            return struct.pack('>I', len(data)) + c + struct.pack('>I', zlib.crc32(c) & 0xffffffff)
-        ihdr = struct.pack('>IIBBBBB', width, height, 8, 6, 0, 0, 0)
-        png = b'\\x89PNG\\r\\n\\x1a\\n' + chunk(b'IHDR', ihdr) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b'')
-        with open('/home/developer/constructor-fabric/landing/favicon.ico', 'wb') as f:
-            f.write(png)
-        " || true
-
-        # --- Configure nginx with HTTPS (self-signed cert for crypto.subtle) ---
+        # --- Configure nginx ---
         # Generate self-signed TLS cert with IP SAN
         DETECTED_IP="$(hostname -I | awk '{print $1}')"
         mkdir -p /etc/nginx/ssl
@@ -470,28 +372,15 @@ actions:
             listen [::]:80 default_server;
             server_name _;
 
-            root /home/developer/constructor-fabric;
-            index landing.html;
-
             auth_basic off;
 
-            # Pass X-Forwarded-Proto from Jelastic load balancer
             set $x_proto $http_x_forwarded_proto;
             if ($x_proto = '') {
                 set $x_proto $scheme;
             }
 
-            location = /favicon.ico {
-                try_files /landing/favicon.ico /favicon.ico =404;
-                access_log off;
-            }
-
             location / {
-                try_files $uri $uri/ /landing.html;
-            }
-
-            location /ide/ {
-                proxy_pass http://127.0.0.1:8080/;
+                proxy_pass http://127.0.0.1:8080;
                 proxy_set_header Host $host;
                 proxy_set_header X-Real-IP $remote_addr;
                 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -500,12 +389,6 @@ actions:
                 proxy_set_header Upgrade $http_upgrade;
                 proxy_set_header Connection "upgrade";
             }
-
-            location /trainer/ {
-                proxy_pass http://127.0.0.1:8082/;
-                proxy_set_header Host $host;
-            }
-            # /stable-<hash>/ assets are now served under /ide/ prefix via --server-base-path /ide
 
             location = /health {
                 auth_basic off;
@@ -555,57 +438,19 @@ actions:
           exit 1
         fi
 
-        # Wait for trainer on 8082
-        trainer_ready=0
-        for i in $(seq 1 30); do
-          if curl --noproxy "*" -fsS http://127.0.0.1:8082/ >/dev/null 2>&1; then
-            echo "Trainer HTTP server is up on port 8082"
-            trainer_ready=1
-            break
-          fi
-          sleep 2
-        done
-        if [ "$trainer_ready" != "1" ]; then
-          echo "WARNING: Trainer HTTP server did not start on port 8082" >&2
-        fi
-
-        # Wait for nginx landing page on port 80 (Jelastic handles SSL at load balancer)
+        # Wait for nginx on port 80 (proxies to code-server)
         nginx_ready=0
         for i in $(seq 1 30); do
-          page=$(curl --noproxy "*" -fsS http://127.0.0.1:80/ 2>/dev/null || true)
-          if [ -n "$page" ] && echo "$page" | grep -q "Constructor Fabric"; then
-            echo "Nginx landing page is up on port 80"
+          if curl --noproxy "*" -fsS http://127.0.0.1:80/ >/dev/null 2>&1; then
+            echo "Nginx is up on port 80"
             nginx_ready=1
             break
           fi
           sleep 2
         done
         if [ "$nginx_ready" != "1" ]; then
-          echo "Nginx landing page did not start on port 80" >&2
+          echo "Nginx did not start on port 80" >&2
           $(command -v nginx || echo /usr/sbin/nginx) -t >&2 || true
-          cat /var/log/nginx/error.log >&2 2>/dev/null | tail -20 || true
-          exit 1
-        fi
-
-        # Verify landing page has codium and trainer iframes
-        if echo "$page" | grep -q 'iframe.*id="codium"'; then
-          echo "Landing page has codium iframe"
-        else
-          echo "Landing page missing codium iframe" >&2
-          exit 1
-        fi
-        if echo "$page" | grep -q 'iframe.*id="trainer"'; then
-          echo "Landing page has trainer iframe"
-        else
-          echo "Landing page missing trainer iframe" >&2
-          exit 1
-        fi
-
-        # Verify nginx proxies work
-        if curl --noproxy "*" -fsS http://127.0.0.1:80/ide/ >/dev/null 2>&1; then
-          echo "/ide/ proxy works"
-        else
-          echo "/ide/ proxy failed" >&2
           exit 1
         fi
 
@@ -640,9 +485,7 @@ success: |
 
   [Open Constructor Fabric](https://${env.domain}/)
 
-  The landing page has two tabs:
-  - **Code** — VS Code in browser (code-server) with GitHub Copilot
-  - **Trainer** — Constructor Fabric trainer interface
+  VS Code in browser (code-server) opens automatically with the Trainer as the welcome page.
 
   No token is required — code-server is served without authentication.
 
