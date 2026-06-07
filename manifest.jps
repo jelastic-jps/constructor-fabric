@@ -325,6 +325,25 @@ actions:
         COPILOTINST
         chown -R developer:developer "$CS_WORKSPACE/.github"
 
+        # Download trainer HTML for code-server welcome page
+        TRAINER_HTML="$CS_WORKSPACE/.trainer-welcome.html"
+        curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/trainer/index.html" -o "$TRAINER_HTML" 2>/dev/null || true
+        chown developer:developer "$TRAINER_HTML" 2>/dev/null || true
+
+        # Patch code-server product.json to show trainer as welcome page
+        PRODUCT_JSON="$(find /usr/lib/code-server /usr/share/code-server -name product.json -path '*/vscode/*' 2>/dev/null | head -1)"
+        if [ -n "$PRODUCT_JSON" ] && [ -f "$PRODUCT_JSON" ]; then
+          python3 -c "
+          import json
+          from pathlib import Path
+          p = Path('$PRODUCT_JSON')
+          data = json.loads(p.read_text())
+          data['welcomePage'] = '$TRAINER_HTML'
+          p.write_text(json.dumps(data, indent=2))
+          print('product.json welcomePage set to trainer')
+          "
+        fi
+
         # Start code-server as developer
         sudo -u developer -H /bin/sh -c "code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry $CS_WORKSPACE > /home/developer/code-server.log 2>&1 &"
 
