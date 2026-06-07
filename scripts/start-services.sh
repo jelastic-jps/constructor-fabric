@@ -257,6 +257,12 @@ auth: none
 cert: false
 CSSERVER
 
+  # Install Continue extension (uses API tokens from ~/.continue/config.yaml)
+  if ! code-server --list-extensions 2>/dev/null | grep -qi 'Continue.continue'; then
+    echo "Installing Continue extension for code-server..."
+    sudo -u developer -H code-server --install-extension Continue.continue 2>/dev/null || echo "Continue install failed"
+  fi
+
   # Install Copilot extension from VSIX (not available on open-vsx)
   if ! code-server --list-extensions 2>/dev/null | grep -qi 'github.copilot'; then
     echo "Installing GitHub Copilot extension for code-server..."
