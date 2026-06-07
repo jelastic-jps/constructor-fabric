@@ -289,6 +289,26 @@ CSSERVER
 
   chown -R developer:developer "${HOME}/.config/code-server" "${HOME}/.local/share/code-server" 2>/dev/null || true
 
+  # Download trainer HTML and patch code-server welcome page
+  TRAINER_HTML="${CS_WORKSPACE}/.trainer-welcome.html"
+  if [ ! -f "$TRAINER_HTML" ]; then
+    curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/trainer/index.html" -o "$TRAINER_HTML" 2>/dev/null || true
+    chown developer:developer "$TRAINER_HTML" 2>/dev/null || true
+  fi
+  # Patch product.json to show trainer as welcome page
+  PRODUCT_JSON="$(find /usr/lib/code-server /usr/share/code-server -name product.json -path '*/vscode/*' 2>/dev/null | head -1)"
+  if [ -n "$PRODUCT_JSON" ] && [ -f "$PRODUCT_JSON" ]; then
+    python3 -c "
+    import json
+    from pathlib import Path
+    p = Path('$PRODUCT_JSON')
+    data = json.loads(p.read_text())
+    data['welcomePage'] = '$TRAINER_HTML'
+    p.write_text(json.dumps(data, indent=2))
+    print('product.json welcomePage set to trainer')
+    " 2>/dev/null || true
+  fi
+
   # Create supervisor config for code-server
   sudo tee /etc/supervisor/conf.d/code-server.conf > /dev/null <<SUPERVISOR
 [program:code-server]
