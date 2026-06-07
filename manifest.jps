@@ -351,8 +351,8 @@ actions:
         <div class="header">
           <h1>Constructor Fabric</h1>
           <div class="tabs">
-            <div class="tab active" data-frame="codium">Code</div>
-            <div class="tab" data-frame="trainer">Trainer</div>
+            <div class="tab" data-frame="codium">Code</div>
+            <div class="tab active" data-frame="trainer">Trainer</div>
           </div>
           <div class="status">
             <span class="dot wait" id="codium-status"></span>
@@ -360,8 +360,8 @@ actions:
           </div>
         </div>
         <div class="frames">
-          <iframe id="codium" class="active" src="/ide/"></iframe>
-          <iframe id="trainer" src="/trainer/"></iframe>
+          <iframe id="codium" src="/ide/"></iframe>
+          <iframe id="trainer" class="active" src="/trainer/"></iframe>
         </div>
         <script>
         document.querySelectorAll('.tab').forEach(tab => {
