@@ -75,6 +75,13 @@ RUN mkdir -p /home/developer/cfc-build /home/developer/cyber-constructor /home/d
     && rm -rf /home/developer/cfc-build \
     && chown -R developer:developer /home/developer/cyber-constructor /home/developer/.cf-constructor
 
+# Install code-server
+RUN CS_VER="4.123.0" \
+    && curl --noproxy '*' -fsSL "https://github.com/coder/code-server/releases/download/v${CS_VER}/code-server_${CS_VER}_amd64.deb" -o /tmp/code-server.deb \
+    && dpkg -i /tmp/code-server.deb \
+    && rm -f /tmp/code-server.deb \
+    && code-server --version
+
 # Create constructor-fabric directories under developer home
 RUN mkdir -p /home/developer/constructor-fabric/app /home/developer/constructor-fabric/data /home/developer/.config/autostart /home/developer/Desktop /home/developer/.config/lxpanel/LXDE/panels /home/developer/.config/libfm /home/developer/.config/pcmanfm/LXDE /tmp/.X11-unix \
     && chmod 1777 /tmp/.X11-unix || true
