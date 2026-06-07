@@ -75,11 +75,8 @@ RUN mkdir -p /home/developer/cfc-build /home/developer/cyber-constructor /home/d
     && rm -rf /home/developer/cfc-build \
     && chown -R developer:developer /home/developer/cyber-constructor /home/developer/.cf-constructor
 
-# Install code-server
-RUN CS_VER="4.123.0" \
-    && curl --noproxy '*' -fsSL "https://github.com/coder/code-server/releases/download/v${CS_VER}/code-server_${CS_VER}_amd64.deb" -o /tmp/code-server.deb \
-    && dpkg -i /tmp/code-server.deb \
-    && rm -f /tmp/code-server.deb \
+# Install code-server via npm (avoids libc++ dependency issues on focal)
+RUN /opt/node-current/bin/npm install -g code-server \
     && code-server --version
 
 # Create constructor-fabric directories under developer home
