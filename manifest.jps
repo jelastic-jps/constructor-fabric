@@ -13,9 +13,6 @@ description:
   text: Lets AI define, build, and run software end to end with a plain browser code-server workspace and built-in trainer.
   short: Constructor Fabric
 
-targetRegions:
-  type: vz7
-
 ssl: true
 skipNodeEmails: true
 
