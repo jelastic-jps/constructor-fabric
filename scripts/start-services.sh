@@ -347,11 +347,29 @@ fi
 
 # --- Apply supervisor configs ---
 if command -v supervisorctl >/dev/null 2>&1; then
-  # Restart supervisord to pick up all new configs cleanly
-  # (reread fails when old configs reference removed programs like x11vnc)
-  sudo supervisorctl shutdown 2>/dev/null || true
-  sleep 1
-  sudo supervisord -c /etc/supervisor/supervisord.conf 2>/dev/null || sudo supervisord 2>/dev/null || true
+  # Clean ALL x11vnc/novnc/websockify references from supervisor configs
+  for f in /etc/supervisor/conf.d/*.conf; do
+    [ -f "$f" ] || continue
+    sudo sed -i '/x11vnc/d' "$f" 2>/dev/null || true
+    sudo sed -i '/novnc/d' "$f" 2>/dev/null || true
+    sudo sed -i '/websockify/d' "$f" 2>/dev/null || true
+  done
+  # Remove empty program blocks
+  for f in /etc/supervisor/conf.d/*.conf; do
+    [ -f "$f" ] || continue
+    sudo python3 -c "
+    import re
+    from pathlib import Path
+    p = Path('$f')
+    text = p.read_text()
+    # Remove program blocks that have no command= line
+    text = re.sub(r'\[program:[^\]]+\]\n(?:(?!command=).)*\n*', '', text)
+    p.write_text(text)
+    " 2>/dev/null || true
+  done
+  # Reload supervisor
+  sudo supervisorctl reread 2>/dev/null || true
+  sudo supervisorctl update 2>/dev/null || true
   sleep 5
   sudo supervisorctl status 2>/dev/null || true
 fi
