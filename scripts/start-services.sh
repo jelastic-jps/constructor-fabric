@@ -141,10 +141,15 @@ install_code_server_vsix() {
   vsix="/tmp/${ext}.vsix"
   mkdir -p "$ext_dir"
   rm -f "${HOME}/.local/share/code-server/extensions/.obsolete" 2>/dev/null || true
-  if code-server --list-extensions --extensions-dir "$ext_dir" 2>/dev/null | grep -qi "^${id}$"; then
-    echo "${id} already installed"
+  expected_dir="${ext_dir}/$(printf '%s' "$id" | tr '[:upper:]' '[:lower:]')-${version}"
+  if [ -d "$expected_dir" ]; then
+    echo "${id}@${version} already installed"
     return 0
   fi
+  # The Docker image can contain an older baked extension version. code-server
+  # --list-extensions only reports the id, not the version, so remove old copies
+  # before installing the pinned compatible version.
+  find "$ext_dir" -maxdepth 1 -type d -iname "${id}-*" ! -path "$expected_dir" -print -exec rm -rf {} + 2>/dev/null || true
   echo "Installing ${id}@${version} for code-server"
   curl --noproxy '*' -fL -H 'Accept: application/octet-stream' -H 'User-Agent: Mozilla/5.0' \
     "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/${publisher}/vsextensions/${ext}/${version}/vspackage" \
