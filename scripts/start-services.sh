@@ -92,8 +92,48 @@ if os.environ.get("ANTHROPIC_API_KEY"):
 if os.environ.get("API_TOKEN"):
     env["API_TOKEN"] = os.environ["API_TOKEN"]
 data["terminal.integrated.env.linux"] = env
+data["github.copilot.enable"] = {"*": True, "plaintext": True, "markdown": True, "scminput": True}
+data["github.copilot.editor.enableAutoCompletions"] = True
+data["chat.commandCenter.enabled"] = True
+data["workbench.commandPalette.experimental.askChatLocation"] = "chatView"
 p.write_text(json.dumps(data, indent=2) + "\n")
 PYSETTINGS
+
+install_code_server_vsix() {
+  publisher="$1"
+  ext="$2"
+  version="$3"
+  id="${publisher}.${ext}"
+  ext_dir="${HOME}/.local/share/code-server/extensions"
+  vsix="/tmp/${ext}.vsix"
+  if code-server --list-extensions --extensions-dir "$ext_dir" 2>/dev/null | grep -qi "^${id}$"; then
+    echo "${id} already installed"
+    return 0
+  fi
+  echo "Installing ${id}@${version} for code-server"
+  curl --noproxy '*' -fL -H 'Accept: application/octet-stream' -H 'User-Agent: Mozilla/5.0' \
+    "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/${publisher}/vsextensions/${ext}/${version}/vspackage" \
+    -o "$vsix"
+  python3 - "$vsix" <<'PYVSIX'
+import gzip, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+b = p.read_bytes()
+if b.startswith(b'\x1f\x8b'):
+    p.write_bytes(gzip.decompress(b))
+    b = p.read_bytes()
+if not b.startswith(b'PK'):
+    raise SystemExit(f'{p} is not a VSIX/zip payload')
+PYVSIX
+  code-server --install-extension "$vsix" --force --extensions-dir "$ext_dir"
+  rm -f "$vsix"
+}
+
+# Install GitHub Copilot + Copilot Chat into code-server. The latest Chat VSIX
+# currently targets a newer VS Code engine than code-server 4.104.2, so pin the
+# compatible 0.31.0 chat extension while keeping core Copilot latest.
+install_code_server_vsix GitHub copilot latest || echo "GitHub Copilot install failed; continuing"
+install_code_server_vsix GitHub copilot-chat 0.31.0 || echo "GitHub Copilot Chat install failed; continuing"
 
 TRAINER_WELCOME_DIR="${CS_WORKSPACE}/.constructor-fabric-trainer"
 TRAINER_HTML="${TRAINER_WELCOME_DIR}/index.html"
