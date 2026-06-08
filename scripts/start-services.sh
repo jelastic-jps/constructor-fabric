@@ -98,6 +98,8 @@ data["workbench.tips.enabled"] = False
 data["update.mode"] = "none"
 data["extensions.autoCheckUpdates"] = False
 data["extensions.autoUpdate"] = False
+data["github.copilot.enable"] = {"*": True, "plaintext": True, "markdown": True, "scminput": True}
+data["github.copilot.editor.enableAutoCompletions"] = True
 p.write_text(json.dumps(data, indent=2) + "\n")
 PYSETTINGS
 
@@ -131,14 +133,14 @@ PYVSIX
   rm -f "$vsix"
 }
 
-# Constructor Fabric is configured with OpenAI/Claude API tokens from the install
-# form. Do not install GitHub Copilot: it requires an interactive GitHub login in
-# code-server, can steal the startup screen, and its current Chat VSIX is not
-# compatible with this code-server build.
-rm -rf "${HOME}/.local/share/code-server/extensions/github.copilot"* \
-       "${HOME}/.local/share/code-server/extensions/GitHub.copilot"* \
-       "${HOME}/.local/share/code-server/User/globalStorage/github.copilot"* \
-       "${HOME}/.local/share/code-server/User/globalStorage/GitHub.copilot"* \
+# GitHub Copilot core works in code-server. The broken part is Copilot Chat:
+# current Chat VSIX versions request VS Code proposed APIs that are not present
+# in code-server 4.104.2, so keep Copilot autocomplete and remove Chat only.
+install_code_server_vsix GitHub copilot latest || echo "GitHub Copilot install failed; continuing"
+rm -rf "${HOME}/.local/share/code-server/extensions/github.copilot-chat"* \
+       "${HOME}/.local/share/code-server/extensions/GitHub.copilot-chat"* \
+       "${HOME}/.local/share/code-server/User/globalStorage/github.copilot-chat"* \
+       "${HOME}/.local/share/code-server/User/globalStorage/GitHub.copilot-chat"* \
        2>/dev/null || true
 rm -f "${HOME}/.local/share/code-server/extensions/.obsolete" 2>/dev/null || true
 
@@ -242,7 +244,7 @@ chown -R developer:developer "$HOME" 2>/dev/null || true
 
 sudo tee /etc/supervisor/conf.d/code-server.conf >/dev/null <<SUPERVISOR
 [program:code-server]
-command=/usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry --disable-extension GitHub.copilot --disable-extension GitHub.copilot-chat ${CS_WORKSPACE}
+command=/usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry --disable-extension GitHub.copilot-chat ${CS_WORKSPACE}
 user=developer
 directory=${CS_WORKSPACE}
 environment=HOME="${HOME}",USER="developer",PATH="/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin",LLM_PROVIDER="${LLM_PROVIDER:-openai}",API_TOKEN="${API_TOKEN:-}",OPENAI_API_KEY="${OPENAI_API_KEY:-}",ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}",OPENAI_MODEL="${OPENAI_MODEL:-gpt-5.5}",CLAUDE_MODEL="${CLAUDE_MODEL:-claude-sonnet-4-6}"
