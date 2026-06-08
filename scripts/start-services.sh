@@ -105,6 +105,33 @@ data["workbench.commandPalette.experimental.askChatLocation"] = "chatView"
 p.write_text(json.dumps(data, indent=2) + "\n")
 PYSETTINGS
 
+patch_code_server_navigator_guard() {
+  target="/usr/local/lib/vscode/out/vs/workbench/api/node/extensionHostProcess.js"
+  [ -f "$target" ] || return 0
+  if grep -q 'value:globalThis.navigator' "$target" 2>/dev/null; then
+    echo "code-server navigator guard already patched"
+    return 0
+  fi
+  tmp="/tmp/extensionHostProcess.js.$$"
+  python3 - "$target" "$tmp" <<'PYNAV'
+from pathlib import Path
+import sys
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+s = src.read_text()
+old = 'zh.supportGlobalNavigator||Object.defineProperty(globalThis,"navigator",{get:()=>{td(new p1("navigator is now a global in nodejs, please see https://aka.ms/vscode-extensions/navigator for additional info on this error."))}});'
+new = 'zh.supportGlobalNavigator||Object.defineProperty(globalThis,"navigator",{value:globalThis.navigator||{userAgent:"Node.js",language:"en-US",languages:["en-US"],platform:"Linux"},configurable:!0});'
+if old not in s:
+    raise SystemExit("code-server navigator guard pattern not found")
+dst.write_text(s.replace(old, new, 1))
+print("patched code-server navigator guard for Copilot Chat")
+PYNAV
+  sudo cp "$tmp" "$target"
+  rm -f "$tmp"
+}
+
+patch_code_server_navigator_guard
+
 install_code_server_vsix() {
   publisher="$1"
   ext="$2"
@@ -141,7 +168,7 @@ PYVSIX
 # Do not use the VS Code desktop-only --disable-extension flag; code-server 4.104.2
 # rejects it and that was the direct cause of the failed install.
 install_code_server_vsix GitHub copilot latest || echo "GitHub Copilot install failed; continuing"
-install_code_server_vsix GitHub copilot-chat 0.26.7 || echo "GitHub Copilot Chat install failed; continuing"
+install_code_server_vsix GitHub copilot-chat 0.31.1 || echo "GitHub Copilot Chat install failed; continuing"
 
 TRAINER_WELCOME_DIR="${CS_WORKSPACE}/.constructor-fabric-trainer"
 TRAINER_HTML="${TRAINER_WELCOME_DIR}/index.html"
