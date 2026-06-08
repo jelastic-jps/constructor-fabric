@@ -186,21 +186,9 @@ function deactivate() {}
 module.exports = { activate, deactivate };
 JS
 
-PRODUCT_JSON="$(find /usr/local /usr/lib/code-server /usr/share/code-server /opt/node-current -name product.json -path '*/vscode/*' 2>/dev/null | head -1)"
-if [ -n "$PRODUCT_JSON" ] && [ -f "$PRODUCT_JSON" ]; then
-  python3 - "$PRODUCT_JSON" "$TRAINER_HTML" <<'PY'
-import json, sys
-from pathlib import Path
-p = Path(sys.argv[1])
-trainer = Path(sys.argv[2]).as_posix()
-data = json.loads(p.read_text())
-data["welcomePage"] = trainer
-data["workbenchColorTheme"] = "Default Dark Modern"
-p.write_text(json.dumps(data, indent=2) + "\n")
-print(f"product.json welcomePage set to {trainer}")
-PY
-fi
-
+# Do not patch code-server's root-owned product.json. The trainer is opened by
+# the local Webview extension above; product.json welcomePage is unreliable for
+# arbitrary local trainer HTML and fails on fresh installs when run as developer.
 chown -R developer:developer "$HOME" 2>/dev/null || true
 
 sudo tee /etc/supervisor/conf.d/code-server.conf >/dev/null <<SUPERVISOR
