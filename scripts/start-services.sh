@@ -98,49 +98,17 @@ data["workbench.tips.enabled"] = False
 data["update.mode"] = "none"
 data["extensions.autoCheckUpdates"] = False
 data["extensions.autoUpdate"] = False
-data["github.copilot.enable"] = {"*": True, "plaintext": True, "markdown": True, "scminput": True}
-data["github.copilot.editor.enableAutoCompletions"] = True
 p.write_text(json.dumps(data, indent=2) + "\n")
 PYSETTINGS
 
-install_code_server_vsix() {
-  publisher="$1"
-  ext="$2"
-  version="$3"
-  id="${publisher}.${ext}"
-  ext_dir="${HOME}/.local/share/code-server/extensions"
-  vsix="/tmp/${ext}.vsix"
-  if code-server --list-extensions --extensions-dir "$ext_dir" 2>/dev/null | grep -qi "^${id}$"; then
-    echo "${id} already installed"
-    return 0
-  fi
-  echo "Installing ${id}@${version} for code-server"
-  curl --noproxy '*' -fL -H 'Accept: application/octet-stream' -H 'User-Agent: Mozilla/5.0' \
-    "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/${publisher}/vsextensions/${ext}/${version}/vspackage" \
-    -o "$vsix"
-  python3 - "$vsix" <<'PYVSIX'
-import gzip, sys
-from pathlib import Path
-p = Path(sys.argv[1])
-b = p.read_bytes()
-if b.startswith(b'\x1f\x8b'):
-    p.write_bytes(gzip.decompress(b))
-    b = p.read_bytes()
-if not b.startswith(b'PK'):
-    raise SystemExit(f'{p} is not a VSIX/zip payload')
-PYVSIX
-  code-server --install-extension "$vsix" --force --extensions-dir "$ext_dir"
-  rm -f "$vsix"
-}
-
-# GitHub Copilot core works in code-server. The broken part is Copilot Chat:
-# current Chat VSIX versions request VS Code proposed APIs that are not present
-# in code-server 4.104.2, so keep Copilot autocomplete and remove Chat only.
-install_code_server_vsix GitHub copilot latest || echo "GitHub Copilot install failed; continuing"
-rm -rf "${HOME}/.local/share/code-server/extensions/github.copilot-chat"* \
-       "${HOME}/.local/share/code-server/extensions/GitHub.copilot-chat"* \
-       "${HOME}/.local/share/code-server/User/globalStorage/github.copilot-chat"* \
-       "${HOME}/.local/share/code-server/User/globalStorage/GitHub.copilot-chat"* \
+# Do not install or launch GitHub Copilot/Copilot Chat in this flow.
+# OpenAI/Claude credentials are provided as API tokens for Constructor Fabric,
+# not as GitHub Copilot authentication, and code-server 4.104.2 does not accept
+# the VS Code desktop-only --disable-extension flag used by earlier attempts.
+rm -rf "${HOME}/.local/share/code-server/extensions/github.copilot"* \
+       "${HOME}/.local/share/code-server/extensions/GitHub.copilot"* \
+       "${HOME}/.local/share/code-server/User/globalStorage/github.copilot"* \
+       "${HOME}/.local/share/code-server/User/globalStorage/GitHub.copilot"* \
        2>/dev/null || true
 rm -f "${HOME}/.local/share/code-server/extensions/.obsolete" 2>/dev/null || true
 
@@ -244,7 +212,7 @@ chown -R developer:developer "$HOME" 2>/dev/null || true
 
 sudo tee /etc/supervisor/conf.d/code-server.conf >/dev/null <<SUPERVISOR
 [program:code-server]
-command=/usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry --disable-extension GitHub.copilot-chat ${CS_WORKSPACE}
+command=/usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry ${CS_WORKSPACE}
 user=developer
 directory=${CS_WORKSPACE}
 environment=HOME="${HOME}",USER="developer",PATH="/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin",LLM_PROVIDER="${LLM_PROVIDER:-openai}",API_TOKEN="${API_TOKEN:-}",OPENAI_API_KEY="${OPENAI_API_KEY:-}",ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}",OPENAI_MODEL="${OPENAI_MODEL:-gpt-5.5}",CLAUDE_MODEL="${CLAUDE_MODEL:-claude-sonnet-4-6}"
