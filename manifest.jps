@@ -20,7 +20,7 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: code-server-plain-20260608-2
+  SCRIPT_VERSION: code-server-plain-20260608-3
   CF_SOURCE_REF: main
 
 settings:
@@ -115,6 +115,12 @@ actions:
         install -d -m 0755 /etc/sudoers.d
         printf '%s\n' 'developer ALL=(ALL) NOPASSWD:ALL' >/etc/sudoers.d/developer
         chmod 0440 /etc/sudoers.d/developer
+
+        if ! command -v nginx >/dev/null 2>&1; then
+          echo "Installing nginx..."
+          apt-get update
+          apt-get install -y --no-install-recommends nginx
+        fi
 
         if ! command -v code-server >/dev/null 2>&1; then
           echo "Installing code-server..."
