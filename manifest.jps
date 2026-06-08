@@ -20,7 +20,7 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: code-server-only-20260608-7
+  SCRIPT_VERSION: code-server-only-20260608-8
   CF_SOURCE_REF: main
 
 settings:
@@ -181,15 +181,15 @@ actions:
         assert data.get('workbench.colorTheme') == 'Default Dark Modern'
         assert data.get('workbench.startupEditor') == 'none'
         assert data.get('window.restoreWindows') == 'none'
-        assert data.get('github.copilot.editor.enableAutoCompletions') is True
+        terminal_env = data.get('terminal.integrated.env.linux', {})
+        assert terminal_env.get('LLM_PROVIDER') in ('openai', 'claude'), terminal_env
         extensions = Path('/home/developer/.local/share/code-server/extensions')
-        names = {p.name.lower() for p in extensions.iterdir() if p.is_dir()}
-        assert any(name.startswith('github.copilot-') or name == 'github.copilot' for name in names), names
-        assert not any('copilot-chat' in name for name in names), names
+        names = {p.name.lower() for p in extensions.iterdir() if p.is_dir()} if extensions.exists() else set()
+        assert not any(name.startswith('github.copilot') or 'copilot-chat' in name for name in names), names
         trainer = Path('/home/developer/workspaces/constructor-fabric-workspace/.constructor-fabric-trainer/index.html')
         assert trainer.exists() and trainer.stat().st_size > 100, trainer
         assert Path('/home/developer/.constructor-fabric-ai.env').exists()
-        print('code-server trainer webview extension and dark theme are configured')
+        print('code-server trainer webview extension, provider env, and dark theme are configured')
         PYCHECK
 
         cd /home/developer/cyber-constructor
