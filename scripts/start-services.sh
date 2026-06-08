@@ -155,7 +155,11 @@ if [ ! -f "$TRAINER_HTML" ]; then
 HTML
 fi
 
-TRAINER_EXTENSION_DIR="${HOME}/.local/share/code-server/extensions/constructor-fabric-trainer"
+EXTENSIONS_DIR="${HOME}/.local/share/code-server/extensions"
+TRAINER_EXTENSION_ID="constructor-fabric.constructor-fabric-trainer"
+TRAINER_EXTENSION_VERSION="1.0.0"
+TRAINER_EXTENSION_DIR="${EXTENSIONS_DIR}/${TRAINER_EXTENSION_ID}-${TRAINER_EXTENSION_VERSION}"
+rm -rf "${EXTENSIONS_DIR}/constructor-fabric-trainer" "${TRAINER_EXTENSION_DIR}"
 mkdir -p "$TRAINER_EXTENSION_DIR"
 cat > "$TRAINER_EXTENSION_DIR/package.json" <<'JSON'
 {
@@ -235,6 +239,42 @@ function activate(context) {
 function deactivate() {}
 module.exports = { activate, deactivate };
 JS
+
+# Register the local trainer extension in code-server's user extension registry.
+# A bare directory with package.json is not reliably discovered after Marketplace
+# installs rewrite extensions.json; registration makes startup activation stable.
+python3 - "$EXTENSIONS_DIR" "$TRAINER_EXTENSION_DIR" "$TRAINER_EXTENSION_ID" "$TRAINER_EXTENSION_VERSION" <<'PYEXTREG'
+import json, sys
+from pathlib import Path
+extensions_dir = Path(sys.argv[1])
+extension_dir = Path(sys.argv[2])
+extension_id = sys.argv[3]
+version = sys.argv[4]
+extensions_dir.mkdir(parents=True, exist_ok=True)
+registry = extensions_dir / 'extensions.json'
+try:
+    data = json.loads(registry.read_text()) if registry.exists() else []
+except Exception:
+    data = []
+data = [e for e in data if (e.get('identifier') or {}).get('id') != extension_id and e.get('identifier', {}).get('value') != extension_id]
+data.append({
+    'identifier': {'id': extension_id, 'uuid': extension_id},
+    'version': version,
+    'location': {'$mid': 1, 'path': str(extension_dir), 'scheme': 'file'},
+    'relativeLocation': extension_dir.name,
+    'metadata': {
+        'id': extension_id,
+        'publisherId': 'constructor-fabric',
+        'publisherDisplayName': 'Constructor Fabric',
+        'installedTimestamp': 0,
+        'isPreReleaseVersion': False
+    },
+    'targetPlatform': 'undefined',
+    'isBuiltin': False
+})
+registry.write_text(json.dumps(data, indent=2) + '\n')
+print(f'registered {extension_id} at {extension_dir}')
+PYEXTREG
 
 # Do not patch code-server's root-owned product.json. The trainer is opened by
 # the local Webview extension above; product.json welcomePage is unreliable for
