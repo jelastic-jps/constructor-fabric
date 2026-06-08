@@ -26,7 +26,7 @@ globals:
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
   SCRIPT_VERSION: cs-v1-20260609
-  CF_SOURCE_REF: ca7e0e728989b94c218777dff71b300ef1ea1f87
+  CF_SOURCE_REF: 0f8806c5a9204b61ae68fbd5a4aea543d959980e
 
 settings:
   fields:
@@ -99,7 +99,7 @@ nodes:
       JELASTIC_EXPOSE: 80
       JELASTIC_PORTS: 80
       SCRIPT_VERSION: ${globals.SCRIPT_VERSION}
-      CF_SOURCE_REF: fccc0d28344da09c790f1f32093810b0dabef161
+      CF_SOURCE_REF: 0f8806c5a9204b61ae68fbd5a4aea543d959980e
 
 onInstall:
   - bootstrap
