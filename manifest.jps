@@ -209,22 +209,28 @@ actions:
         echo "=== All checks passed ==="
 
 success: |
-  ### Constructor Fabric is ready
+  <h3>Constructor Fabric is ready</h3>
 
-  Open Constructor Fabric from the environment endpoint for port 8080.
+  <h4>ACCESS</h4>
+  <p>
+    Open Constructor Fabric:<br>
+    <a href="http://${env.domain}:8080/" target="_blank">http://${env.domain}:8080/</a>
+  </p>
 
-  The environment runs plain coder code-server directly on port 8080. The trainer is opened inside code-server by a local startup Webview extension; no trainer service is started.
-  The Constructor Fabric trainer is rendered inside code-server, and code-server is configured with the dark theme.
+  <h4>WHAT YOU WILL SEE</h4>
+  <p>
+    The environment runs plain coder code-server directly on port 8080. The Constructor Fabric trainer opens inside code-server through a local startup Webview extension.
+  </p>
+  <p>
+    Only code-server is started for the web interface. There is no nginx proxy, no separate trainer HTTP service, and no desktop sidecar.
+  </p>
 
-  Only code-server is started for the web interface. There is no nginx proxy, no separate trainer HTTP service, and no desktop sidecar.
-  Services run as the `developer` user. The install form stores the selected OpenAI/Claude token for Constructor Fabric automation.
+  <h4>WORKSPACE</h4>
+  <p><code>/home/developer/workspaces/constructor-fabric-workspace</code></p>
 
-  #### Workspace
-  `/home/developer/workspaces/constructor-fabric-workspace`
-
-  #### Install options used
-  | Setting | Value |
-  |---------|-------|
-  | LLM provider | `${settings.llm-provider}` |
-  | Model | `${settings.openai-model:}${settings.claude-model:}` |
-  | API Token | configured from install form when provided |
+  <h4>INSTALL OPTIONS USED</h4>
+  <table>
+    <tr><td>LLM provider</td><td><code>${settings.llm-provider}</code></td></tr>
+    <tr><td>Model</td><td><code>${settings.openai-model:}${settings.claude-model:}</code></td></tr>
+    <tr><td>API Token</td><td>configured from install form when provided</td></tr>
+  </table>
