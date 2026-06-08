@@ -65,7 +65,7 @@ settings:
       tooltip: API token for the selected provider. Use an OpenAI key for openai or an Anthropic/Claude key for claude.
 
 nodes:
-  - image: ihorman/constructor-fabric:20260608
+  - image: ihorman/constructor-fabric:0.5.1
     nodeType: docker
     displayName: Constructor Fabric
     cloudlets: 64
