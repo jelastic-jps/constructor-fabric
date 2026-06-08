@@ -51,7 +51,7 @@ ENV
   cat > "$CS_WORKSPACE/.vscode/settings.json" <<'VSCODE'
 {
   "workbench.colorTheme": "Default Dark Modern",
-  "workbench.startupEditor": "welcomePage",
+  "workbench.startupEditor": "none",
   "security.workspace.trust.enabled": false,
   "security.workspace.trust.startupPrompt": "never",
   "telemetry.telemetryLevel": "off"
@@ -69,7 +69,7 @@ CSSERVER
 cat > "${HOME}/.local/share/code-server/User/settings.json" <<'CSSETTINGS'
 {
   "workbench.colorTheme": "Default Dark Modern",
-  "workbench.startupEditor": "welcomePage",
+  "workbench.startupEditor": "none",
   "security.workspace.trust.enabled": false,
   "security.workspace.trust.startupPrompt": "never",
   "telemetry.telemetryLevel": "off"
@@ -103,9 +103,88 @@ if [ -d "$TRAINER_DIR" ]; then
 fi
 if [ ! -f "$TRAINER_HTML" ]; then
   cat > "$TRAINER_HTML" <<'HTML'
-<!doctype html><html><head><meta charset="utf-8"><title>Constructor Fabric Trainer</title><style>body{margin:0;background:#0f172a;color:#e5e7eb;font-family:system-ui,sans-serif;padding:32px}main{max-width:980px;margin:auto}h1{color:#fff}</style></head><body><main><h1>Constructor Fabric Trainer</h1><p>The trainer is rendered directly inside code-server as the welcome page. No separate trainer service is required.</p></main></body></html>
+<!doctype html><html><head><meta charset="utf-8"><title>Constructor Fabric Trainer</title><style>body{margin:0;background:#0f172a;color:#e5e7eb;font-family:system-ui,sans-serif;padding:32px}main{max-width:980px;margin:auto}h1{color:#fff}</style></head><body><main><h1>Constructor Fabric Trainer</h1><p>The trainer is rendered directly inside code-server. No separate trainer service is required.</p></main></body></html>
 HTML
 fi
+
+TRAINER_EXTENSION_DIR="${HOME}/.local/share/code-server/extensions/constructor-fabric-trainer"
+mkdir -p "$TRAINER_EXTENSION_DIR"
+cat > "$TRAINER_EXTENSION_DIR/package.json" <<'JSON'
+{
+  "name": "constructor-fabric-trainer",
+  "displayName": "Constructor Fabric Trainer",
+  "description": "Opens the Constructor Fabric trainer inside code-server on startup.",
+  "version": "1.0.0",
+  "publisher": "constructor-fabric",
+  "engines": { "vscode": "^1.104.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished", "onCommand:constructorFabric.openTrainer"],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "constructorFabric.openTrainer", "title": "Constructor Fabric: Open Trainer" }
+    ]
+  }
+}
+JSON
+cat > "$TRAINER_EXTENSION_DIR/extension.js" <<'JS'
+const vscode = require('vscode');
+const fs = require('fs');
+const path = require('path');
+
+let panel;
+
+function workspaceRoot() {
+  const folders = vscode.workspace.workspaceFolders;
+  if (folders && folders.length) return folders[0].uri.fsPath;
+  return '/home/developer/workspaces/constructor-fabric-workspace';
+}
+
+function trainerHtml(root) {
+  const candidates = [
+    path.join(root, '.constructor-fabric-trainer', 'index.html'),
+    path.join(root, '.trainer-welcome.html'),
+    '/home/developer/constructor-fabric/trainer/index.html'
+  ];
+  for (const file of candidates) {
+    if (fs.existsSync(file)) return { file, html: fs.readFileSync(file, 'utf8') };
+  }
+  return { file: null, html: '<!doctype html><h1>Constructor Fabric Trainer</h1><p>Trainer HTML was not found in this workspace.</p>' };
+}
+
+function openTrainer(context) {
+  const root = workspaceRoot();
+  const { file, html } = trainerHtml(root);
+  if (panel) {
+    panel.reveal(vscode.ViewColumn.One);
+  } else {
+    panel = vscode.window.createWebviewPanel(
+      'constructorFabricTrainer',
+      'Constructor Fabric Trainer',
+      vscode.ViewColumn.One,
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [
+          vscode.Uri.file(path.join(root, '.constructor-fabric-trainer')),
+          vscode.Uri.file('/home/developer/constructor-fabric/trainer')
+        ]
+      }
+    );
+    panel.onDidDispose(() => { panel = undefined; }, null, context.subscriptions);
+  }
+  panel.webview.html = html;
+  if (file) console.log(`Constructor Fabric trainer opened from ${file}`);
+}
+
+function activate(context) {
+  context.subscriptions.push(vscode.commands.registerCommand('constructorFabric.openTrainer', () => openTrainer(context)));
+  setTimeout(() => openTrainer(context), 1200);
+}
+
+function deactivate() {}
+module.exports = { activate, deactivate };
+JS
 
 PRODUCT_JSON="$(find /usr/local /usr/lib/code-server /usr/share/code-server /opt/node-current -name product.json -path '*/vscode/*' 2>/dev/null | head -1)"
 if [ -n "$PRODUCT_JSON" ] && [ -f "$PRODUCT_JSON" ]; then
@@ -150,4 +229,4 @@ if [ -x "${HOME}/cyber-constructor/auto-bootstrap.sh" ]; then
   fi
 fi
 
-echo "plain code-server configured with inline trainer welcome page"
+echo "plain code-server configured with inline trainer webview extension"
