@@ -191,6 +191,8 @@ actions:
         names = {p.name.lower() for p in extensions.iterdir() if p.is_dir()} if extensions.exists() else set()
         assert any(name.startswith('github.copilot-') or name == 'github.copilot' for name in names), names
         assert 'github.copilot-chat-0.31.1' in names, names
+        trainer_ext_js = (ext / 'extension.js').read_text()
+        assert 'workbench.action.chat.triggerSetupForceSignIn' in trainer_ext_js, 'Copilot sign-in bridge command is missing'
         code_server_host = Path('/usr/local/lib/vscode/out/vs/workbench/api/node/extensionHostProcess.js')
         assert 'value:globalThis.navigator' in code_server_host.read_text(), 'code-server navigator guard is not patched'
         supervisor_conf = Path('/etc/supervisor/conf.d/code-server.conf').read_text()

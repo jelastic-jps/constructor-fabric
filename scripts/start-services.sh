@@ -202,11 +202,17 @@ cat > "$TRAINER_EXTENSION_DIR/package.json" <<'JSON'
   "publisher": "constructor-fabric",
   "engines": { "vscode": "^1.104.0" },
   "categories": ["Other"],
-  "activationEvents": ["*", "onStartupFinished", "onCommand:constructorFabric.openTrainer"],
+  "activationEvents": [
+    "*",
+    "onStartupFinished",
+    "onCommand:constructorFabric.openTrainer",
+    "onCommand:workbench.action.chat.triggerSetupForceSignIn"
+  ],
   "main": "./extension.js",
   "contributes": {
     "commands": [
-      { "command": "constructorFabric.openTrainer", "title": "Constructor Fabric: Open Trainer" }
+      { "command": "constructorFabric.openTrainer", "title": "Constructor Fabric: Open Trainer" },
+      { "command": "workbench.action.chat.triggerSetupForceSignIn", "title": "Constructor Fabric: Sign in to Copilot" }
     ]
   }
 }
@@ -261,8 +267,31 @@ function openTrainer(context) {
   if (file) console.log(`Constructor Fabric trainer opened from ${file}`);
 }
 
+async function triggerCopilotSignIn() {
+  const commands = await vscode.commands.getCommands(true);
+  const candidates = [
+    'github.copilot.signIn',
+    'github.copilot.chat.signIn',
+    'github.copilot.interactiveSession.signIn'
+  ];
+  for (const command of candidates) {
+    if (commands.includes(command)) {
+      console.log(`Forwarding Copilot sign-in to ${command}`);
+      return vscode.commands.executeCommand(command);
+    }
+  }
+  try {
+    await vscode.authentication.getSession('github', ['user:email'], { createIfNone: true });
+    vscode.window.showInformationMessage('GitHub sign-in started. After completing auth, reopen Copilot Chat if it does not refresh automatically.');
+  } catch (error) {
+    vscode.window.showErrorMessage(`GitHub sign-in failed to start: ${error && error.message ? error.message : String(error)}`);
+    throw error;
+  }
+}
+
 function activate(context) {
   context.subscriptions.push(vscode.commands.registerCommand('constructorFabric.openTrainer', () => openTrainer(context)));
+  context.subscriptions.push(vscode.commands.registerCommand('workbench.action.chat.triggerSetupForceSignIn', triggerCopilotSignIn));
   openTrainer(context);
   setTimeout(() => openTrainer(context), 700);
   setTimeout(() => openTrainer(context), 2000);
