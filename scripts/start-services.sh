@@ -272,7 +272,8 @@ async function triggerCopilotSignIn() {
   const candidates = [
     'github.copilot.signIn',
     'github.copilot.chat.signIn',
-    'github.copilot.interactiveSession.signIn'
+    'github.copilot.interactiveSession.signIn',
+    'github.copilot.acceptDeviceCode'
   ];
   for (const command of candidates) {
     if (commands.includes(command)) {
@@ -281,10 +282,14 @@ async function triggerCopilotSignIn() {
     }
   }
   try {
-    await vscode.authentication.getSession('github', ['user:email'], { createIfNone: true });
-    vscode.window.showInformationMessage('GitHub sign-in started. After completing auth, reopen Copilot Chat if it does not refresh automatically.');
+    // Copilot Chat does not accept a minimal user:email GitHub session. It
+    // repeatedly logs GitHubLoginFailed when only user:email exists. Request
+    // the broader scopes that the GitHub auth extension checks for Copilot.
+    const scopes = ['read:user', 'repo', 'user:email', 'workflow'];
+    await vscode.authentication.getSession('github', scopes, { createIfNone: true });
+    vscode.window.showInformationMessage('GitHub Copilot sign-in started. Complete auth, then reload this browser tab if Copilot Chat does not refresh automatically.');
   } catch (error) {
-    vscode.window.showErrorMessage(`GitHub sign-in failed to start: ${error && error.message ? error.message : String(error)}`);
+    vscode.window.showErrorMessage(`GitHub Copilot sign-in failed to start: ${error && error.message ? error.message : String(error)}`);
     throw error;
   }
 }
