@@ -13,7 +13,7 @@ ENV TZ=Europe/Kyiv \
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl wget git gnupg xz-utils sudo passwd \
-      sudo passwd python3 python3-pip python3-venv \
+      python3 python3-pip python3-venv \
       nginx supervisor jq net-tools procps psmisc \
     && rm -rf /var/lib/apt/lists/*
 
