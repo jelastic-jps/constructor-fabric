@@ -20,7 +20,7 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: code-server-only-20260608-10
+  SCRIPT_VERSION: code-server-only-20260608-11
   CF_SOURCE_REF: main
 
 settings:
@@ -170,11 +170,13 @@ actions:
         python3 - <<'PYCHECK'
         import json
         from pathlib import Path
-        ext = Path('/home/developer/.local/share/code-server/extensions/constructor-fabric-trainer')
+        ext = Path('/home/developer/.local/share/code-server/extensions/constructor-fabric.constructor-fabric-trainer-1.0.0')
         assert (ext / 'package.json').exists(), ext
         assert (ext / 'extension.js').exists(), ext
         pkg = json.loads((ext / 'package.json').read_text())
         assert 'onStartupFinished' in pkg.get('activationEvents', []), pkg
+        registry = json.loads(Path('/home/developer/.local/share/code-server/extensions/extensions.json').read_text())
+        assert any((e.get('identifier') or {}).get('id') == 'constructor-fabric.constructor-fabric-trainer' for e in registry), registry
         settings = Path('/home/developer/.local/share/code-server/User/settings.json')
         assert settings.exists(), settings
         data = json.loads(settings.read_text())
