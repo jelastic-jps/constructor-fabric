@@ -20,7 +20,7 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: code-server-only-20260608-5
+  SCRIPT_VERSION: code-server-only-20260608-6
   CF_SOURCE_REF: main
 
 settings:
@@ -180,12 +180,10 @@ actions:
         data = json.loads(settings.read_text())
         assert data.get('workbench.colorTheme') == 'Default Dark Modern'
         assert data.get('workbench.startupEditor') == 'none'
-        assert data.get('github.copilot.editor.enableAutoCompletions') is True
-        assert data.get('chat.commandCenter.enabled') is True
+        assert data.get('window.restoreWindows') == 'none'
         extensions = Path('/home/developer/.local/share/code-server/extensions')
         names = {p.name.lower() for p in extensions.iterdir() if p.is_dir()}
-        assert any(name.startswith('github.copilot-') or name == 'github.copilot' for name in names), names
-        assert any(name.startswith('github.copilot-chat-') or name == 'github.copilot-chat' for name in names), names
+        assert not any('copilot' in name for name in names), names
         trainer = Path('/home/developer/workspaces/constructor-fabric-workspace/.constructor-fabric-trainer/index.html')
         assert trainer.exists() and trainer.stat().st_size > 100, trainer
         assert Path('/home/developer/.constructor-fabric-ai.env').exists()
@@ -214,7 +212,7 @@ success: |
   <h4>ACCESS</h4>
   <p>
     Open Constructor Fabric:<br>
-    <a href="http://${env.domain}:8080/" target="_blank">http://${env.domain}:8080/</a>
+    <a href="https://${env.domain}/" target="_blank">https://${env.domain}/</a>
   </p>
 
   <h4>WHAT YOU WILL SEE</h4>
