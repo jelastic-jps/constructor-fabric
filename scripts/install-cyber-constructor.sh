@@ -35,6 +35,12 @@ cat > "${HOME}/cyber-constructor/auto-bootstrap.sh" <<'CFCAUTO'
 set -euo pipefail
 export HOME="${HOME:-/home/developer}"
 export PATH="${HOME}/cyber-constructor/.venv/bin:${HOME}/.local/bin:/usr/local/bin:/opt/node-current/bin:$PATH"
+if [ -f "${HOME}/.constructor-fabric-ai.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "${HOME}/.constructor-fabric-ai.env"
+  set +a
+fi
 LOG="${HOME}/cyber-constructor/auto-bootstrap.log"
 exec >>"$LOG" 2>&1
 echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Constructor Fabric auto-bootstrap started"

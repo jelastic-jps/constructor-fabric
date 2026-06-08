@@ -23,7 +23,7 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: code-server-plain-20260609-1
+  SCRIPT_VERSION: code-server-plain-20260608-2
   CF_SOURCE_REF: main
 
 settings:
@@ -68,7 +68,7 @@ settings:
       tooltip: API token for the selected provider. Use an OpenAI key for openai or an Anthropic/Claude key for claude.
 
 nodes:
-  - image: ihorman/constructor-fabric:latest
+  - image: ihorman/constructor-fabric:20260608
     nodeType: docker
     displayName: Constructor Fabric
     cloudlets: 64
@@ -79,7 +79,7 @@ nodes:
     endpoints:
       - name: Constructor Fabric
         privatePort: 80
-        protocol: HTTP
+        protocol: TCP
     env:
       TZ: Europe/Kyiv
       USER: developer
@@ -114,29 +114,24 @@ actions:
 
         if ! id developer >/dev/null 2>&1; then
           useradd -m -u 1000 -s /bin/bash developer
-          echo "developer ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
         fi
+        install -d -m 0755 /etc/sudoers.d
+        printf '%s\n' 'developer ALL=(ALL) NOPASSWD:ALL' >/etc/sudoers.d/developer
+        chmod 0440 /etc/sudoers.d/developer
 
         if ! command -v code-server >/dev/null 2>&1; then
           echo "Installing code-server..."
-          if [ ! -x /opt/node-current/bin/npm ]; then
-            mkdir -p /opt
-            curl --noproxy '*' -fsSL https://nodejs.org/dist/v22.16.0/node-v22.16.0-linux-x64.tar.xz -o /tmp/node.tar.xz
-            rm -rf /opt/node-v22.16.0-linux-x64 /opt/node-current
-            tar -xJf /tmp/node.tar.xz -C /opt
-            ln -s /opt/node-v22.16.0-linux-x64 /opt/node-current
-            ln -sf /opt/node-current/bin/node /usr/local/bin/node
-            ln -sf /opt/node-current/bin/npm /usr/local/bin/npm
-            ln -sf /opt/node-current/bin/npx /usr/local/bin/npx
-            rm -f /tmp/node.tar.xz
-          fi
-          /opt/node-current/bin/npm install -g code-server
-          ln -sf /opt/node-current/bin/code-server /usr/local/bin/code-server
+          CODE_SERVER_VERSION=4.104.2
+          curl --noproxy '*' -fsSL "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server-${CODE_SERVER_VERSION}-linux-amd64.tar.gz" -o /tmp/code-server.tar.gz
+          tar -xzf /tmp/code-server.tar.gz --strip-components=1 -C /usr/local
+          rm -f /tmp/code-server.tar.gz
+          code-server --version
         fi
 
         mkdir -p /home/developer/constructor-fabric /home/developer/workspaces/constructor-fabric-workspace
         chown -R developer:developer /home/developer
 
+        umask 077
         cat >/home/developer/.constructor-fabric-ai.env <<ENV
         LLM_PROVIDER=${settings.llm-provider}
         API_TOKEN=${settings.api-token}
@@ -151,7 +146,7 @@ actions:
         curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/scripts/bootstrap.sh?v=${globals.SCRIPT_VERSION}" -o /tmp/constructor-fabric-bootstrap.sh
         chmod +x /tmp/constructor-fabric-bootstrap.sh
         chown developer:developer /tmp/constructor-fabric-bootstrap.sh
-        su - developer -c "/tmp/constructor-fabric-bootstrap.sh"
+        su developer -c "/tmp/constructor-fabric-bootstrap.sh"
 
         cat >/etc/nginx/sites-enabled/default <<'NGINX'
         server {
