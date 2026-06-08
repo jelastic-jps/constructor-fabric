@@ -107,7 +107,7 @@ if [ ! -f "$TRAINER_HTML" ]; then
 HTML
 fi
 
-PRODUCT_JSON="$(find /usr/lib/code-server /usr/share/code-server /opt/node-current -name product.json -path '*/vscode/*' 2>/dev/null | head -1)"
+PRODUCT_JSON="$(find /usr/local /usr/lib/code-server /usr/share/code-server /opt/node-current -name product.json -path '*/vscode/*' 2>/dev/null | head -1)"
 if [ -n "$PRODUCT_JSON" ] && [ -f "$PRODUCT_JSON" ]; then
   python3 - "$PRODUCT_JSON" "$TRAINER_HTML" <<'PY'
 import json, sys
@@ -138,34 +138,11 @@ stderr_logfile=${LOG_DIR}/code-server.log
 stdout_logfile_maxbytes=5MB
 SUPERVISOR
 
-if [ -f /etc/nginx/sites-enabled/default ]; then
-  sudo tee /etc/nginx/sites-enabled/default >/dev/null <<'NGINX'
-server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
-    server_name _;
-    auth_basic off;
-
-    location / {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-NGINX
-fi
 
 sudo supervisorctl reread 2>/dev/null || true
 sudo supervisorctl update 2>/dev/null || true
 sudo supervisorctl restart code-server 2>/dev/null || true
 
-NGINX_BIN="$(command -v nginx || echo /usr/sbin/nginx)"
-sudo "$NGINX_BIN" -t >"${LOG_DIR}/nginx-test.log" 2>&1 && (sudo "$NGINX_BIN" -s reload || sudo service nginx reload || sudo "$NGINX_BIN") >"${LOG_DIR}/nginx-reload.log" 2>&1 || true
 
 if [ -x "${HOME}/cyber-constructor/auto-bootstrap.sh" ]; then
   if ! pgrep -f "cyber-constructor/auto-bootstrap.sh" >/dev/null 2>&1; then
