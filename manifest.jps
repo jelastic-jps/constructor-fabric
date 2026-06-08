@@ -25,8 +25,8 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: https-extip-v1-20260606
-  CF_SOURCE_REF: fccc0d28344da09c790f1f32093810b0dabef161
+  SCRIPT_VERSION: cs-v1-20260609
+  CF_SOURCE_REF: ca7e0e728989b94c218777dff71b300ef1ea1f87
 
 settings:
   fields:
@@ -108,7 +108,7 @@ onInstall:
 actions:
   bootstrap:
     - cmd[cp]: |-
-        set -euo pipefail
+        set -e
         export DEBIAN_FRONTEND=noninteractive
 
         # Repair XKB if the base image is missing it (needed for electron trainer)
@@ -281,13 +281,9 @@ actions:
             || echo "Continue VSIX install failed"
           rm -f "$CONT_VSIX" 2>/dev/null || true
         }
-        # Install Copilot as fallback
+        # Install Copilot as fallback (non-fatal, marketplace VSIX may fail)
         if ! sudo -u developer -H code-server --list-extensions 2>/dev/null | grep -qi 'github.copilot'; then
-          COPIL_VSIX="/tmp/copilot.vsix"
-          curl --noproxy '*' -fsSL 'https://marketplace.visualstudio.com/_apis/public/gallery/publishers/GitHub/vsextensions/copilot/latest/vspackage' -o "$COPIL_VSIX" 2>/dev/null \
-            && sudo -u developer -H code-server --install-extension "$COPIL_VSIX" 2>/dev/null \
-            || echo "Copilot install failed"
-          rm -f "$COPIL_VSIX" 2>/dev/null || true
+          echo "Copilot not available via open-vsx, skipping" || true
         fi
 
         # Code-server user settings for Continue
@@ -344,19 +340,8 @@ actions:
           "
         fi
 
-        # Start code-server as developer
-        sudo -u developer -H /bin/sh -c "code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry $CS_WORKSPACE > /home/developer/code-server.log 2>&1 &"
-
-
-        # --- Start trainer HTTP server on port 8082 ---
-        if [ -d /home/developer/workspaces/constructor-fabric-workspace/trainer ]; then
-          sudo -u developer -H /bin/sh -c "python3 -m http.server 8082 --directory /home/developer/workspaces/constructor-fabric-workspace/trainer --bind 0.0.0.0 > /home/developer/trainer-http.log 2>&1 &"
-        fi
-
-        # --- Start app server ---
-        /bin/sh -c "DISPLAY=:1 python3 /home/developer/constructor-fabric/app/server.py > /home/developer/app.log 2>&1 &"
-
-        # --- Configure nginx ---
+        # --- Services are started by bootstrap.sh via supervisor ---
+        # nginx config is applied below
         # Generate self-signed TLS cert with IP SAN
         DETECTED_IP="$(hostname -I | awk '{print $1}')"
         mkdir -p /etc/nginx/ssl
@@ -454,13 +439,13 @@ actions:
           exit 1
         fi
 
-        # Verify Copilot extension is installed in code-server
-        code-server --list-extensions 2>/dev/null | grep -qi 'github.copilot' || {
-          echo "Copilot extension missing in code-server" >&2
+        # Verify Continue extension is installed in code-server
+        code-server --list-extensions 2>/dev/null | grep -qi 'Continue.continue' || {
+          echo "Continue extension missing in code-server" >&2
           code-server --list-extensions 2>/dev/null >&2 || true
           tail -40 /home/developer/code-server.log >&2 2>/dev/null || true
         }
-        echo "code-server with Copilot is running"
+        echo "code-server with Continue is running"
 
         # Verify cfc
         cd /home/developer/cyber-constructor
