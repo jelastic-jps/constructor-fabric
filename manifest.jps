@@ -190,7 +190,9 @@ actions:
         extensions = Path('/home/developer/.local/share/code-server/extensions')
         names = {p.name.lower() for p in extensions.iterdir() if p.is_dir()} if extensions.exists() else set()
         assert any(name.startswith('github.copilot-') or name == 'github.copilot' for name in names), names
-        assert any(name.startswith('github.copilot-chat-') or name == 'github.copilot-chat' for name in names), names
+        assert 'github.copilot-chat-0.31.1' in names, names
+        code_server_host = Path('/usr/local/lib/vscode/out/vs/workbench/api/node/extensionHostProcess.js')
+        assert 'value:globalThis.navigator' in code_server_host.read_text(), 'code-server navigator guard is not patched'
         supervisor_conf = Path('/etc/supervisor/conf.d/code-server.conf').read_text()
         assert '--enable-proposed-api GitHub.copilot-chat' in supervisor_conf, supervisor_conf
         trainer = Path('/home/developer/workspaces/constructor-fabric-workspace/.constructor-fabric-trainer/index.html')
