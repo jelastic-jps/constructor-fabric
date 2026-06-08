@@ -1,5 +1,5 @@
 type: install
-version: 0.5.0
+version: 0.5.1
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -20,7 +20,7 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: code-server-only-20260608-8
+  SCRIPT_VERSION: code-server-only-20260608-9
   CF_SOURCE_REF: main
 
 settings:
