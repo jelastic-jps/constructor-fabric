@@ -347,9 +347,12 @@ fi
 
 # --- Apply supervisor configs ---
 if command -v supervisorctl >/dev/null 2>&1; then
-  sudo supervisorctl reread 2>/dev/null || true
-  sudo supervisorctl update 2>/dev/null || true
-  sleep 3
+  # Restart supervisord to pick up all new configs cleanly
+  # (reread fails when old configs reference removed programs like x11vnc)
+  sudo supervisorctl shutdown 2>/dev/null || true
+  sleep 1
+  sudo supervisord -c /etc/supervisor/supervisord.conf 2>/dev/null || sudo supervisord 2>/dev/null || true
+  sleep 5
   sudo supervisorctl status 2>/dev/null || true
 fi
 
