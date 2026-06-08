@@ -1,55 +1,35 @@
 #!/bin/bash
-# Run the original startup.sh as root first (for system setup)
-sudo /startup.sh
+set -euo pipefail
 
-# Start Constructor Fabric services on every container start.
-# These are created by the JPS bootstrap (start-services.sh) on first install
-# and persist in the container filesystem across restarts.
-CF_HOME="${CF_HOME:-/home/developer}"
-CF_WORKSPACE="${CF_HOME}/workspaces/constructor-fabric-workspace"
-LOG_DIR="${CF_HOME}/constructor-fabric"
-mkdir -p "$LOG_DIR"
+export HOME=${HOME:-/home/developer}
+export USER=${USER:-developer}
+export PATH=/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH
+CF_WORKSPACE="${CF_WORKSPACE:-/home/developer/workspaces/constructor-fabric-workspace}"
+LOG_DIR="/home/developer/constructor-fabric"
+mkdir -p "$LOG_DIR" "$CF_WORKSPACE"
+chown -R developer:developer /home/developer 2>/dev/null || true
 
-# Ensure nginx has the Constructor Fabric config and start it
-if [ -f /etc/nginx/sites-enabled/default ]; then
-  NGINX_BIN="$(command -v nginx || echo /usr/sbin/nginx)"
-  pkill -9 nginx 2>/dev/null || true
-  sleep 1
-  $NGINX_BIN -t 2>/dev/null && $NGINX_BIN 2>/dev/null || service nginx start 2>/dev/null || true
+if command -v supervisord >/dev/null 2>&1; then
+  supervisord -c /etc/supervisor/supervisord.conf >"$LOG_DIR/supervisord.log" 2>&1 || true
 fi
 
-# Start code-server if installed and not already running
-if command -v code-server >/dev/null 2>&1; then
-  if ! pgrep -f "code-server --bind-addr" >/dev/null 2>&1; then
-    # Ensure supervisor config exists
-    if [ -f /etc/supervisor/conf.d/code-server.conf ]; then
-      supervisorctl reread 2>/dev/null || true
-      supervisorctl update 2>/dev/null || true
-      supervisorctl start code-server 2>/dev/null || true
-    else
-      # Start directly if no supervisor config
-      sudo -u developer -H code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry "$CF_WORKSPACE" > "$LOG_DIR/code-server.log" 2>&1 &
-    fi
-  fi
+# If the JPS bootstrap has not created configs yet, create the plain code-server config now.
+if [ -x /home/developer/constructor-fabric/scripts/start-services.sh ]; then
+  sudo -u developer -H /home/developer/constructor-fabric/scripts/start-services.sh >"$LOG_DIR/start-services.log" 2>&1 || true
 fi
 
-# Start trainer HTTP server if directory exists
-if [ -d "$CF_WORKSPACE/trainer" ]; then
-  if ! pgrep -f "http.server 8082" >/dev/null 2>&1; then
-    if [ -f /etc/supervisor/conf.d/trainer.conf ]; then
-      supervisorctl start trainer 2>/dev/null || true
-    else
-      sudo -u developer -H python3 -m http.server 8082 --directory "$CF_WORKSPACE/trainer" --bind 0.0.0.0 > "$LOG_DIR/trainer-http.log" 2>&1 &
-    fi
-  fi
+if [ -f /etc/supervisor/conf.d/code-server.conf ]; then
+  supervisorctl reread 2>/dev/null || true
+  supervisorctl update 2>/dev/null || true
+  supervisorctl start code-server 2>/dev/null || true
+else
+  sudo -u developer -H code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry "$CF_WORKSPACE" >"$LOG_DIR/code-server.log" 2>&1 &
 fi
 
-# Start app server
-if [ -f "${CF_HOME}/constructor-fabric/app/server.py" ]; then
-  if ! pgrep -f "app/server.py" >/dev/null 2>&1; then
-    python3 "${CF_HOME}/constructor-fabric/app/server.py" > "$LOG_DIR/app.log" 2>&1 &
-  fi
+
+NGINX_BIN="$(command -v nginx || echo /usr/sbin/nginx)"
+if [ -x "$NGINX_BIN" ]; then
+  "$NGINX_BIN" -t >/dev/null 2>&1 && ("$NGINX_BIN" -s reload || "$NGINX_BIN") >/dev/null 2>&1 || true
 fi
 
-# Then run any commands as the developer user
 exec "$@"

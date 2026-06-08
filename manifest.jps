@@ -10,7 +10,7 @@ categories:
   - apps/productivity
 
 description:
-  text: Lets AI define, build, and run software end to end -- with reusable components, operational automation, and built-in productivity measurement and insights.
+  text: Lets AI define, build, and run software end to end with a plain browser code-server workspace and built-in trainer.
   short: Constructor Fabric
 
 targetRegions:
@@ -20,13 +20,11 @@ ssl: true
 skipNodeEmails: true
 
 globals:
-  CF_PORT: 8081
-  APP_PORT: 8081
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: cs-v1-20260609
-  CF_SOURCE_REF: 7f0249358040e6b590ffd14fd1ddb9bc8eee2f94
+  SCRIPT_VERSION: code-server-plain-20260609-1
+  CF_SOURCE_REF: main
 
 settings:
   fields:
@@ -85,21 +83,21 @@ nodes:
     env:
       TZ: Europe/Kyiv
       USER: developer
+      HOME: /home/developer
       LLM_PROVIDER: ${settings.llm-provider}
       API_TOKEN: ${settings.api-token}
       OPENAI_API_KEY: ${settings.api-token}
       ANTHROPIC_API_KEY: ${settings.api-token}
       OPENAI_MODEL: ${settings.openai-model}
       CLAUDE_MODEL: ${settings.claude-model:claude-sonnet-4-6}
-      CF_IDE_PROFILE: codium
       CF_HOME: /home/developer/constructor-fabric
-      CF_PORT: ${globals.CF_PORT}
+      CF_WORKSPACE: /home/developer/workspaces/constructor-fabric-workspace
       NO_PROXY: localhost,127.0.0.1,::1
       no_proxy: localhost,127.0.0.1,::1
       JELASTIC_EXPOSE: 80
       JELASTIC_PORTS: 80
       SCRIPT_VERSION: ${globals.SCRIPT_VERSION}
-      CF_SOURCE_REF: 7f0249358040e6b590ffd14fd1ddb9bc8eee2f94
+      CF_SOURCE_REF: ${globals.CF_SOURCE_REF}
 
 onInstall:
   - bootstrap
@@ -108,298 +106,73 @@ onInstall:
 actions:
   bootstrap:
     - cmd[cp]: |-
-        set -e
+        set -euo pipefail
         export DEBIAN_FRONTEND=noninteractive
+        export HOME=/home/developer
+        export USER=developer
+        export PATH=/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH
 
-        # Repair XKB if the base image is missing it (needed for electron trainer)
-        if [ ! -d /usr/share/X11/xkb/keycodes ] || [ ! -d /usr/share/X11/xkb/symbols ]; then
-          find /etc/apt -type f \( -name '*.list' -o -name '*.sources' \) -print0 | xargs -0 grep -l 'api.cursor.com/apt' 2>/dev/null | xargs -r rm -f
-          apt-get update
-          apt-get install -y --reinstall xkb-data || { apt-get purge -y xkb-data; apt-get update; apt-get install -y xkb-data; }
-          rm -rf /var/lib/apt/lists/*
+        if ! id developer >/dev/null 2>&1; then
+          useradd -m -u 1000 -s /bin/bash developer
+          echo "developer ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
         fi
 
-        # Ensure electron is available for the trainer
-        if ! command -v electron >/dev/null 2>&1 && [ -x /opt/node-current/bin/npm ]; then
-          /opt/node-current/bin/npm install -g electron@latest
-          ln -sf /opt/node-current/bin/electron /usr/local/bin/electron 2>/dev/null || true
-        fi
-
-        # Install code-server if not present
         if ! command -v code-server >/dev/null 2>&1; then
           echo "Installing code-server..."
-          # Method 1: npm install (handles dependencies automatically)
-          /opt/node-current/bin/npm install -g code-server 2>&1 || {
-            # Method 2: .deb from GitHub releases
-            CS_VER="4.123.0"
-            curl --noproxy '*' -fsSL --retry 3 "https://github.com/coder/code-server/releases/download/v${CS_VER}/code-server_${CS_VER}_amd64.deb" -o /tmp/code-server.deb \
-              && apt-get install -f -y /tmp/code-server.deb \
-              && rm -f /tmp/code-server.deb
-          }
-          command -v code-server >/dev/null 2>&1 && echo "code-server installed" || echo "WARNING: code-server install failed"
+          if [ ! -x /opt/node-current/bin/npm ]; then
+            mkdir -p /opt
+            curl --noproxy '*' -fsSL https://nodejs.org/dist/v22.16.0/node-v22.16.0-linux-x64.tar.xz -o /tmp/node.tar.xz
+            rm -rf /opt/node-v22.16.0-linux-x64 /opt/node-current
+            tar -xJf /tmp/node.tar.xz -C /opt
+            ln -s /opt/node-v22.16.0-linux-x64 /opt/node-current
+            ln -sf /opt/node-current/bin/node /usr/local/bin/node
+            ln -sf /opt/node-current/bin/npm /usr/local/bin/npm
+            ln -sf /opt/node-current/bin/npx /usr/local/bin/npx
+            rm -f /tmp/node.tar.xz
+          fi
+          /opt/node-current/bin/npm install -g code-server
+          ln -sf /opt/node-current/bin/code-server /usr/local/bin/code-server
         fi
 
-        # Fix ownership before downloading scripts
+        mkdir -p /home/developer/constructor-fabric /home/developer/workspaces/constructor-fabric-workspace
         chown -R developer:developer /home/developer
 
-        # Download and run bootstrap (installs cfc, trainer, codium profile, etc.)
+        cat >/home/developer/.constructor-fabric-ai.env <<ENV
+        LLM_PROVIDER=${settings.llm-provider}
+        API_TOKEN=${settings.api-token}
+        OPENAI_API_KEY=${settings.api-token}
+        ANTHROPIC_API_KEY=${settings.api-token}
+        OPENAI_MODEL=${settings.openai-model}
+        CLAUDE_MODEL=${settings.claude-model:claude-sonnet-4-6}
+        ENV
+        chmod 600 /home/developer/.constructor-fabric-ai.env
+        chown developer:developer /home/developer/.constructor-fabric-ai.env
+
         curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/scripts/bootstrap.sh?v=${globals.SCRIPT_VERSION}" -o /tmp/constructor-fabric-bootstrap.sh
         chmod +x /tmp/constructor-fabric-bootstrap.sh
         chown developer:developer /tmp/constructor-fabric-bootstrap.sh
         su - developer -c "/tmp/constructor-fabric-bootstrap.sh"
-
-        # --- Continue extension config ---
-        mkdir -p /home/developer/.continue /home/developer/.config/VSCodium/User /home/developer/constructor-fabric /home/developer/workspaces/constructor-fabric-workspace/.vscode
-
-        # Download trainer HTML
-        mkdir -p /home/developer/workspaces/constructor-fabric-workspace/trainer
-        curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/trainer/index.html" -o /home/developer/workspaces/constructor-fabric-workspace/trainer/index.html 2>/dev/null || true
-
-        cat >/tmp/write-continue-config.py <<'PYCFG'
-        import json
-        import os
-        from pathlib import Path
-
-        def clean(value, default=""):
-            value = (value or "").strip()
-            bad = {"", "-", "null", "None", "undefined"}
-            if value in bad or value.startswith("$" + "{") or value.startswith("-"):
-                return default
-            return value
-
-        provider = clean(os.environ.get("LLM_PROVIDER"), "openai")
-        if provider == "claude":
-            provider = "anthropic"
-        if provider not in {"openai", "anthropic"}:
-            provider = "openai"
-
-        token = clean(os.environ.get("API_TOKEN"), "")
-        openai_key = clean(os.environ.get("OPENAI_API_KEY"), token)
-        anthropic_key = clean(os.environ.get("ANTHROPIC_API_KEY"), token)
-        openai_model = clean(os.environ.get("OPENAI_MODEL"), "gpt-5.5")
-        claude_model = clean(os.environ.get("CLAUDE_MODEL"), "claude-sonnet-4-6")
-        model = claude_model if provider == "anthropic" else openai_model
-        api_key = anthropic_key if provider == "anthropic" else openai_key
-
-        out = Path("/home/developer/.continue/config.yaml")
-        out.parent.mkdir(parents=True, exist_ok=True)
-
-        def q(value):
-            return json.dumps(str(value))
-
-        lines = [
-            "name: Constructor Fabric",
-            "version: 1.0.0",
-            "schema: v1",
-            "env:",
-            f"  OPENAI_API_KEY: {q(openai_key)}",
-            f"  ANTHROPIC_API_KEY: {q(anthropic_key)}",
-            f"  API_TOKEN: {q(token)}",
-            "models:",
-            "  - name: Constructor Fabric Chat",
-            f"    provider: {q(provider)}",
-            f"    model: {q(model)}",
-        ]
-        if api_key:
-            lines.append(f"    apiKey: {q(api_key)}")
-        lines.extend([
-            "    roles:",
-            "      - chat",
-            "      - edit",
-            "      - apply",
-            "      - autocomplete",
-            "context:",
-            "  - provider: code",
-            "  - provider: docs",
-            "prompts:",
-            "  - name: cf-constructor",
-            "    description: Run the Constructor Fabric SDLC workflow.",
-            "    prompt: |",
-            "      You are Constructor Fabric inside the pre-initialized workspace.",
-            "",
-            "      User request:",
-            "      {{{ input }}}",
-            "",
-            "      Use the local Constructor Fabric setup in this workspace:",
-            "      - Read AGENTS.md and .cf-constructor/.gen/AGENTS.md before making changes.",
-            "      - Use .cf-constructor as the Constructor Fabric adapter path.",
-            "      - Use cfc/cf-constructor CLI commands for info, validation, artifacts, traceability.",
-            "      - Preserve traceability across PRD, ADR, DESIGN, DECOMPOSITION, FEATURE, CODE, tasks, tests, and review artifacts.",
-            "      - If validation fails, explain the failing checks and propose or apply fixes.",
-        ])
-        out.write_text("\n".join(lines) + "\n")
-
-        # Env file for Codium/Continue extension host
-        env = Path("/home/developer/.constructor-fabric-ai.env")
-        env.write_text("\n".join([
-            f"API_TOKEN={token}",
-            f"OPENAI_API_KEY={openai_key}",
-            f"ANTHROPIC_API_KEY={anthropic_key}",
-            f"LLM_PROVIDER={provider}",
-            f"OPENAI_MODEL={openai_model}",
-            f"CLAUDE_MODEL={claude_model}",
-        ]) + "\n")
-        env.chmod(0o600)
-
-        print(f"Continue config written: provider={provider}, model={model}, api_key_len={len(api_key)}")
-        PYCFG
-        python3 /tmp/write-continue-config.py
-
-        # VS Codium settings
-        cat >/home/developer/.config/VSCodium/User/settings.json <<'VSCODESETTINGS'
-        {
-          "workbench.startupEditor": "none",
-          "security.workspace.trust.enabled": false,
-          "security.workspace.trust.startupPrompt": "never",
-          "continue.telemetryEnabled": false,
-          "continue.showInlineTip": false
-        }
-        VSCODESETTINGS
-        cat >/home/developer/.config/VSCodium/User/keybindings.json <<'VSCODEKEYS'
-        [
-          { "key": "ctrl+alt+c", "command": "continue.focusContinueInput" }
-        ]
-        VSCODEKEYS
-
-        # --- Start code-server on port 8080 ---
-        CS_WORKSPACE="/home/developer/workspaces/constructor-fabric-workspace"
-        mkdir -p "$CS_WORKSPACE" /home/developer/.config/code-server
-        cat > /home/developer/.config/code-server/config.yaml <<'CSSERVER'
-        bind-addr: 0.0.0.0:8080
-        auth: none
-        cert: false
-        CSSERVER
-        chown -R developer:developer /home/developer/.config/code-server
-
-        # Install Continue extension for code-server (uses API tokens from settings)
-        echo "Installing Continue extension..."
-        sudo -u developer -H code-server --install-extension Continue.continue 2>/dev/null || {
-          echo "Continue registry install failed, trying VSIX..."
-          CONT_VSIX="/tmp/continue.vsix"
-          curl --noproxy '*' -fsSL 'https://open-vsx.org/api/Continue/continue/linux-x64/latest' -o "$CONT_VSIX" 2>/dev/null \
-            && sudo -u developer -H code-server --install-extension "$CONT_VSIX" 2>/dev/null \
-            || echo "Continue VSIX install failed"
-          rm -f "$CONT_VSIX" 2>/dev/null || true
-        }
-        # Install Copilot as fallback (non-fatal, marketplace VSIX may fail)
-        if ! sudo -u developer -H code-server --list-extensions 2>/dev/null | grep -qi 'github.copilot'; then
-          echo "Copilot not available via open-vsx, skipping" || true
-        fi
-
-        # Code-server user settings for Continue
-        mkdir -p /home/developer/.local/share/code-server/User
-        cat > /home/developer/.local/share/code-server/User/settings.json <<'CSSETTINGS'
-        {
-          "workbench.startupEditor": "none",
-          "security.workspace.trust.enabled": false,
-          "security.workspace.trust.startupPrompt": "never",
-          "continue.telemetryEnabled": false,
-          "continue.showInlineTip": false
-        }
-        CSSETTINGS
-        chown -R developer:developer /home/developer/.local/share/code-server
-
-        # Set up Copilot Chat custom instructions for Constructor Fabric
-        mkdir -p "$CS_WORKSPACE/.github"
-        cat > "$CS_WORKSPACE/.github/copilot-instructions.md" <<'COPILOTINST'
-        # Constructor Fabric
-        You are Constructor Fabric — an AI-assisted SDLC workflow engine.
-        When the user types /cf or asks about Constructor Fabric:
-        - Read AGENTS.md and .cf-constructor/.gen/AGENTS.md before making changes
-        - Use .cf-constructor as the Constructor Fabric adapter path
-        - Use cfc/cf-constructor CLI commands for info, validation, artifacts, traceability
-        - Preserve traceability across PRD, ADR, DESIGN, DECOMPOSITION, FEATURE, CODE, tasks, tests, and review artifacts
-        - When generating artifacts, write them into the workspace using Constructor Fabric conventions
-        - Run `cfc validate --json` to check validation status
-        - Run `cfc info --json` to check workspace info
-        - If validation fails, explain the failing checks and propose fixes
-        Available cfc commands:
-        - `cfc info` — workspace info
-        - `cfc validate` — validate workspace
-        - `cfc agents` — list agent integrations
-        - `cfc generate-agents` — generate agent configs
-        COPILOTINST
-        chown -R developer:developer "$CS_WORKSPACE/.github"
-
-        # Download trainer HTML for code-server welcome page
-        TRAINER_HTML="$CS_WORKSPACE/.trainer-welcome.html"
-        curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/trainer/index.html" -o "$TRAINER_HTML" 2>/dev/null || true
-        chown developer:developer "$TRAINER_HTML" 2>/dev/null || true
-
-        # Patch code-server product.json to show trainer as welcome page
-        PRODUCT_JSON="$(find /usr/lib/code-server /usr/share/code-server -name product.json -path '*/vscode/*' 2>/dev/null | head -1)"
-        if [ -n "$PRODUCT_JSON" ] && [ -f "$PRODUCT_JSON" ]; then
-          python3 -c "
-          import json
-          from pathlib import Path
-          p = Path('$PRODUCT_JSON')
-          data = json.loads(p.read_text())
-          data['welcomePage'] = '$TRAINER_HTML'
-          p.write_text(json.dumps(data, indent=2))
-          print('product.json welcomePage set to trainer')
-          "
-        fi
-
-        # --- Services are started by bootstrap.sh via supervisor ---
-        # nginx config is applied below
-        # Generate self-signed TLS cert with IP SAN
-        DETECTED_IP="$(hostname -I | awk '{print $1}')"
-        mkdir -p /etc/nginx/ssl
-        openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-          -keyout /etc/nginx/ssl/server.key \
-          -out /etc/nginx/ssl/server.crt \
-          -subj "/CN=constructor-fabric/O=Virtuozzo/C=US" \
-          -addext "subjectAltName=IP:${DETECTED_IP}" 2>/dev/null
 
         cat >/etc/nginx/sites-enabled/default <<'NGINX'
         server {
             listen 80 default_server;
             listen [::]:80 default_server;
             server_name _;
-
             auth_basic off;
-
-            set $x_proto $http_x_forwarded_proto;
-            if ($x_proto = '') {
-                set $x_proto $scheme;
-            }
 
             location / {
                 proxy_pass http://127.0.0.1:8080;
                 proxy_set_header Host $host;
                 proxy_set_header X-Real-IP $remote_addr;
                 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                proxy_set_header X-Forwarded-Proto $x_proto;
+                proxy_set_header X-Forwarded-Proto $scheme;
                 proxy_http_version 1.1;
                 proxy_set_header Upgrade $http_upgrade;
                 proxy_set_header Connection "upgrade";
             }
-
-            location = /health {
-                auth_basic off;
-                proxy_set_header Host $host;
-                proxy_set_header X-Real-IP $remote_addr;
-                proxy_pass http://127.0.0.1:8081/health;
-            }
-
-            location /api/ {
-                auth_basic off;
-                proxy_set_header Host $host;
-                proxy_set_header X-Real-IP $remote_addr;
-                proxy_pass http://127.0.0.1:8081;
-            }
         }
         NGINX
-        NGINX_BIN="$(command -v nginx || echo /usr/sbin/nginx)"
-        # Kill any old nginx that may be bound to port 80
-        pkill -9 nginx 2>/dev/null || true
-        fuser -k 80/tcp 2>/dev/null || true
-        fuser -k 443/tcp 2>/dev/null || true
-        sleep 2
-        $NGINX_BIN -t && $NGINX_BIN || service nginx start || $NGINX_BIN || true
-
-        # Fix all ownership
-        chown -R developer:developer /home/developer
+        nginx -t && (nginx -s reload || nginx || service nginx restart)
 
   verify:
     - cmd[cp]: |-
@@ -407,11 +180,10 @@ actions:
         export NO_PROXY=localhost,127.0.0.1,::1
         export no_proxy=$NO_PROXY
 
-        # Wait for code-server on 8080
         ide_ready=0
         for i in $(seq 1 60); do
           if curl --noproxy "*" -fsS http://127.0.0.1:8080/ >/dev/null 2>&1; then
-            echo "code-server is up on port 8080"
+            echo "plain code-server is up on port 8080"
             ide_ready=1
             break
           fi
@@ -419,50 +191,54 @@ actions:
         done
         if [ "$ide_ready" != "1" ]; then
           echo "code-server did not start on port 8080" >&2
-          tail -80 /home/developer/code-server.log >&2 2>/dev/null || true
+          tail -80 /home/developer/constructor-fabric/code-server.log >&2 2>/dev/null || true
           exit 1
         fi
 
-        # Wait for nginx on port 80 (proxies to code-server)
         nginx_ready=0
         for i in $(seq 1 30); do
           if curl --noproxy "*" -fsS http://127.0.0.1:80/ >/dev/null 2>&1; then
-            echo "Nginx is up on port 80"
+            echo "nginx is proxying code-server on port 80"
             nginx_ready=1
             break
           fi
           sleep 2
         done
         if [ "$nginx_ready" != "1" ]; then
-          echo "Nginx did not start on port 80" >&2
-          $(command -v nginx || echo /usr/sbin/nginx) -t >&2 || true
+          echo "nginx did not start on port 80" >&2
+          nginx -t >&2 || true
           exit 1
         fi
 
-        # Verify Continue extension is installed in code-server
-        code-server --list-extensions 2>/dev/null | grep -qi 'Continue.continue' || {
-          echo "Continue extension missing in code-server" >&2
-          code-server --list-extensions 2>/dev/null >&2 || true
-          tail -40 /home/developer/code-server.log >&2 2>/dev/null || true
-        }
-        echo "code-server with Continue is running"
+        python3 - <<'PYCHECK'
+        import json
+        from pathlib import Path
+        candidates = list(Path('/usr/lib/code-server').glob('**/vscode/**/product.json')) + list(Path('/usr/share/code-server').glob('**/vscode/**/product.json')) + list(Path('/opt/node-current').glob('**/vscode/**/product.json'))
+        assert candidates, 'code-server product.json not found'
+        data = json.loads(candidates[0].read_text())
+        welcome = data.get('welcomePage', '')
+        assert 'trainer' in welcome, data
+        settings = Path('/home/developer/.local/share/code-server/User/settings.json')
+        assert settings.exists(), settings
+        assert json.loads(settings.read_text()).get('workbench.colorTheme') == 'Default Dark Modern'
+        assert Path('/home/developer/.constructor-fabric-ai.env').exists()
+        print('code-server welcome page points to trainer and dark theme is configured')
+        PYCHECK
 
-        # Verify cfc
         cd /home/developer/cyber-constructor
         cfc --version
         cfc info --json >/tmp/cfc-info.json
         cfc validate --json >/tmp/cfc-validate.json
-        python3 <<PYCHECK
+        python3 <<'PYCHECK'
         import json
-        info=json.load(open("/tmp/cfc-info.json"))
-        assert info["status"] == "FOUND", info
-        validate=json.load(open("/tmp/cfc-validate.json"))
-        assert validate["status"] == "PASS", validate
-        print("cyber-constructor info is FOUND")
-        print("cyber-constructor validate is PASS")
+        info=json.load(open('/tmp/cfc-info.json'))
+        assert info['status'] == 'FOUND', info
+        validate=json.load(open('/tmp/cfc-validate.json'))
+        assert validate['status'] == 'PASS', validate
+        print('cyber-constructor info is FOUND')
+        print('cyber-constructor validate is PASS')
         PYCHECK
 
-        echo ""
         echo "=== All checks passed ==="
 
 success: |
@@ -470,20 +246,16 @@ success: |
 
   [Open Constructor Fabric](https://${env.domain}/)
 
-  VS Code in browser (code-server) opens automatically with the Trainer as the welcome page.
+  The environment runs plain code-server on port 8080, proxied through port 80. The trainer HTML is loaded directly as code-server welcome content; no trainer service is started.
+  The Constructor Fabric trainer is rendered directly by code-server as its welcome HTML, and code-server is configured with the dark theme.
 
-  No token is required — code-server is served without authentication.
-
-  Sign in to GitHub Copilot from the IDE sidebar to activate AI completions.
-
-  If the environment has a public IP, access via `https://<public-ip>/` as well.
+  Only code-server is started for the web interface. There is no separate trainer HTTP service or desktop sidecar.
+  Services run as the `developer` user. The install form stores the selected OpenAI/Claude token for Constructor Fabric automation.
 
   #### Workspace
-
   `/home/developer/workspaces/constructor-fabric-workspace`
 
   #### Install options used
-
   | Setting | Value |
   |---------|-------|
   | LLM provider | `${settings.llm-provider}` |

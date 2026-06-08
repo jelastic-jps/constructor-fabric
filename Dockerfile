@@ -1,47 +1,26 @@
-FROM dorowu/ubuntu-desktop-lxde-vnc:focal
+FROM ubuntu:focal
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG UV_INSTALL_DIR=/home/developer/.local/bin
 ARG CYBER_CONSTRUCTOR_TARBALL_URL=https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/assets/cyber-constructor-v4.0.0.tar.gz
 ARG CYBER_CONSTRUCTOR_TARBALL_SHA256=8ca1c8005097cb3bdca521888a61cc3f0c508601a199722d2585e3130703a626
 
-# Create developer user early in the build
-RUN useradd -m -u 1000 -s /bin/bash developer \
-    && echo "developer ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV TZ=Europe/Kyiv \
     HOME=/home/developer \
     USER=developer \
     PATH=/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin
 
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-
-RUN rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google.list \
-    && apt-get update && apt-get install -y --no-install-recommends \
-      python3 python3-pip python3-venv \
-      curl wget ca-certificates git xdg-utils gnupg apt-transport-https xz-utils \
-      x11vnc x11-utils net-tools xkb-data \
-      openbox lxpanel pcmanfm lxterminal dbus-x11 \
-      libnss3 libxss1 libasound2 libgbm1 libgtk-3-0 libsecret-1-0 libfuse2 \
-      libxshmfence1 libatk-bridge2.0-0 libdrm2 libxcomposite1 libxdamage1 libxrandr2 libxkbcommon0 \
-      jq pulseaudio pulseaudio-utils libasound2-plugins alsa-utils nodejs npm \
-      xauth xvfb autocutsel fonts-liberation libu2f-udev \
-    && apt-get remove --purge -y firefox firefox-locale-en || true \
-    && apt-get autoremove -y || true \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl wget git gnupg xz-utils sudo passwd \
+      sudo passwd python3 python3-pip python3-venv \
+      nginx supervisor jq net-tools procps psmisc \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Google Chrome and set as default browser (Chromium snap fails in Docker)
-RUN wget -qO- https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor > /usr/share/keyrings/google-chrome.gpg \
-    && echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main' > /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends google-chrome-stable \
-    && rm -rf /var/lib/apt/lists/* \
-    && xdg-settings set default-web-browser google-chrome.desktop || true \
-    && update-alternatives --set x-www-browser /usr/bin/google-chrome-stable 2>/dev/null || true
+RUN /usr/sbin/useradd -m -u 1000 -s /bin/bash developer \
+    && printf '%s\n' 'developer ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/developer \
+    && chmod 0440 /etc/sudoers.d/developer
 
-# Configure native VNC through x11vnc; clipboard sync is handled by autocutsel at runtime
-COPY patch-x11vnc.py /tmp/patch-x11vnc.py
-RUN python3 /tmp/patch-x11vnc.py && rm /tmp/patch-x11vnc.py
 
 RUN mkdir -p /opt \
     && curl --noproxy '*' -fsSL https://nodejs.org/dist/v22.16.0/node-v22.16.0-linux-x64.tar.xz -o /tmp/node.tar.xz \
@@ -51,18 +30,19 @@ RUN mkdir -p /opt \
     && ln -sf /opt/node-current/bin/node /usr/local/bin/node \
     && ln -sf /opt/node-current/bin/npm /usr/local/bin/npm \
     && ln -sf /opt/node-current/bin/npx /usr/local/bin/npx \
-    && rm -f /tmp/node.tar.xz \
-    && /opt/node-current/bin/npm install -g electron@latest \
-    && ln -sf /opt/node-current/bin/electron /usr/local/bin/electron
+    && rm -f /tmp/node.tar.xz
 
-# Install uv for developer user
+ARG CODE_SERVER_VERSION=4.104.2
+RUN curl --noproxy '*' -fsSL "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server-${CODE_SERVER_VERSION}-linux-amd64.tar.gz" \
+      | tar -xz --strip-components=1 -C /usr/local \
+    && code-server --version
+
 RUN mkdir -p /home/developer/.local/bin \
     && wget -q https://astral.sh/uv/install.sh -O /tmp/install-uv.sh \
     && sh /tmp/install-uv.sh \
     && rm -f /tmp/install-uv.sh \
     && chown -R developer:developer /home/developer/.local
 
-# Build cyber-constructor under developer home
 RUN mkdir -p /home/developer/cfc-build /home/developer/cyber-constructor /home/developer/.cf-constructor/cache \
     && cd /home/developer/cfc-build \
     && curl --noproxy '*' -fsSL "${CYBER_CONSTRUCTOR_TARBALL_URL}" -o cyber-constructor.tar.gz \
@@ -75,145 +55,9 @@ RUN mkdir -p /home/developer/cfc-build /home/developer/cyber-constructor /home/d
     && rm -rf /home/developer/cfc-build \
     && chown -R developer:developer /home/developer/cyber-constructor /home/developer/.cf-constructor
 
-# Install code-server via npm (avoids libc++ dependency issues on focal)
-RUN /opt/node-current/bin/npm install -g code-server \
-    && code-server --version
-
-# Create constructor-fabric directories under developer home
-RUN mkdir -p /home/developer/constructor-fabric/app /home/developer/constructor-fabric/data /home/developer/.config/autostart /home/developer/Desktop /home/developer/.config/lxpanel/LXDE/panels /home/developer/.config/libfm /home/developer/.config/pcmanfm/LXDE /tmp/.X11-unix \
-    && chmod 1777 /tmp/.X11-unix || true
-
-# Pre-download edited wallpaper (without Powered by Virtuozzo on right)
-RUN mkdir -p /home/developer/constructor-fabric/app \
-    && curl --noproxy '*' -fsSL https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/assets/constructor-fabric-wallpaper.png -o /home/developer/constructor-fabric/app/wallpaper.png \
-    && chown -R developer:developer /home/developer/constructor-fabric
-
-ENV ALSADEV=default \
-    PULSE_RUNTIME_PATH=/tmp/pulse-root \
-    PULSE_SERVER=unix:/tmp/pulse-root/native \
-    SDL_AUDIODRIVER=pulse \
-    AUDIODEV=default
-
-# Copy scripts and config to developer home
 COPY . /home/developer/constructor-fabric/
 RUN chmod +x /home/developer/constructor-fabric/scripts/*.sh 2>/dev/null || true \
-    && CF_IDE_PROFILE=all CF_PREINSTALLED_IDES=0 /home/developer/constructor-fabric/scripts/install-ides.sh || true \
-    && echo 'Constructor Fabric IDEs and agent CLIs are preinstalled' \
-    && chown -R developer:developer /home/developer/constructor-fabric
-
-# Bake Continue into the image. Runtime installation is unreliable with the
-# codium-tunnel serve-web binary, so the extension must exist before Codium
-# starts in Jelastic.
-RUN python3 - <<'PY'
-import json
-import os
-import shutil
-import subprocess
-import sys
-import urllib.request
-import zipfile
-from pathlib import Path
-
-home = Path('/home/developer')
-primary_ext_dir = home / '.config' / 'VSCodium' / 'extensions'
-compat_ext_dir = home / '.vscode-oss' / 'extensions'
-for d in (primary_ext_dir, compat_ext_dir):
-    d.mkdir(parents=True, exist_ok=True)
-
-vsix = Path('/tmp/continue.vsix')
-# Resolve the linux-x64 artifact explicitly. The Open VSX latest endpoint can
-# default to alpine-x64, which activates but breaks Continue in Ubuntu/glibc.
-api_url = 'https://open-vsx.org/api/Continue/continue/latest'
-with urllib.request.urlopen(api_url, timeout=60) as r:
-    api_data = json.loads(r.read())
-version_from_api = api_data.get('version')
-if not version_from_api:
-    raise SystemExit('Open VSX API response did not include version')
-platform_api_url = f'https://open-vsx.org/api/Continue/continue/linux-x64/{version_from_api}'
-with urllib.request.urlopen(platform_api_url, timeout=60) as r:
-    platform_data = json.loads(r.read())
-url = platform_data.get('files', {}).get('download')
-if not url:
-    raise SystemExit('Open VSX linux-x64 API response did not include files.download')
-print(f'Downloading Continue linux-x64 from {url}')
-subprocess.check_call([
-    'curl', '--noproxy', '*', '-fsSL', '--retry', '3', '--retry-delay', '3',
-    '--max-time', '180', url, '-o', str(vsix)
-])
-
-with zipfile.ZipFile(vsix) as z:
-    version = None
-    for name in z.namelist():
-        if name.endswith('extension/package.json'):
-            version = json.loads(z.read(name))['version']
-            break
-    if not version:
-        raise SystemExit('Could not determine Continue extension version')
-
-    dest = primary_ext_dir / f'continue.continue-{version}'
-    if dest.exists():
-        shutil.rmtree(dest)
-    dest.mkdir(parents=True)
-    for info in z.infolist():
-        if info.filename.startswith('extension/') and info.filename != 'extension/':
-            info.filename = info.filename[len('extension/'):]
-            z.extract(info, dest)
-
-pkg = dest / 'package.json'
-if not pkg.exists():
-    raise SystemExit(f'Continue package.json missing at {pkg}')
-data = json.loads(pkg.read_text())
-print(f"Baked Continue {data.get('version')} into {dest}")
-
-# Also copy to .vscode-oss for compatibility with builds that scan that path.
-compat_dest = compat_ext_dir / dest.name
-if compat_dest.exists():
-    shutil.rmtree(compat_dest)
-shutil.copytree(dest, compat_dest)
-vsix.unlink(missing_ok=True)
-
-# Bake the YAML extension too. Continue tries to register yaml.schemas; without
-# this extension Codium logs a schema registration error.
-yaml_api_url = 'https://open-vsx.org/api/redhat/vscode-yaml/latest'
-with urllib.request.urlopen(yaml_api_url, timeout=60) as r:
-    yaml_api_data = json.loads(r.read())
-yaml_url = yaml_api_data.get('files', {}).get('download')
-if not yaml_url:
-    raise SystemExit('Open VSX YAML API response did not include files.download')
-yaml_vsix = Path('/tmp/vscode-yaml.vsix')
-print(f'Downloading YAML extension from {yaml_url}')
-subprocess.check_call([
-    'curl', '--noproxy', '*', '-fsSL', '--retry', '3', '--retry-delay', '3',
-    '--max-time', '180', yaml_url, '-o', str(yaml_vsix)
-])
-with zipfile.ZipFile(yaml_vsix) as z:
-    yaml_pkg = None
-    for name in z.namelist():
-        if name.endswith('extension/package.json'):
-            yaml_pkg = json.loads(z.read(name))
-            break
-    if not yaml_pkg:
-        raise SystemExit('Could not determine YAML extension version')
-    yaml_dest = primary_ext_dir / f"redhat.vscode-yaml-{yaml_pkg['version']}"
-    if yaml_dest.exists():
-        shutil.rmtree(yaml_dest)
-    yaml_dest.mkdir(parents=True)
-    for info in z.infolist():
-        if info.filename.startswith('extension/') and info.filename != 'extension/':
-            info.filename = info.filename[len('extension/'):]
-            z.extract(info, yaml_dest)
-compat_yaml_dest = compat_ext_dir / yaml_dest.name
-if compat_yaml_dest.exists():
-    shutil.rmtree(compat_yaml_dest)
-shutil.copytree(yaml_dest, compat_yaml_dest)
-yaml_vsix.unlink(missing_ok=True)
-print(f"Baked YAML extension {yaml_pkg.get('version')} into {yaml_dest}")
-PY
-RUN chown -R developer:developer /home/developer/.config/VSCodium /home/developer/.vscode-oss
-
-# Pre-create the Constructor Fabric workspace so cfc commands and IDE integrations
-# work immediately after the container starts -- no waiting for auto-bootstrap.
-RUN mkdir -p /home/developer/workspaces/constructor-fabric-workspace \
+    && mkdir -p /home/developer/workspaces/constructor-fabric-workspace /home/developer/constructor-fabric/data \
     && /home/developer/.local/bin/uv python install 3.11 \
     && /home/developer/.local/bin/uv venv --python 3.11 /home/developer/cyber-constructor/.venv \
     && /home/developer/.local/bin/uv pip install --python /home/developer/cyber-constructor/.venv/bin/python -e /home/developer/cyber-constructor \
@@ -221,121 +65,13 @@ RUN mkdir -p /home/developer/workspaces/constructor-fabric-workspace \
     && ln -sf /home/developer/cyber-constructor/.venv/bin/cf-constructor /usr/local/bin/cf-constructor \
     && printf 'd\n' | /usr/local/bin/cfc init --no-cache --project-root /home/developer/workspaces/constructor-fabric-workspace --install-dir .cf-constructor --project-name "constructor-fabric-workspace" --force \
     && /usr/local/bin/cfc generate-agents --root /home/developer/workspaces/constructor-fabric-workspace -y \
-    && echo 'Constructor Fabric workspace is pre-initialized' \
-    && chown -R developer:developer /home/developer/workspaces
+    && cp -f /home/developer/constructor-fabric/trainer/index.html /home/developer/workspaces/constructor-fabric-workspace/.trainer-welcome.html 2>/dev/null || true \
+    && chown -R developer:developer /home/developer
 
-# Desktop icons for Chromium-labeled browser and Terminal.
-# On Ubuntu focal, chromium-browser is a snap wrapper and snap does not work in Docker; use Google Chrome stable but label the launcher Chromium.
-RUN python3 - <<'PY'
-from pathlib import Path
-import os
+WORKDIR /home/developer/workspaces/constructor-fabric-workspace
 
-# Create icon directory
-icon_dir = Path('/home/developer/constructor-fabric/app/icons')
-icon_dir.mkdir(parents=True, exist_ok=True)
-
-# Create a simple placeholder icon function
-def create_placeholder_icon(target_path):
-    # Create a minimal 1x1 pixel PNG as placeholder (base64 encoded)
-    import base64
-    placeholder_b64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
-    try:
-        with open(target_path, 'wb') as f:
-            f.write(base64.b64decode(placeholder_b64))
-    except:
-        pass
-
-# Use the vendored VS Code icon for VS Codium as requested.
-codium_icon = icon_dir / 'codium.png'
-vscode_asset_icon = Path('/home/developer/constructor-fabric/assets/vscode-logo.png')
-if vscode_asset_icon.exists():
-    import shutil
-    shutil.copy2(str(vscode_asset_icon), str(codium_icon))
-elif not codium_icon.exists():
-    create_placeholder_icon(str(codium_icon))
-
-# Download Windsurf icon if not present
-windsurf_icon = icon_dir / 'windsurf.png'
-if not windsurf_icon.exists():
-    create_placeholder_icon(str(windsurf_icon))
-
-# Download Chrome icon for Chromium launcher
-chrome_icon = icon_dir / 'chromium.png'
-if not chrome_icon.exists():
-    import urllib.request
-    try:
-        urllib.request.urlretrieve(
-            'https://raw.githubusercontent.com/nicehash/NiceHashQuickMiner/main/nhqm/icon.png',
-            str(chrome_icon)
-        )
-    except:
-        create_placeholder_icon(str(chrome_icon))
-
-# Use the Constructor Fabric logo for the Trainer icon.
-trainer_icon = icon_dir / 'trainer.png'
-cf_asset_icon = Path('/home/developer/constructor-fabric/assets/constructor-fabric-logo.png')
-cf_app_icon = Path('/home/developer/constructor-fabric/app/icon.png')
-if cf_asset_icon.exists():
-    import shutil
-    cf_app_icon.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(str(cf_asset_icon), str(cf_app_icon))
-    shutil.copy2(str(cf_asset_icon), str(trainer_icon))
-elif not trainer_icon.exists():
-    create_placeholder_icon(str(trainer_icon))
-
-# Create desktop directory
-desktop_dir = Path('/home/developer/Desktop')
-desktop_dir.mkdir(parents=True, exist_ok=True)
-
-# Create Chromium wrapper
-wrapper = Path('/usr/local/bin/constructor-fabric-chromium')
-wrapper.write_text('''#!/bin/sh
-exec /usr/bin/google-chrome-stable --no-sandbox --disable-gpu --disable-dev-shm-usage "$@"
-''')
-wrapper.chmod(0o755)
-
-# Create Chromium desktop entry
-chrome = desktop_dir / 'Chromium.desktop'
-chrome.write_text('''[Desktop Entry]
-Version=1.0
-Type=Application
-Name=Chromium
-Exec=/usr/local/bin/constructor-fabric-chromium %U
-Icon=/home/developer/constructor-fabric/app/icons/chromium.png
-Terminal=false
-Categories=Network;WebBrowser;
-StartupNotify=true
-''')
-chrome.chmod(0o755)
-
-# Create Terminal desktop entry
-term = desktop_dir / 'Terminal.desktop'
-term.write_text('''[Desktop Entry]
-Version=1.0
-Type=Application
-Name=Terminal Emulator
-Comment=Open a terminal emulator
-Exec=lxterminal --working-directory=/home/developer/workspaces/constructor-fabric-workspace
-Icon=utilities-terminal
-Terminal=false
-Categories=System;TerminalEmulator;
-StartupNotify=true
-''')
-term.chmod(0o755)
-
-print('Created desktop icons: Chromium, Terminal Emulator')
-PY
-
-ENV CF_PREINSTALLED_IDES=1
-
-WORKDIR /home/developer/constructor-fabric
-
-# Set ownership for all developer directories
-RUN chown -R developer:developer /home/developer
-
-# Switch to developer user
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
-USER developer
 ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["sleep", "infinity"]
