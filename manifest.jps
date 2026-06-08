@@ -170,16 +170,20 @@ actions:
         python3 - <<'PYCHECK'
         import json
         from pathlib import Path
-        candidates = list(Path('/usr/local').glob('**/vscode/**/product.json')) + list(Path('/usr/lib/code-server').glob('**/vscode/**/product.json')) + list(Path('/usr/share/code-server').glob('**/vscode/**/product.json')) + list(Path('/opt/node-current').glob('**/vscode/**/product.json'))
-        assert candidates, 'code-server product.json not found'
-        data = json.loads(candidates[0].read_text())
-        welcome = data.get('welcomePage', '')
-        assert 'trainer' in welcome, data
+        ext = Path('/home/developer/.local/share/code-server/extensions/constructor-fabric-trainer')
+        assert (ext / 'package.json').exists(), ext
+        assert (ext / 'extension.js').exists(), ext
+        pkg = json.loads((ext / 'package.json').read_text())
+        assert 'onStartupFinished' in pkg.get('activationEvents', []), pkg
         settings = Path('/home/developer/.local/share/code-server/User/settings.json')
         assert settings.exists(), settings
-        assert json.loads(settings.read_text()).get('workbench.colorTheme') == 'Default Dark Modern'
+        data = json.loads(settings.read_text())
+        assert data.get('workbench.colorTheme') == 'Default Dark Modern'
+        assert data.get('workbench.startupEditor') == 'none'
+        trainer = Path('/home/developer/workspaces/constructor-fabric-workspace/.constructor-fabric-trainer/index.html')
+        assert trainer.exists() and trainer.stat().st_size > 100, trainer
         assert Path('/home/developer/.constructor-fabric-ai.env').exists()
-        print('code-server welcome page points to trainer and dark theme is configured')
+        print('code-server trainer webview extension and dark theme are configured')
         PYCHECK
 
         cd /home/developer/cyber-constructor
@@ -203,8 +207,8 @@ success: |
 
   Open Constructor Fabric from the environment endpoint for port 8080.
 
-  The environment runs plain coder code-server directly on port 8080. The trainer HTML is loaded directly as code-server welcome content; no trainer service is started.
-  The Constructor Fabric trainer is rendered directly by code-server as its welcome HTML, and code-server is configured with the dark theme.
+  The environment runs plain coder code-server directly on port 8080. The trainer is opened inside code-server by a local startup Webview extension; no trainer service is started.
+  The Constructor Fabric trainer is rendered inside code-server, and code-server is configured with the dark theme.
 
   Only code-server is started for the web interface. There is no nginx proxy, no separate trainer HTTP service, and no desktop sidecar.
   Services run as the `developer` user. The install form stores the selected OpenAI/Claude token for Constructor Fabric automation.
