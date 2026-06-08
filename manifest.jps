@@ -20,8 +20,8 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: copilot-chat-code-server-20260608-1
-  CF_SOURCE_REF: c1bcb61fc693a245077af048921b9983780b4dfd
+  SCRIPT_VERSION: copilot-chat-replace-stale-20260608-1
+  CF_SOURCE_REF: 668233723512109ec075d8588504a9cb646cef20
 
 settings:
   fields:
