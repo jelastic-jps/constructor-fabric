@@ -92,10 +92,12 @@ if os.environ.get("ANTHROPIC_API_KEY"):
 if os.environ.get("API_TOKEN"):
     env["API_TOKEN"] = os.environ["API_TOKEN"]
 data["terminal.integrated.env.linux"] = env
-data["github.copilot.enable"] = {"*": True, "plaintext": True, "markdown": True, "scminput": True}
-data["github.copilot.editor.enableAutoCompletions"] = True
-data["chat.commandCenter.enabled"] = True
-data["workbench.commandPalette.experimental.askChatLocation"] = "chatView"
+data["window.restoreWindows"] = "none"
+data["workbench.editor.restoreViewState"] = False
+data["workbench.tips.enabled"] = False
+data["update.mode"] = "none"
+data["extensions.autoCheckUpdates"] = False
+data["extensions.autoUpdate"] = False
 p.write_text(json.dumps(data, indent=2) + "\n")
 PYSETTINGS
 
@@ -129,11 +131,16 @@ PYVSIX
   rm -f "$vsix"
 }
 
-# Install GitHub Copilot + Copilot Chat into code-server. The latest Chat VSIX
-# currently targets a newer VS Code engine than code-server 4.104.2, so pin the
-# compatible 0.31.0 chat extension while keeping core Copilot latest.
-install_code_server_vsix GitHub copilot latest || echo "GitHub Copilot install failed; continuing"
-install_code_server_vsix GitHub copilot-chat 0.31.0 || echo "GitHub Copilot Chat install failed; continuing"
+# Constructor Fabric is configured with OpenAI/Claude API tokens from the install
+# form. Do not install GitHub Copilot: it requires an interactive GitHub login in
+# code-server, can steal the startup screen, and its current Chat VSIX is not
+# compatible with this code-server build.
+rm -rf "${HOME}/.local/share/code-server/extensions/github.copilot"* \
+       "${HOME}/.local/share/code-server/extensions/GitHub.copilot"* \
+       "${HOME}/.local/share/code-server/User/globalStorage/github.copilot"* \
+       "${HOME}/.local/share/code-server/User/globalStorage/GitHub.copilot"* \
+       2>/dev/null || true
+rm -f "${HOME}/.local/share/code-server/extensions/.obsolete" 2>/dev/null || true
 
 TRAINER_WELCOME_DIR="${CS_WORKSPACE}/.constructor-fabric-trainer"
 TRAINER_HTML="${TRAINER_WELCOME_DIR}/index.html"
@@ -158,7 +165,7 @@ cat > "$TRAINER_EXTENSION_DIR/package.json" <<'JSON'
   "publisher": "constructor-fabric",
   "engines": { "vscode": "^1.104.0" },
   "categories": ["Other"],
-  "activationEvents": ["onStartupFinished", "onCommand:constructorFabric.openTrainer"],
+  "activationEvents": ["*", "onStartupFinished", "onCommand:constructorFabric.openTrainer"],
   "main": "./extension.js",
   "contributes": {
     "commands": [
@@ -219,7 +226,9 @@ function openTrainer(context) {
 
 function activate(context) {
   context.subscriptions.push(vscode.commands.registerCommand('constructorFabric.openTrainer', () => openTrainer(context)));
-  setTimeout(() => openTrainer(context), 1200);
+  openTrainer(context);
+  setTimeout(() => openTrainer(context), 700);
+  setTimeout(() => openTrainer(context), 2000);
 }
 
 function deactivate() {}
@@ -233,10 +242,10 @@ chown -R developer:developer "$HOME" 2>/dev/null || true
 
 sudo tee /etc/supervisor/conf.d/code-server.conf >/dev/null <<SUPERVISOR
 [program:code-server]
-command=/usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry ${CS_WORKSPACE}
+command=/usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry --disable-extension GitHub.copilot --disable-extension GitHub.copilot-chat ${CS_WORKSPACE}
 user=developer
 directory=${CS_WORKSPACE}
-environment=HOME="${HOME}",USER="developer",PATH="/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin"
+environment=HOME="${HOME}",USER="developer",PATH="/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin",LLM_PROVIDER="${LLM_PROVIDER:-openai}",API_TOKEN="${API_TOKEN:-}",OPENAI_API_KEY="${OPENAI_API_KEY:-}",ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}",OPENAI_MODEL="${OPENAI_MODEL:-gpt-5.5}",CLAUDE_MODEL="${CLAUDE_MODEL:-claude-sonnet-4-6}"
 autostart=true
 autorestart=true
 startsecs=5
