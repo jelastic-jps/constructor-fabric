@@ -27,9 +27,4 @@ else
 fi
 
 
-NGINX_BIN="$(command -v nginx || echo /usr/sbin/nginx)"
-if [ -x "$NGINX_BIN" ]; then
-  "$NGINX_BIN" -t >/dev/null 2>&1 && ("$NGINX_BIN" -s reload || "$NGINX_BIN") >/dev/null 2>&1 || true
-fi
-
 exec "$@"

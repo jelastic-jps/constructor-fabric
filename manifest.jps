@@ -20,7 +20,7 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: code-server-plain-20260608-3
+  SCRIPT_VERSION: code-server-only-20260608-4
   CF_SOURCE_REF: main
 
 settings:
@@ -72,10 +72,10 @@ nodes:
     nodeGroup: cp
     extIPs: 1
     ports:
-      - 80
+      - 8080
     endpoints:
       - name: Constructor Fabric
-        privatePort: 80
+        privatePort: 8080
         protocol: TCP
     env:
       TZ: Europe/Kyiv
@@ -91,8 +91,8 @@ nodes:
       CF_WORKSPACE: /home/developer/workspaces/constructor-fabric-workspace
       NO_PROXY: localhost,127.0.0.1,::1
       no_proxy: localhost,127.0.0.1,::1
-      JELASTIC_EXPOSE: 80
-      JELASTIC_PORTS: 80
+      JELASTIC_EXPOSE: 8080
+      JELASTIC_PORTS: 8080
       SCRIPT_VERSION: ${globals.SCRIPT_VERSION}
       CF_SOURCE_REF: ${globals.CF_SOURCE_REF}
 
@@ -116,11 +116,6 @@ actions:
         printf '%s\n' 'developer ALL=(ALL) NOPASSWD:ALL' >/etc/sudoers.d/developer
         chmod 0440 /etc/sudoers.d/developer
 
-        if ! command -v nginx >/dev/null 2>&1; then
-          echo "Installing nginx..."
-          apt-get update
-          apt-get install -y --no-install-recommends nginx
-        fi
 
         if ! command -v code-server >/dev/null 2>&1; then
           echo "Installing code-server..."
@@ -151,27 +146,6 @@ actions:
         chown developer:developer /tmp/constructor-fabric-bootstrap.sh
         su developer -c "/tmp/constructor-fabric-bootstrap.sh"
 
-        cat >/etc/nginx/sites-enabled/default <<'NGINX'
-        server {
-            listen 80 default_server;
-            listen [::]:80 default_server;
-            server_name _;
-            auth_basic off;
-
-            location / {
-                proxy_pass http://127.0.0.1:8080;
-                proxy_set_header Host $host;
-                proxy_set_header X-Real-IP $remote_addr;
-                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                proxy_set_header X-Forwarded-Proto $scheme;
-                proxy_http_version 1.1;
-                proxy_set_header Upgrade $http_upgrade;
-                proxy_set_header Connection "upgrade";
-            }
-        }
-        NGINX
-        nginx -t && (nginx -s reload || nginx || service nginx restart)
-
   verify:
     - cmd[cp]: |-
         set -euo pipefail
@@ -193,25 +167,10 @@ actions:
           exit 1
         fi
 
-        nginx_ready=0
-        for i in $(seq 1 30); do
-          if curl --noproxy "*" -fsS http://127.0.0.1:80/ >/dev/null 2>&1; then
-            echo "nginx is proxying code-server on port 80"
-            nginx_ready=1
-            break
-          fi
-          sleep 2
-        done
-        if [ "$nginx_ready" != "1" ]; then
-          echo "nginx did not start on port 80" >&2
-          nginx -t >&2 || true
-          exit 1
-        fi
-
         python3 - <<'PYCHECK'
         import json
         from pathlib import Path
-        candidates = list(Path('/usr/lib/code-server').glob('**/vscode/**/product.json')) + list(Path('/usr/share/code-server').glob('**/vscode/**/product.json')) + list(Path('/opt/node-current').glob('**/vscode/**/product.json'))
+        candidates = list(Path('/usr/local').glob('**/vscode/**/product.json')) + list(Path('/usr/lib/code-server').glob('**/vscode/**/product.json')) + list(Path('/usr/share/code-server').glob('**/vscode/**/product.json')) + list(Path('/opt/node-current').glob('**/vscode/**/product.json'))
         assert candidates, 'code-server product.json not found'
         data = json.loads(candidates[0].read_text())
         welcome = data.get('welcomePage', '')
@@ -242,12 +201,12 @@ actions:
 success: |
   ### Constructor Fabric is ready
 
-  [Open Constructor Fabric](https://${env.domain}/)
+  Open Constructor Fabric from the environment endpoint for port 8080.
 
-  The environment runs plain code-server on port 8080, proxied through port 80. The trainer HTML is loaded directly as code-server welcome content; no trainer service is started.
+  The environment runs plain coder code-server directly on port 8080. The trainer HTML is loaded directly as code-server welcome content; no trainer service is started.
   The Constructor Fabric trainer is rendered directly by code-server as its welcome HTML, and code-server is configured with the dark theme.
 
-  Only code-server is started for the web interface. There is no separate trainer HTTP service or desktop sidecar.
+  Only code-server is started for the web interface. There is no nginx proxy, no separate trainer HTTP service, and no desktop sidecar.
   Services run as the `developer` user. The install form stores the selected OpenAI/Claude token for Constructor Fabric automation.
 
   #### Workspace
