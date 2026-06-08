@@ -216,28 +216,21 @@ actions:
         echo "=== All checks passed ==="
 
 success: |
-  <h3>Constructor Fabric is ready</h3>
+  ### Constructor Fabric is ready
 
-  <h4>ACCESS</h4>
-  <p>
-    Open Constructor Fabric:<br>
-    <a href="https://${env.domain}/" target="_blank">https://${env.domain}/</a>
-  </p>
+  #### Access
 
-  <h4>WHAT YOU WILL SEE</h4>
-  <p>
-    The environment runs plain coder code-server directly on port 8080. The Constructor Fabric trainer opens inside code-server, and GitHub Copilot/Copilot Chat is installed for the right-side AI chat experience.
-  </p>
-  <p>
-    Only code-server is started for the web interface. There is no nginx proxy, no separate trainer HTTP service, and no desktop sidecar.
-  </p>
+  Open Constructor Fabric:
+  [https://${env.domain}/](https://${env.domain}/)
 
-  <h4>WORKSPACE</h4>
-  <p><code>/home/developer/workspaces/constructor-fabric-workspace</code></p>
+  #### Workspace
 
-  <h4>INSTALL OPTIONS USED</h4>
-  <table>
-    <tr><td>LLM provider</td><td><code>${settings.llm-provider}</code></td></tr>
-    <tr><td>Model</td><td><code>${settings.openai-model:}${settings.claude-model:}</code></td></tr>
-    <tr><td>API Token</td><td>configured from install form when provided</td></tr>
-  </table>
+  `/home/developer/workspaces/constructor-fabric-workspace`
+
+  #### Install options used
+
+  | Setting | Value |
+  |---------|-------|
+  | LLM provider | `${settings.llm-provider}` |
+  | Model | `${settings.openai-model:}${settings.claude-model:}` |
+  | API Token | configured from install form when provided |
