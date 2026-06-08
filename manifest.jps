@@ -1,5 +1,5 @@
 type: install
-version: 0.5.3
+version: 0.5.4
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -20,8 +20,8 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: copilot-chat-signin-bridge-20260608-1
-  CF_SOURCE_REF: 41cfde4e0059479054646e7ab2e047a3a07a9cc3
+  SCRIPT_VERSION: copilot-chat-auth-scopes-20260608-1
+  CF_SOURCE_REF: 8219097ac64df3ce9d7b02a0ee00e38ca7062a81
 
 settings:
   fields:
