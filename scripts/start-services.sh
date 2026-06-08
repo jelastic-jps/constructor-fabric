@@ -11,8 +11,20 @@ TRAINER_DIR="${HOME}/constructor-fabric/trainer"
 mkdir -p "$LOG_DIR" "$CS_WORKSPACE" "${HOME}/.config/code-server" "${HOME}/.local/share/code-server/User"
 
 write_ai_env() {
+  # JPS writes the install-form provider/token into this file before switching
+  # to the developer user. Source it here because su/sudo/login shells can drop
+  # container env vars during bootstrap.
+  if [ -f "${HOME}/.constructor-fabric-ai.env" ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . "${HOME}/.constructor-fabric-ai.env"
+    set +a
+  fi
+
   provider="$(printenv LLM_PROVIDER || true)"
   [ -n "$provider" ] || provider=openai
+  case "$provider" in openai|claude) ;; *) provider=openai ;; esac
+
   api_token="$(printenv API_TOKEN || true)"
   openai_key="$(printenv OPENAI_API_KEY || true)"
   anthropic_key="$(printenv ANTHROPIC_API_KEY || true)"
@@ -20,8 +32,10 @@ write_ai_env() {
   claude_model="$(printenv CLAUDE_MODEL || true)"
   [ -n "$openai_model" ] || openai_model=gpt-5.5
   [ -n "$claude_model" ] || claude_model=claude-sonnet-4-6
+
   if [ -z "$openai_key" ] && [ "$provider" = "openai" ] && [ -n "$api_token" ]; then openai_key="$api_token"; fi
   if [ -z "$anthropic_key" ] && [ "$provider" = "claude" ] && [ -n "$api_token" ]; then anthropic_key="$api_token"; fi
+
   umask 077
   cat > "${HOME}/.constructor-fabric-ai.env" <<ENV
 LLM_PROVIDER=$provider
@@ -32,6 +46,7 @@ OPENAI_MODEL=$openai_model
 CLAUDE_MODEL=$claude_model
 ENV
   cp "${HOME}/.constructor-fabric-ai.env" "$CS_WORKSPACE/.env" 2>/dev/null || true
+  cp "${HOME}/.constructor-fabric-ai.env" "$CS_WORKSPACE/.env.constructor-fabric" 2>/dev/null || true
   mkdir -p "$CS_WORKSPACE/.vscode"
   cat > "$CS_WORKSPACE/.vscode/settings.json" <<'VSCODE'
 {
@@ -60,6 +75,25 @@ cat > "${HOME}/.local/share/code-server/User/settings.json" <<'CSSETTINGS'
   "telemetry.telemetryLevel": "off"
 }
 CSSETTINGS
+python3 - "${HOME}/.local/share/code-server/User/settings.json" <<'PYSETTINGS'
+import json, os, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+data = json.loads(p.read_text())
+env = {
+    "LLM_PROVIDER": os.environ.get("LLM_PROVIDER", "openai"),
+    "OPENAI_MODEL": os.environ.get("OPENAI_MODEL", "gpt-5.5"),
+    "CLAUDE_MODEL": os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6"),
+}
+if os.environ.get("OPENAI_API_KEY"):
+    env["OPENAI_API_KEY"] = os.environ["OPENAI_API_KEY"]
+if os.environ.get("ANTHROPIC_API_KEY"):
+    env["ANTHROPIC_API_KEY"] = os.environ["ANTHROPIC_API_KEY"]
+if os.environ.get("API_TOKEN"):
+    env["API_TOKEN"] = os.environ["API_TOKEN"]
+data["terminal.integrated.env.linux"] = env
+p.write_text(json.dumps(data, indent=2) + "\n")
+PYSETTINGS
 
 TRAINER_WELCOME_DIR="${CS_WORKSPACE}/.constructor-fabric-trainer"
 TRAINER_HTML="${TRAINER_WELCOME_DIR}/index.html"
