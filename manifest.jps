@@ -231,11 +231,3 @@ success: |
   #### Workspace
 
   `/home/developer/workspaces/constructor-fabric-workspace`
-
-  #### Install options used
-
-  | Setting | Value |
-  |---------|-------|
-  | LLM provider | `${settings.llm-provider}` |
-  | Model | `${settings.openai-model:}${settings.claude-model:}` |
-  | API Token | configured from install form when provided |
