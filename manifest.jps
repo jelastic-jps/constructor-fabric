@@ -130,14 +130,14 @@ actions:
         chown -R developer:developer /home/developer
 
         umask 077
-        cat >/home/developer/.constructor-fabric-ai.env <<ENV
-        LLM_PROVIDER=${settings.llm-provider}
-        API_TOKEN=${settings.api-token}
-        OPENAI_API_KEY=${settings.api-token}
-        ANTHROPIC_API_KEY=${settings.api-token}
-        OPENAI_MODEL=${settings.openai-model:gpt-5.5}
-        CLAUDE_MODEL=${settings.claude-model:claude-sonnet-4-6}
-        ENV
+        {
+          echo "LLM_PROVIDER=${settings.llm-provider}"
+          echo "API_TOKEN=${settings.api-token}"
+          echo "OPENAI_API_KEY=${settings.api-token}"
+          echo "ANTHROPIC_API_KEY=${settings.api-token}"
+          echo "OPENAI_MODEL=${settings.openai-model:gpt-5.5}"
+          echo "CLAUDE_MODEL=${settings.claude-model:claude-sonnet-4-6}"
+        } >/home/developer/.constructor-fabric-ai.env
         chmod 600 /home/developer/.constructor-fabric-ai.env
         chown developer:developer /home/developer/.constructor-fabric-ai.env
 
