@@ -85,7 +85,7 @@ nodes:
       API_TOKEN: ${settings.api-token}
       OPENAI_API_KEY: ${settings.api-token}
       ANTHROPIC_API_KEY: ${settings.api-token}
-      OPENAI_MODEL: ${settings.openai-model}
+      OPENAI_MODEL: ${settings.openai-model:gpt-5.5}
       CLAUDE_MODEL: ${settings.claude-model:claude-sonnet-4-6}
       CF_HOME: /home/developer/constructor-fabric
       CF_WORKSPACE: /home/developer/workspaces/constructor-fabric-workspace
@@ -135,7 +135,7 @@ actions:
         API_TOKEN=${settings.api-token}
         OPENAI_API_KEY=${settings.api-token}
         ANTHROPIC_API_KEY=${settings.api-token}
-        OPENAI_MODEL=${settings.openai-model}
+        OPENAI_MODEL=${settings.openai-model:gpt-5.5}
         CLAUDE_MODEL=${settings.claude-model:claude-sonnet-4-6}
         ENV
         chmod 600 /home/developer/.constructor-fabric-ai.env
