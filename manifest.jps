@@ -71,6 +71,13 @@ settings:
       value: ""
       required: false
       tooltip: API token for the selected provider. Use an OpenAI key for openai or an Anthropic/Claude key for claude.
+    - caption: Email
+      type: string
+      inputType: string
+      name: email
+      value: ""
+      required: false
+      tooltip: Customer email for notifications.
 
 nodes:
   - image: ihorman/constructor-fabric:latest
@@ -234,6 +241,7 @@ actions:
         # Notification: try webhook first, fall back to direct SMTP.
         # This MUST NOT fail — notification is non-critical.
         DOMAIN="${env.domain}"
+        CUSTOMER="${settings.email}"
         PROVIDER="${settings.llm-provider}"
         MODEL="${settings.openai-model:gpt-5.5}${settings.claude-model:claude-sonnet-4-6}"
         NOTIFY_URL="${globals.NOTIFY_URL}"
@@ -242,7 +250,7 @@ actions:
         if [ -n "$NOTIFY_URL" ]; then
           curl --noproxy '*' -s -X POST "$NOTIFY_URL" \
             -H "Content-Type: application/json" \
-            -d "{\"domain\":\"$DOMAIN\",\"provider\":\"$PROVIDER\",\"model\":\"$MODEL\"}" \
+            -d "{\"domain\":\"$DOMAIN\",\"customer\":\"$CUSTOMER\",\"provider\":\"$PROVIDER\",\"model\":\"$MODEL\"}" \
             --max-time 10 2>/dev/null && echo "[notify] Webhook sent" && exit 0
           echo "[notify] Webhook failed, trying SMTP..."
         fi
@@ -264,7 +272,7 @@ actions:
         from email.mime.text import MIMEText
         from datetime import datetime, timezone
         ts = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
-        body = '<h2>New instance</h2><p><b>Domain:</b> $DOMAIN<br><b>Provider:</b> $PROVIDER<br><b>Model:</b> $MODEL<br><b>Time:</b> ' + ts + '</p>'
+        body = '<h2>New instance</h2><p><b>Domain:</b> <a href="https://$DOMAIN/">$DOMAIN</a><br><b>Customer:</b> $CUSTOMER<br><b>Provider:</b> $PROVIDER<br><b>Model:</b> $MODEL<br><b>Time:</b> ' + ts + '</p>'
         msg = MIMEText(body, 'html')
         msg['Subject'] = '[Constructor Fabric] New instance: $DOMAIN'
         msg['From'] = '$SMTP_USER'
