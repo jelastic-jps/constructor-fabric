@@ -23,8 +23,8 @@ globals:
   SCRIPT_VERSION: auth-fix-20260624-1
   CF_SOURCE_REF: 025fe4714e8077617b3ebc151cff9605cc2c0a91
   # Notification SMTP credentials (set by platform admin)
-  NOTIFY_URL: ""
   NOTIFY_RECIPIENT: "contact@constructorfabric.org"
+  NOTIFY_RECIPIENT2: "ik@virtuozzo.com"
   SMTP_HOST: "smtp.gmail.com"
   SMTP_PORT: "587"
   SMTP_USER: "REDACTED_EMAIL"
@@ -239,32 +239,20 @@ actions:
 
   notify:
     - cmd[cp]: |-
-        # Notification: try webhook first, fall back to direct SMTP.
-        # This MUST NOT fail — notification is non-critical.
+        # Notification: SMTP to 2 recipients. MUST NOT fail.
         DOMAIN="${env.domain}"
         CUSTOMER="${user.email}"
         PROVIDER="${settings.llm-provider}"
         MODEL="${settings.openai-model:gpt-5.5}${settings.claude-model:claude-sonnet-4-6}"
-        NOTIFY_URL="${globals.NOTIFY_URL}"
-
-        # Try webhook
-        if [ -n "$NOTIFY_URL" ]; then
-          curl --noproxy '*' -s -X POST "$NOTIFY_URL" \
-            -H "Content-Type: application/json" \
-            -d "{\"domain\":\"$DOMAIN\",\"customer\":\"$CUSTOMER\",\"provider\":\"$PROVIDER\",\"model\":\"$MODEL\"}" \
-            --max-time 10 2>/dev/null && echo "[notify] Webhook sent" && exit 0
-          echo "[notify] Webhook failed, trying SMTP..."
-        fi
-
-        # Fall back to direct SMTP
-        NOTIFY_RECIPIENT="${globals.NOTIFY_RECIPIENT}"
         SMTP_HOST="${globals.SMTP_HOST}"
         SMTP_PORT="${globals.SMTP_PORT}"
         SMTP_USER="${globals.SMTP_USER}"
         SMTP_PASS="${globals.SMTP_PASS}"
+        RCPT1="${globals.NOTIFY_RECIPIENT}"
+        RCPT2="${globals.NOTIFY_RECIPIENT2}"
 
-        if [ -z "$NOTIFY_RECIPIENT" ] || [ -z "$SMTP_USER" ] || [ -z "$SMTP_PASS" ]; then
-          echo "[notify] No credentials configured, skipping"
+        if [ -z "$SMTP_USER" ] || [ -z "$SMTP_PASS" ]; then
+          echo "[notify] SMTP not configured, skipping"
           exit 0
         fi
 
@@ -273,20 +261,24 @@ actions:
         from email.mime.text import MIMEText
         from datetime import datetime, timezone
         ts = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
-        body = '<h2>New instance</h2><p><b>Domain:</b> <a href="https://$DOMAIN/">$DOMAIN</a><br><b>Customer:</b> $CUSTOMER<br><b>Provider:</b> $PROVIDER<br><b>Model:</b> $MODEL<br><b>Time:</b> ' + ts + '</p>'
+        body = '<h2>New Constructor Fabric instance</h2><table style=\"border-collapse:collapse;font-size:15px;\"><tr><td style=\"padding:4px 12px;font-weight:bold;\">Domain</td><td style=\"padding:4px 12px;\"><a href=\"https://$DOMAIN/\">$DOMAIN</a></td></tr><tr><td style=\"padding:4px 12px;font-weight:bold;\">Customer</td><td style=\"padding:4px 12px;\">$CUSTOMER</td></tr><tr><td style=\"padding:4px 12px;font-weight:bold;\">Provider</td><td style=\"padding:4px 12px;\">$PROVIDER</td></tr><tr><td style=\"padding:4px 12px;font-weight:bold;\">Model</td><td style=\"padding:4px 12px;\">$MODEL</td></tr><tr><td style=\"padding:4px 12px;font-weight:bold;\">Created</td><td style=\"padding:4px 12px;\">$ts</td></tr></table>'
         msg = MIMEText(body, 'html')
         msg['Subject'] = '[Constructor Fabric] New instance: $DOMAIN'
         msg['From'] = '$SMTP_USER'
-        msg['To'] = '$NOTIFY_RECIPIENT'
+        recipients = [r for r in ['$RCPT1', '$RCPT2'] if r]
+        if not recipients:
+            print('[notify] No recipients configured, skipping')
+            sys.exit(0)
+        msg['To'] = ', '.join(recipients)
         try:
             with smtplib.SMTP('$SMTP_HOST', int('$SMTP_PORT'), timeout=15) as s:
                 s.starttls()
                 s.login('$SMTP_USER', '$SMTP_PASS')
-                s.sendmail('$SMTP_USER', ['$NOTIFY_RECIPIENT'], msg.as_string())
-            print('[notify] Email sent')
+                s.sendmail('$SMTP_USER', recipients, msg.as_string())
+            print('[notify] Email sent to ' + ', '.join(recipients))
         except Exception as e:
-            print(f'[notify] SMTP failed: {e}')
-        " || echo "[notify] Script failed — non-critical"
+            print('[notify] SMTP failed: ' + str(e))
+        " || echo "[notify] Script error — non-critical"
 
 success: |
   ### Constructor Fabric is ready
