@@ -71,6 +71,13 @@ settings:
       value: ""
       required: false
       tooltip: API token for the selected provider. Use an OpenAI key for openai or an Anthropic/Claude key for claude.
+    - caption: IDE Password (optional)
+      type: string
+      inputType: password
+      name: ide-password
+      value: ""
+      required: false
+      tooltip: Password for code-server IDE access. Leave empty to auto-generate.
 
 nodes:
   - image: ihorman/constructor-fabric:latest
@@ -95,6 +102,7 @@ nodes:
       ANTHROPIC_API_KEY: ${settings.api-token}
       OPENAI_MODEL: ${settings.openai-model:gpt-5.5}
       CLAUDE_MODEL: ${settings.claude-model:claude-sonnet-4-6}
+      CODE_SERVER_PASSWORD: ${settings.ide-password}
       CF_HOME: /home/developer/constructor-fabric
       CF_WORKSPACE: /home/developer/workspaces/constructor-fabric-workspace
       NO_PROXY: localhost,127.0.0.1,::1
@@ -287,6 +295,8 @@ success: |
 
   Open Constructor Fabric:
   [https://${env.domain}/](https://${env.domain}/)
+
+  Password is stored on the server at `~/.code-server-password`
 
   #### Workspace
 

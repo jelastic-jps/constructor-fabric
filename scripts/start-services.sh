@@ -60,9 +60,17 @@ VSCODE
 }
 write_ai_env
 
+# Generate code-server password if not set
+if [ -z "${CODE_SERVER_PASSWORD:-}" ]; then
+  CODE_SERVER_PASSWORD=$(head -c 18 /dev/urandom | base64 | tr -d '/+=' | head -c 16)
+fi
+export PASSWORD="${CODE_SERVER_PASSWORD}"
+echo "${CODE_SERVER_PASSWORD}" > "${HOME}/.code-server-password"
+chmod 600 "${HOME}/.code-server-password"
+
 cat > "${HOME}/.config/code-server/config.yaml" <<'CSSERVER'
 bind-addr: 0.0.0.0:8080
-auth: none
+auth: password
 cert: false
 CSSERVER
 
@@ -349,10 +357,10 @@ chown -R developer:developer "$HOME" 2>/dev/null || true
 
 sudo tee /etc/supervisor/conf.d/code-server.conf >/dev/null <<SUPERVISOR
 [program:code-server]
-command=/usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry --enable-proposed-api GitHub.copilot --enable-proposed-api GitHub.copilot-chat ${CS_WORKSPACE}
+command=/usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --disable-telemetry --enable-proposed-api GitHub.copilot --enable-proposed-api GitHub.copilot-chat ${CS_WORKSPACE}
 user=developer
 directory=${CS_WORKSPACE}
-environment=HOME="${HOME}",USER="developer",PATH="/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin",LLM_PROVIDER="${LLM_PROVIDER:-openai}",API_TOKEN="${API_TOKEN:-}",OPENAI_API_KEY="${OPENAI_API_KEY:-}",ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}",OPENAI_MODEL="${OPENAI_MODEL:-gpt-5.5}",CLAUDE_MODEL="${CLAUDE_MODEL:-claude-sonnet-4-6}"
+environment=HOME="${HOME}",USER="developer",PATH="/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin",PASSWORD="${CODE_SERVER_PASSWORD:-}",LLM_PROVIDER="${LLM_PROVIDER:-openai}",API_TOKEN="${API_TOKEN:-}",OPENAI_API_KEY="${OPENAI_API_KEY:-}",ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}",OPENAI_MODEL="${OPENAI_MODEL:-gpt-5.5}",CLAUDE_MODEL="${CLAUDE_MODEL:-claude-sonnet-4-6}"
 autostart=true
 autorestart=true
 startsecs=5
