@@ -366,7 +366,7 @@ chown -R developer:developer "$HOME" 2>/dev/null || true
 
 sudo tee /etc/supervisor/conf.d/code-server.conf >/dev/null <<SUPERVISOR
 [program:code-server]
-command=/bin/sh /home/developer/start-code-server.sh ${CS_WORKSPACE}
+command=/bin/sh -c 'export PASSWORD=*** /home/developer/.code-server-password 2>/dev/null); exec /usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --disable-telemetry --enable-proposed-api GitHub.copilot --enable-proposed-api GitHub.copilot-chat /home/developer/workspaces/constructor-fabric-workspace'
 user=developer
 directory=${CS_WORKSPACE}
 environment=HOME="${HOME}",USER="developer",PATH="/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin",PASSWORD="${CODE_SERVER_PASSWORD:-}",LLM_PROVIDER="${LLM_PROVIDER:-openai}",API_TOKEN="${API_TOKEN:-}",OPENAI_API_KEY="${OPENAI_API_KEY:-}",ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}",OPENAI_MODEL="${OPENAI_MODEL:-gpt-5.5}",CLAUDE_MODEL="${CLAUDE_MODEL:-claude-sonnet-4-6}"
