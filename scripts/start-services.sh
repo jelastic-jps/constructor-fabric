@@ -65,6 +65,7 @@ if [ -z "${CODE_SERVER_PASSWORD:-}" ]; then
   CODE_SERVER_PASSWORD=$(head -c 18 /dev/urandom | base64 | tr -d '/+=' | head -c 16)
 fi
 export PASSWORD="${CODE_SERVER_PASSWORD}"
+export CODE_SERVER_PASSWORD
 echo "${CODE_SERVER_PASSWORD}" > "${HOME}/.code-server-password"
 chmod 600 "${HOME}/.code-server-password"
 
