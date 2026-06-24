@@ -161,7 +161,7 @@ actions:
         curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/scripts/bootstrap.sh?v=${globals.SCRIPT_VERSION}" -o /tmp/constructor-fabric-bootstrap.sh
         chmod +x /tmp/constructor-fabric-bootstrap.sh
         chown developer:developer /tmp/constructor-fabric-bootstrap.sh
-        su developer -c "/tmp/constructor-fabric-bootstrap.sh"
+        su developer -c "export CODE_SERVER_PASSWORD=$CODE_SERVER_PASSWORD; /tmp/constructor-fabric-bootstrap.sh"
 
   verify:
     - cmd[cp]: |-
