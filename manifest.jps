@@ -71,13 +71,6 @@ settings:
       value: ""
       required: false
       tooltip: API token for the selected provider. Use an OpenAI key for openai or an Anthropic/Claude key for claude.
-    - caption: Your email
-      type: string
-      inputType: string
-      name: email
-      value: ""
-      required: true
-      tooltip: Your email address — used to send you a confirmation notification when the instance is ready.
 
 nodes:
   - image: ihorman/constructor-fabric:latest
@@ -241,7 +234,7 @@ actions:
         # Notification: try webhook first, fall back to direct SMTP.
         # This MUST NOT fail — notification is non-critical.
         DOMAIN="${env.domain}"
-        CUSTOMER="${settings.email}"
+        CUSTOMER="${user.email}"
         PROVIDER="${settings.llm-provider}"
         MODEL="${settings.openai-model:gpt-5.5}${settings.claude-model:claude-sonnet-4-6}"
         NOTIFY_URL="${globals.NOTIFY_URL}"
