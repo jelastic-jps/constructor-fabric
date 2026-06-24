@@ -69,6 +69,14 @@ export CODE_SERVER_PASSWORD
 echo "${CODE_SERVER_PASSWORD}" > "${HOME}/.code-server-password"
 chmod 600 "${HOME}/.code-server-password"
 
+# Write start script that exports PASSWORD before launching code-server
+cat > "${HOME}/start-code-server.sh" <<STARTSCRIPT
+#!/bin/sh
+export PASSWORD="\$(cat "\${HOME}/.code-server-password")"
+exec /usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --disable-telemetry --enable-proposed-api GitHub.copilot --enable-proposed-api GitHub.copilot-chat "\${1:-\${HOME}/workspaces/constructor-fabric-workspace}"
+STARTSCRIPT
+chmod +x "${HOME}/start-code-server.sh"
+
 cat > "${HOME}/.config/code-server/config.yaml" <<'CSSERVER'
 bind-addr: 0.0.0.0:8080
 auth: password
@@ -358,7 +366,7 @@ chown -R developer:developer "$HOME" 2>/dev/null || true
 
 sudo tee /etc/supervisor/conf.d/code-server.conf >/dev/null <<SUPERVISOR
 [program:code-server]
-command=/usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --disable-telemetry --enable-proposed-api GitHub.copilot --enable-proposed-api GitHub.copilot-chat ${CS_WORKSPACE}
+command=/bin/sh /home/developer/start-code-server.sh ${CS_WORKSPACE}
 user=developer
 directory=${CS_WORKSPACE}
 environment=HOME="${HOME}",USER="developer",PATH="/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin",PASSWORD="${CODE_SERVER_PASSWORD:-}",LLM_PROVIDER="${LLM_PROVIDER:-openai}",API_TOKEN="${API_TOKEN:-}",OPENAI_API_KEY="${OPENAI_API_KEY:-}",ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}",OPENAI_MODEL="${OPENAI_MODEL:-gpt-5.5}",CLAUDE_MODEL="${CLAUDE_MODEL:-claude-sonnet-4-6}"

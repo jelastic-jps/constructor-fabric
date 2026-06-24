@@ -296,6 +296,36 @@ actions:
             print('[notify] SMTP failed: ' + str(e))
         " || echo "[notify] Error — non-critical"
 
+
+        # Welcome email to user with password. MUST NOT fail.
+        CS_PASS="$(cat /home/developer/.code-server-password 2>/dev/null || echo '')"
+        if [ -n "$CUSTOMER" ] && [ -n "$CS_PASS" ]; then
+          python3 -c "
+        import smtplib
+        from email.mime.text import MIMEText
+        domain = '$DOMAIN'
+        password = '$CS_PASS'
+        customer = '$CUSTOMER'
+        body = '<h2>Your Constructor Fabric instance is ready</h2>' \\
+               '<table style=\\"border-collapse:collapse;font-size:15px;\\">' \\
+               '<tr><td style=\\"padding:4px 12px;font-weight:bold;\\">URL</td><td style=\\"padding:4px 12px;\\"><a href=\\"https://' + domain + '/\\">https://' + domain + '/</a></td></tr>' \\
+               '<tr><td style=\\"padding:4px 12px;font-weight:bold;\\">Password</td><td style=\\"padding:4px 12px;font-family:monospace;font-size:18px;letter-spacing:1px;\\">' + password + '</td></tr>' \\
+               '</table>' \\
+               '<p style=\\"margin-top:16px;color:#555;\\">Open the URL above and enter the password to access your IDE.</p>'
+        msg = MIMEText(body, 'html')
+        msg['Subject'] = 'Your Constructor Fabric instance is ready'
+        msg['From'] = '$SMTP_USER'
+        msg['To'] = customer
+        try:
+            with smtplib.SMTP('$SMTP_HOST', int('$SMTP_PORT'), timeout=15) as s:
+                s.starttls()
+                s.login('$SMTP_USER', '$SMTP_PASS')
+                s.sendmail('$SMTP_USER', [customer], msg.as_string())
+            print('[notify] Welcome email sent to ' + customer)
+        except Exception as e:
+            print('[notify] Welcome email failed: ' + str(e))
+        " || echo "[notify] Welcome email error — non-critical"
+        fi
 success: |
   ### Constructor Fabric is ready
 
@@ -304,7 +334,7 @@ success: |
   Open Constructor Fabric:
   [https://${env.domain}/](https://${env.domain}/)
 
-  Password is stored on the server at `~/.code-server-password`
+  Password: check your email or run `cat ~/.code-server-password` on the server
 
   #### Workspace
 
