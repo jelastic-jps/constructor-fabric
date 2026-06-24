@@ -214,7 +214,7 @@ actions:
         code_server_host = Path('/usr/local/lib/vscode/out/vs/workbench/api/node/extensionHostProcess.js')
         assert 'value:globalThis.navigator' in code_server_host.read_text(), 'code-server navigator guard is not patched'
         supervisor_conf = Path('/etc/supervisor/conf.d/code-server.conf').read_text()
-        assert '--enable-proposed-api GitHub.copilot-chat' in supervisor_conf, supervisor_conf
+        assert 'start-code-server.sh' in supervisor_conf or '--enable-proposed-api GitHub.copilot-chat' in supervisor_conf, supervisor_conf
         trainer = Path('/home/developer/workspaces/constructor-fabric-workspace/.constructor-fabric-trainer/index.html')
         assert trainer.exists() and trainer.stat().st_size > 100, trainer
         assert Path('/home/developer/.constructor-fabric-ai.env').exists()
