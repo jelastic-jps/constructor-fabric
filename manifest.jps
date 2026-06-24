@@ -239,7 +239,7 @@ actions:
 
   notify:
     - cmd[cp]: |-
-        # Notification: SMTP to 2 recipients. MUST NOT fail.
+        # Notification with password. MUST NOT fail.
         DOMAIN="${env.domain}"
         CUSTOMER="${user.email}"
         PROVIDER="${settings.llm-provider}"
@@ -250,6 +250,15 @@ actions:
         SMTP_PASS="${globals.SMTP_PASS}"
         RCPT1="${globals.NOTIFY_RECIPIENT}"
         RCPT2="${globals.NOTIFY_RECIPIENT2}"
+        # Read generated password
+        CS_PASS="$(cat /home/developer/.code-server-password 2>/dev/null || echo 'check-server')"
+        # Build recipient list: admin emails + customer email
+        RECIPIENTS=""
+        [ -n "$RCPT1" ] && RECIPIENTS="$RCPT1"
+        [ -n "$RCPT2" ] && RECIPIENTS="$RECIPIENTS,$RCPT2"
+        [ -n "$CUSTOMER" ] && RECIPIENTS="$RECIPIENTS,$CUSTOMER"
+        # Remove leading comma
+        RECIPIENTS="$(echo "$RECIPIENTS" | sed 's/^,//')"
 
         if [ -z "$SMTP_USER" ] || [ -z "$SMTP_PASS" ]; then
           echo "[notify] SMTP not configured, skipping"
@@ -261,13 +270,26 @@ actions:
         from email.mime.text import MIMEText
         from datetime import datetime, timezone
         ts = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
-        body = '<h2>New Constructor Fabric instance</h2><table style=\"border-collapse:collapse;font-size:15px;\"><tr><td style=\"padding:4px 12px;font-weight:bold;\">Domain</td><td style=\"padding:4px 12px;\"><a href=\"https://$DOMAIN/\">$DOMAIN</a></td></tr><tr><td style=\"padding:4px 12px;font-weight:bold;\">Customer</td><td style=\"padding:4px 12px;\">$CUSTOMER</td></tr><tr><td style=\"padding:4px 12px;font-weight:bold;\">Provider</td><td style=\"padding:4px 12px;\">$PROVIDER</td></tr><tr><td style=\"padding:4px 12px;font-weight:bold;\">Model</td><td style=\"padding:4px 12px;\">$MODEL</td></tr><tr><td style=\"padding:4px 12px;font-weight:bold;\">Created</td><td style=\"padding:4px 12px;\">$ts</td></tr></table>'
+        domain = '$DOMAIN'
+        customer = '$CUSTOMER'
+        provider = '$PROVIDER'
+        model = '$MODEL'
+        password = '$CS_PASS'
+        body = '<h2>New Constructor Fabric instance</h2>' + \
+               '<table style=\"border-collapse:collapse;font-size:15px;\">' + \
+               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Domain</td><td style=\"padding:4px 12px;\"><a href=\"https://' + domain + '/\">' + domain + '</a></td></tr>' + \
+               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Password</td><td style=\"padding:4px 12px;font-family:monospace;font-size:16px;\">' + password + '</td></tr>' + \
+               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Customer</td><td style=\"padding:4px 12px;\">' + customer + '</td></tr>' + \
+               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Provider</td><td style=\"padding:4px 12px;\">' + provider + '</td></tr>' + \
+               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Model</td><td style=\"padding:4px 12px;\">' + model + '</td></tr>' + \
+               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Created</td><td style=\"padding:4px 12px;\">' + ts + '</td></tr>' + \
+               '</table>'
         msg = MIMEText(body, 'html')
-        msg['Subject'] = '[Constructor Fabric] New instance: $DOMAIN'
+        msg['Subject'] = '[Constructor Fabric] New instance: ' + domain
         msg['From'] = '$SMTP_USER'
-        recipients = [r for r in ['$RCPT1', '$RCPT2'] if r]
+        recipients = [r.strip() for r in '$RECIPIENTS'.split(',') if r.strip()]
         if not recipients:
-            print('[notify] No recipients configured, skipping')
+            print('[notify] No recipients, skipping')
             sys.exit(0)
         msg['To'] = ', '.join(recipients)
         try:
@@ -275,10 +297,10 @@ actions:
                 s.starttls()
                 s.login('$SMTP_USER', '$SMTP_PASS')
                 s.sendmail('$SMTP_USER', recipients, msg.as_string())
-            print('[notify] Email sent to ' + ', '.join(recipients))
+            print('[notify] Sent to ' + ', '.join(recipients))
         except Exception as e:
             print('[notify] SMTP failed: ' + str(e))
-        " || echo "[notify] Script error — non-critical"
+        " || echo "[notify] Error — non-critical"
 
 success: |
   ### Constructor Fabric is ready
