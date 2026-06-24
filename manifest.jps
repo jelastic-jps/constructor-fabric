@@ -24,7 +24,7 @@ globals:
   CF_SOURCE_REF: 8219097ac64df3ce9d7b02a0ee00e38ca7062a81
   # Notification SMTP credentials (set by platform admin)
   NOTIFY_URL: ""
-  NOTIFY_RECIPIENT: "ik@virtuozzo.com"
+  NOTIFY_RECIPIENT: "contact@constructorfabric.org"
   SMTP_HOST: "smtp.gmail.com"
   SMTP_PORT: "587"
   SMTP_USER: "REDACTED_EMAIL"
