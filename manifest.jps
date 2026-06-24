@@ -20,8 +20,8 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: smtp-notify-20260623-1
-  CF_SOURCE_REF: 8219097ac64df3ce9d7b02a0ee00e38ca7062a81
+  SCRIPT_VERSION: auth-fix-20260624-1
+  CF_SOURCE_REF: 025fe4714e8077617b3ebc151cff9605cc2c0a91
   # Notification SMTP credentials (set by platform admin)
   NOTIFY_URL: ""
   NOTIFY_RECIPIENT: "contact@constructorfabric.org"
@@ -109,8 +109,8 @@ nodes:
       no_proxy: localhost,127.0.0.1,::1
       JELASTIC_EXPOSE: 8080
       JELASTIC_PORTS: 8080
-      SCRIPT_VERSION: ${globals.SCRIPT_VERSION}
-      CF_SOURCE_REF: ${globals.CF_SOURCE_REF}
+      SCRIPT_VERSION: auth-fix-20260624-1
+      CF_SOURCE_REF: 025fe4714e8077617b3ebc151cff9605cc2c0a91
 
 onInstall:
   - bootstrap
