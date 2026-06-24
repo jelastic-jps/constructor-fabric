@@ -239,7 +239,7 @@ actions:
 
   notify:
     - cmd[cp]: |-
-        # Notification with password. MUST NOT fail.
+        # Admin notification. MUST NOT fail.
         DOMAIN="${env.domain}"
         CUSTOMER="${user.email}"
         PROVIDER="${settings.llm-provider}"
@@ -250,20 +250,16 @@ actions:
         SMTP_PASS="${globals.SMTP_PASS}"
         RCPT1="${globals.NOTIFY_RECIPIENT}"
         RCPT2="${globals.NOTIFY_RECIPIENT2}"
-        # Read generated password
-        CS_PASS="$(cat /home/developer/.code-server-password 2>/dev/null || echo 'check-server')"
-        # Build recipient list: admin emails + customer email
+
+        if [ -z "$SMTP_USER" ] || [ -z "$SMTP_PASS" ] || ([ -z "$RCPT1" ] && [ -z "$RCPT2" ]); then
+          echo "[notify] SMTP or recipients not configured, skipping"
+          exit 0
+        fi
+
         RECIPIENTS=""
         [ -n "$RCPT1" ] && RECIPIENTS="$RCPT1"
         [ -n "$RCPT2" ] && RECIPIENTS="$RECIPIENTS,$RCPT2"
-        [ -n "$CUSTOMER" ] && RECIPIENTS="$RECIPIENTS,$CUSTOMER"
-        # Remove leading comma
         RECIPIENTS="$(echo "$RECIPIENTS" | sed 's/^,//')"
-
-        if [ -z "$SMTP_USER" ] || [ -z "$SMTP_PASS" ]; then
-          echo "[notify] SMTP not configured, skipping"
-          exit 0
-        fi
 
         python3 -c "
         import smtplib, sys
@@ -274,15 +270,13 @@ actions:
         customer = '$CUSTOMER'
         provider = '$PROVIDER'
         model = '$MODEL'
-        password = '$CS_PASS'
-        body = '<h2>New Constructor Fabric instance</h2>' + \
-               '<table style=\"border-collapse:collapse;font-size:15px;\">' + \
-               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Domain</td><td style=\"padding:4px 12px;\"><a href=\"https://' + domain + '/\">' + domain + '</a></td></tr>' + \
-               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Password</td><td style=\"padding:4px 12px;font-family:monospace;font-size:16px;\">' + password + '</td></tr>' + \
-               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Customer</td><td style=\"padding:4px 12px;\">' + customer + '</td></tr>' + \
-               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Provider</td><td style=\"padding:4px 12px;\">' + provider + '</td></tr>' + \
-               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Model</td><td style=\"padding:4px 12px;\">' + model + '</td></tr>' + \
-               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Created</td><td style=\"padding:4px 12px;\">' + ts + '</td></tr>' + \
+        body = '<h2>New Constructor Fabric instance</h2>' \
+               '<table style=\"border-collapse:collapse;font-size:15px;\">' \
+               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Domain</td><td style=\"padding:4px 12px;\"><a href=\"https://' + domain + '/\">' + domain + '</a></td></tr>' \
+               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Customer</td><td style=\"padding:4px 12px;\">' + customer + '</td></tr>' \
+               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Provider</td><td style=\"padding:4px 12px;\">' + provider + '</td></tr>' \
+               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Model</td><td style=\"padding:4px 12px;\">' + model + '</td></tr>' \
+               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Created</td><td style=\"padding:4px 12px;\">' + ts + '</td></tr>' \
                '</table>'
         msg = MIMEText(body, 'html')
         msg['Subject'] = '[Constructor Fabric] New instance: ' + domain
