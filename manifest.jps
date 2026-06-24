@@ -71,13 +71,13 @@ settings:
       value: ""
       required: false
       tooltip: API token for the selected provider. Use an OpenAI key for openai or an Anthropic/Claude key for claude.
-    - caption: Email
+    - caption: Your email
       type: string
       inputType: string
       name: email
       value: ""
-      required: false
-      tooltip: Customer email for notifications.
+      required: true
+      tooltip: Your email address — used to send you a confirmation notification when the instance is ready.
 
 nodes:
   - image: ihorman/constructor-fabric:latest
