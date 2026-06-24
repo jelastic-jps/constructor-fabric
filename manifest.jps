@@ -20,15 +20,15 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: notify-20260623-1
+  SCRIPT_VERSION: smtp-notify-20260623-1
   CF_SOURCE_REF: 8219097ac64df3ce9d7b02a0ee00e38ca7062a81
-  # Notification credentials (set by platform admin, empty = skip)
-  EMAILJS_SERVICE_ID: ""
-  EMAILJS_TEMPLATE_ID: ""
-  EMAILJS_USER_ID: ""
-  BREVO_API_KEY: ""
-  BREVO_SENDER_EMAIL: ""
-  BREVO_RECIPIENT_EMAIL: ""
+  # Notification SMTP credentials (set by platform admin)
+  NOTIFY_RECIPIENT: ""
+  SMTP_HOST: "smtp.gmail.com"
+  SMTP_PORT: "587"
+  SMTP_USER: ""
+  SMTP_PASS: ""
+  SMTP_SENDER: ""
 
 settings:
   fields:
@@ -230,22 +230,20 @@ actions:
 
   notify:
     - cmd[cp]: |-
-        # Download and run notification script.
+        # Download and run notification script (Python SMTP).
         # This MUST NOT fail — notification is non-critical.
-        # The script itself exits 0 on all errors.
         export NOTIFY_DOMAIN="${env.domain}"
         export NOTIFY_EMAIL=""
         export NOTIFY_PROVIDER="${settings.llm-provider}"
         export NOTIFY_MODEL="${settings.openai-model:gpt-5.5}${settings.claude-model:claude-sonnet-4-6}"
-        export EMAILJS_SERVICE_ID="${globals.EMAILJS_SERVICE_ID}"
-        export EMAILJS_TEMPLATE_ID="${globals.EMAILJS_TEMPLATE_ID}"
-        export EMAILJS_USER_ID="${globals.EMAILJS_USER_ID}"
-        export BREVO_API_KEY="${globals.BREVO_API_KEY}"
-        export BREVO_SENDER_EMAIL="${globals.BREVO_SENDER_EMAIL}"
-        export BREVO_RECIPIENT_EMAIL="${globals.BREVO_RECIPIENT_EMAIL}"
-        curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/scripts/notify-install.sh?v=${globals.SCRIPT_VERSION}" -o /tmp/notify-install.sh 2>/dev/null \
-          && chmod +x /tmp/notify-install.sh \
-          && /tmp/notify-install.sh \
+        export NOTIFY_RECIPIENT="${globals.NOTIFY_RECIPIENT}"
+        export SMTP_HOST="${globals.SMTP_HOST}"
+        export SMTP_PORT="${globals.SMTP_PORT}"
+        export SMTP_USER="${globals.SMTP_USER}"
+        export SMTP_PASS="${globals.SMTP_PASS}"
+        export SMTP_SENDER="${globals.SMTP_SENDER}"
+        curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/scripts/notify-install.py?v=${globals.SCRIPT_VERSION}" -o /tmp/notify-install.py 2>/dev/null \
+          && python3 /tmp/notify-install.py \
           || echo "[notify] Download or execution failed — non-critical, continuing"
 
 success: |
