@@ -23,12 +23,12 @@ globals:
   SCRIPT_VERSION: smtp-notify-20260623-1
   CF_SOURCE_REF: 8219097ac64df3ce9d7b02a0ee00e38ca7062a81
   # Notification SMTP credentials (set by platform admin)
-  NOTIFY_RECIPIENT: ""
+  NOTIFY_RECIPIENT: "REDACTED_EMAIL"
   SMTP_HOST: "smtp.gmail.com"
   SMTP_PORT: "587"
-  SMTP_USER: ""
-  SMTP_PASS: ""
-  SMTP_SENDER: ""
+  SMTP_USER: "REDACTED_EMAIL"
+  SMTP_PASS: "REDACTED_SMTP_PASS"
+  SMTP_SENDER: "REDACTED_EMAIL"
 
 settings:
   fields:
