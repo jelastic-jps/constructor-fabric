@@ -83,7 +83,7 @@ CSSERVER
 # Patch code-server login page message
 _i18n="/usr/local/out/node/i18n/locales/en.json"
 if [ -f "$_i18n" ]; then
-  python3 - "$_i18n" <<'PYI18N'
+  sudo python3 - "$_i18n" <<'PYI18N'
 import json, sys
 from pathlib import Path
 p = Path(sys.argv[1])
