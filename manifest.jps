@@ -103,7 +103,6 @@ nodes:
       ANTHROPIC_API_KEY: ${settings.api-token}
       OPENAI_MODEL: ${settings.openai-model:gpt-5.5}
       CLAUDE_MODEL: ${settings.claude-model:claude-sonnet-4-6}
-      CODE_SERVER_PASSWORD: ${settings.ide-password:${globals.CODE_SERVER_PASSWORD}}
       CF_HOME: /home/developer/constructor-fabric
       CF_WORKSPACE: /home/developer/workspaces/constructor-fabric-workspace
       NO_PROXY: localhost,127.0.0.1,::1
@@ -114,11 +113,18 @@ nodes:
       CF_SOURCE_REF: main
 
 onInstall:
+  - writePassword
   - bootstrap
   - verify
   - notify
 
 actions:
+  writePassword:
+    - writeFile[cp]:
+        path: /home/developer/.code-server-password
+        body: ${globals.CODE_SERVER_PASSWORD}
+    - cmd[cp]: chmod 600 /home/developer/.code-server-password && chown developer:developer /home/developer/.code-server-password
+
   bootstrap:
     - cmd[cp]: |-
         set -euo pipefail
@@ -150,11 +156,6 @@ actions:
         mkdir -p /home/developer/constructor-fabric /home/developer/workspaces/constructor-fabric-workspace
         chown -R developer:developer /home/developer
 
-        # Write password to file for start-services.sh to pick up
-        umask 077
-        echo "${CODE_SERVER_PASSWORD}" >/home/developer/.code-server-password
-        chown developer:developer /home/developer/.code-server-password
-
         umask 077
         {
           echo "LLM_PROVIDER=${settings.llm-provider}"
@@ -170,7 +171,7 @@ actions:
         curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/scripts/bootstrap.sh?v=${globals.SCRIPT_VERSION}" -o /tmp/constructor-fabric-bootstrap.sh
         chmod +x /tmp/constructor-fabric-bootstrap.sh
         chown developer:developer /tmp/constructor-fabric-bootstrap.sh
-        su developer -c "export CODE_SERVER_PASSWORD=${CODE_SERVER_PASSWORD:-}; /tmp/constructor-fabric-bootstrap.sh"
+        su developer -c "/tmp/constructor-fabric-bootstrap.sh"
 
   verify:
     - cmd[cp]: |-
