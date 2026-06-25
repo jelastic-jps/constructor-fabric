@@ -65,6 +65,7 @@ if [ -z "${CODE_SERVER_PASSWORD:-}" ]; then
   CODE_SERVER_PASSWORD=$(head -c 18 /dev/urandom | base64 | tr -d '/+=' | head -c 16)
 fi
 export PASSWORD="${CODE_SERVER_PASSWORD}"
+echo "[wrapper] PASSWORD=$PASSWORD" >&2
 export CODE_SERVER_PASSWORD
 echo "${CODE_SERVER_PASSWORD}" > "${HOME}/.code-server-password"
 chmod 600 "${HOME}/.code-server-password"
@@ -74,6 +75,7 @@ echo "[start-services] Password set: ${CODE_SERVER_PASSWORD}"
 cat > "${HOME}/start-code-server.sh" <<STARTSCRIPT
 #!/bin/sh
 export PASSWORD="\$(cat "\${HOME}/.code-server-password")"
+echo "[wrapper] PW=$(cat /home/developer/.code-server-password | head -c 4)..." >&2
 exec /usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --disable-telemetry --enable-proposed-api GitHub.copilot --enable-proposed-api GitHub.copilot-chat "\${1:-\${HOME}/workspaces/constructor-fabric-workspace}"
 STARTSCRIPT
 chmod +x "${HOME}/start-code-server.sh"
