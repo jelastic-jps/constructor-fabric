@@ -20,8 +20,9 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: sh-c-pwd-20260625-1
-  CF_SOURCE_REF: f939a6a350a853aeed388d0ce211c402a35b66e2
+  SCRIPT_VERSION: fn-pwd-20260625-1
+  CF_SOURCE_REF: main
+  CODE_SERVER_PASSWORD: ${fn.password}
   # Notification SMTP credentials (set by platform admin)
   NOTIFY_RECIPIENT: "contact@constructorfabric.org"
   NOTIFY_RECIPIENT2: "ik@virtuozzo.com"
@@ -102,15 +103,15 @@ nodes:
       ANTHROPIC_API_KEY: ${settings.api-token}
       OPENAI_MODEL: ${settings.openai-model:gpt-5.5}
       CLAUDE_MODEL: ${settings.claude-model:claude-sonnet-4-6}
-      CODE_SERVER_PASSWORD: ${settings.ide-password:}
+      CODE_SERVER_PASSWORD: ${settings.ide-password:${globals.CODE_SERVER_PASSWORD}}
       CF_HOME: /home/developer/constructor-fabric
       CF_WORKSPACE: /home/developer/workspaces/constructor-fabric-workspace
       NO_PROXY: localhost,127.0.0.1,::1
       no_proxy: localhost,127.0.0.1,::1
       JELASTIC_EXPOSE: 8080
       JELASTIC_PORTS: 8080
-      SCRIPT_VERSION: sh-c-pwd-20260625-1
-      CF_SOURCE_REF: f939a6a350a853aeed388d0ce211c402a35b66e2
+      SCRIPT_VERSION: fn-pwd-20260625-1
+      CF_SOURCE_REF: main
 
 onInstall:
   - bootstrap
@@ -148,6 +149,11 @@ actions:
 
         mkdir -p /home/developer/constructor-fabric /home/developer/workspaces/constructor-fabric-workspace
         chown -R developer:developer /home/developer
+
+        # Write password to file for start-services.sh to pick up
+        umask 077
+        echo "${CODE_SERVER_PASSWORD}" >/home/developer/.code-server-password
+        chown developer:developer /home/developer/.code-server-password
 
         umask 077
         {
@@ -316,7 +322,8 @@ success: |
   Open Constructor Fabric:
   [https://${env.domain}/](https://${env.domain}/)
 
-  Password: see install log above (line starting with "[start-services] Password set:")
+  **Username:** `admin`
+  **Password:** `${globals.CODE_SERVER_PASSWORD}`
 
   #### Workspace
 

@@ -60,15 +60,18 @@ VSCODE
 }
 write_ai_env
 
-# Generate code-server password if not set
-if [ -z "${CODE_SERVER_PASSWORD:-}" ]; then
-  CODE_SERVER_PASSWORD=$(head -c 18 /dev/urandom | base64 | tr -d '/+=' | head -c 16)
+# Use password from file if manifest already wrote it, otherwise generate
+if [ -f "${HOME}/.code-server-password" ] && [ -s "${HOME}/.code-server-password" ]; then
+  CODE_SERVER_PASSWORD="$(cat "${HOME}/.code-server-password")"
+else
+  if [ -z "${CODE_SERVER_PASSWORD:-}" ]; then
+    CODE_SERVER_PASSWORD=$(head -c 18 /dev/urandom | base64 | tr -d '/+=' | head -c 16)
+  fi
+  echo "${CODE_SERVER_PASSWORD}" > "${HOME}/.code-server-password"
+  chmod 600 "${HOME}/.code-server-password"
 fi
 export PASSWORD="${CODE_SERVER_PASSWORD}"
-echo "[wrapper] PASSWORD=$PASSWORD" >&2
 export CODE_SERVER_PASSWORD
-echo "${CODE_SERVER_PASSWORD}" > "${HOME}/.code-server-password"
-chmod 600 "${HOME}/.code-server-password"
 echo "[start-services] Password set: ${CODE_SERVER_PASSWORD}"
 
 cat > "${HOME}/.config/code-server/config.yaml" <<CSSERVER
