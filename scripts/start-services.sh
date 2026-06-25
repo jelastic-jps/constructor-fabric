@@ -80,9 +80,22 @@ chmod +x "${HOME}/start-code-server.sh"
 
 cat > "${HOME}/.config/code-server/config.yaml" <<'CSSERVER'
 bind-addr: 0.0.0.0:8080
-auth: none
+auth: password
 cert: false
 CSSERVER
+# Inject actual password from file into config.yaml
+_cs_pw="$(cat "${HOME}/.code-server-password" 2>/dev/null || echo '')"
+if [ -n "$_cs_pw" ]; then
+  sudo python3 -c "
+from pathlib import Path
+p = Path('${HOME}/.config/code-server/config.yaml')
+t = p.read_text()
+pw = Path('${HOME}/.code-server-password').read_text().strip()
+t = t.replace('auth: password', 'auth: password\npassword: ' + pw)
+p.write_text(t)
+print('[start-services] password injected into config.yaml')
+"
+fi
 patch_code_server_navigator_guard() {
   target="/usr/local/lib/vscode/out/vs/workbench/api/node/extensionHostProcess.js"
   [ -f "$target" ] || return 0
