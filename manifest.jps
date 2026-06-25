@@ -20,8 +20,8 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: wrapper-only-20260625-1
-  CF_SOURCE_REF: f35b6ea1a22ea01c620d97e36db2cba03ac1662a
+  SCRIPT_VERSION: sh-c-pwd-20260625-1
+  CF_SOURCE_REF: e9a033b6cd3aca026cbe7d286105cd0a6311c383
   # Notification SMTP credentials (set by platform admin)
   NOTIFY_RECIPIENT: "contact@constructorfabric.org"
   NOTIFY_RECIPIENT2: "ik@virtuozzo.com"
@@ -109,8 +109,8 @@ nodes:
       no_proxy: localhost,127.0.0.1,::1
       JELASTIC_EXPOSE: 8080
       JELASTIC_PORTS: 8080
-      SCRIPT_VERSION: wrapper-only-20260625-1
-      CF_SOURCE_REF: f35b6ea1a22ea01c620d97e36db2cba03ac1662a
+      SCRIPT_VERSION: sh-c-pwd-20260625-1
+      CF_SOURCE_REF: e9a033b6cd3aca026cbe7d286105cd0a6311c383
 
 onInstall:
   - bootstrap
