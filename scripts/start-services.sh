@@ -68,6 +68,7 @@ export PASSWORD="${CODE_SERVER_PASSWORD}"
 export CODE_SERVER_PASSWORD
 echo "${CODE_SERVER_PASSWORD}" > "${HOME}/.code-server-password"
 chmod 600 "${HOME}/.code-server-password"
+echo "[start-services] Password set: ${CODE_SERVER_PASSWORD}"
 
 # Write start script that exports PASSWORD before launching code-server
 cat > "${HOME}/start-code-server.sh" <<STARTSCRIPT
@@ -378,6 +379,10 @@ stderr_logfile=${LOG_DIR}/code-server.log
 stdout_logfile_maxbytes=5MB
 SUPERVISOR
 
+# Inject actual password into supervisor config (heredoc expansion may miss it)
+sudo sed -i "s/PASSWORD=\"\"/PASSWORD=\"${CODE_SERVER_PASSWORD}\"/" /etc/supervisor/conf.d/code-server.conf 2>/dev/null || true
+sudo sed -i "s/PASSWORD=,/PASSWORD=${CODE_SERVER_PASSWORD},/" /etc/supervisor/conf.d/code-server.conf 2>/dev/null || true
+echo "[start-services] Supervisor config password injected"
 
 sudo supervisorctl reread 2>/dev/null || true
 sudo supervisorctl update 2>/dev/null || true
