@@ -380,9 +380,21 @@ stdout_logfile_maxbytes=5MB
 SUPERVISOR
 
 # Inject actual password into supervisor config (heredoc expansion may miss it)
-sudo sed -i "s/PASSWORD=\"\"/PASSWORD=\"${CODE_SERVER_PASSWORD}\"/" /etc/supervisor/conf.d/code-server.conf 2>/dev/null || true
-sudo sed -i "s/PASSWORD=,/PASSWORD=${CODE_SERVER_PASSWORD},/" /etc/supervisor/conf.d/code-server.conf 2>/dev/null || true
-echo "[start-services] Supervisor config password injected"
+if [ -n "${CODE_SERVER_PASSWORD:-}" ]; then
+  sudo python3 -c "
+import sys
+from pathlib import Path
+p = Path('/etc/supervisor/conf.d/code-server.conf')
+if p.exists():
+    t = p.read_text()
+    t = t.replace('PASSWORD=\"\"', 'PASSWORD=\"${CODE_SERVER_PASSWORD}\"')
+    t = t.replace('PASSWORD=,', 'PASSWORD=${CODE_SERVER_PASSWORD},')
+    p.write_text(t)
+    print('[start-services] Password injected into supervisor config')
+else:
+    print('[start-services] WARNING: supervisor config not found')
+"
+fi
 
 sudo supervisorctl reread 2>/dev/null || true
 sudo supervisorctl update 2>/dev/null || true
