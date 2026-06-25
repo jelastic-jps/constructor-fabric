@@ -342,7 +342,7 @@ _CS_PASS="$(cat "${HOME}/.code-server-password" 2>/dev/null || echo '')"
 cat > /tmp/write_supervisor_conf.py << 'PYCONF'
 import sys, os
 from pathlib import Path
-home = os.environ.get('HOME', '/home/developer')
+home = '/home/developer'
 workspace = os.environ.get('CS_WORKSPACE', home + '/workspaces/constructor-fabric-workspace')
 log_dir = os.environ.get('LOG_DIR', home + '/constructor-fabric')
 password = sys.argv[1] if len(sys.argv) > 1 else ''
