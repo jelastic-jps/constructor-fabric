@@ -365,36 +365,37 @@ PYEXTREG
 # arbitrary local trainer HTML and fails on fresh installs when run as developer.
 chown -R developer:developer "$HOME" 2>/dev/null || true
 
-sudo tee /etc/supervisor/conf.d/code-server.conf >/dev/null <<SUPERVISOR
-[program:code-server]
-command=/usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --disable-telemetry --enable-proposed-api GitHub.copilot --enable-proposed-api GitHub.copilot-chat ${CS_WORKSPACE}
+# Write supervisor config for code-server via Python (reliable variable injection)
+sudo python3 -c "
+from pathlib import Path
+home = '${HOME}'
+workspace = '${CS_WORKSPACE}'
+log_dir = '${LOG_DIR}'
+# Read password from file (shell variable may be empty)
+pw_file = Path(home) / '.code-server-password'
+password = pw_file.read_text().strip() if pw_file.exists() else ''
+lm_provider = '${LLM_PROVIDER:-openai}'
+api_token = '${API_TOKEN:-}'
+openai_key = '${OPENAI_API_KEY:-}'
+anthropic_key = '${ANTHROPIC_API_KEY:-}'
+openai_model = '${OPENAI_MODEL:-gpt-5.5}'
+claude_model = '${CLAUDE_MODEL:-claude-sonnet-4-6}'
+log_dir = '${LOG_DIR}'
+conf = f'''[program:code-server]
+command=/usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --disable-telemetry --enable-proposed-api GitHub.copilot --enable-proposed-api GitHub.copilot-chat {workspace}
 user=developer
-directory=${CS_WORKSPACE}
-environment=HOME="${HOME}",USER="developer",PATH="/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin",PASSWORD="${CODE_SERVER_PASSWORD:-}",LLM_PROVIDER="${LLM_PROVIDER:-openai}",API_TOKEN="${API_TOKEN:-}",OPENAI_API_KEY="${OPENAI_API_KEY:-}",ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}",OPENAI_MODEL="${OPENAI_MODEL:-gpt-5.5}",CLAUDE_MODEL="${CLAUDE_MODEL:-claude-sonnet-4-6}"
+directory={workspace}
+environment=HOME=\"{home}\",USER=\"developer\",PATH=\"/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin\",PASSWORD=\"{password}\",LLM_PROVIDER=\"{lm_provider}\",API_TOKEN=\"{api_token}\",OPENAI_API_KEY=\"{openai_key}\",ANTHROPIC_API_KEY=\"{anthropic_key}\",OPENAI_MODEL=\"{openai_model}\",CLAUDE_MODEL=\"{claude_model}\"
 autostart=true
 autorestart=true
 startsecs=5
-stdout_logfile=${LOG_DIR}/code-server.log
-stderr_logfile=${LOG_DIR}/code-server.log
+stdout_logfile={log_dir}/code-server.log
+stderr_logfile={log_dir}/code-server.log
 stdout_logfile_maxbytes=5MB
-SUPERVISOR
-
-# Inject actual password into supervisor config (heredoc expansion may miss it)
-if [ -n "${CODE_SERVER_PASSWORD:-}" ]; then
-  sudo python3 -c "
-import sys
-from pathlib import Path
-p = Path('/etc/supervisor/conf.d/code-server.conf')
-if p.exists():
-    t = p.read_text()
-    t = t.replace('PASSWORD=\"\"', 'PASSWORD=\"${CODE_SERVER_PASSWORD}\"')
-    t = t.replace('PASSWORD=,', 'PASSWORD=${CODE_SERVER_PASSWORD},')
-    p.write_text(t)
-    print('[start-services] Password injected into supervisor config')
-else:
-    print('[start-services] WARNING: supervisor config not found')
+'''
+Path('/etc/supervisor/conf.d/code-server.conf').write_text(conf)
+print(f'[start-services] Supervisor config written, password={password[:4]}...')
 "
-fi
 
 sudo supervisorctl reread 2>/dev/null || true
 sudo supervisorctl update 2>/dev/null || true
