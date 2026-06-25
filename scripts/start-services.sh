@@ -80,6 +80,21 @@ auth: password
 cert: false
 CSSERVER
 
+# Patch code-server login page message
+_i18n="/usr/local/out/node/i18n/locales/en.json"
+if [ -f "$_i18n" ]; then
+  python3 - "$_i18n" <<'PYI18N'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+d = json.loads(p.read_text())
+d["LOGIN_USING_ENV_PASSWORD"] = "Enter the password from your Jelastic install success window."
+d["LOGIN_USING_HASHED_PASSWORD"] = "Enter the password from your Jelastic install success window."
+p.write_text(json.dumps(d, indent=4, ensure_ascii=False) + "\n")
+print("[start-services] Patched login page message")
+PYI18N
+fi
+
 patch_code_server_navigator_guard() {
   target="/usr/local/lib/vscode/out/vs/workbench/api/node/extensionHostProcess.js"
   [ -f "$target" ] || return 0
