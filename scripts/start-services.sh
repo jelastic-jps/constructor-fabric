@@ -78,13 +78,23 @@ exec /usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --disable-telemetry --e
 STARTSCRIPT
 chmod +x "${HOME}/start-code-server.sh"
 
-cat > "${HOME}/.config/code-server/config.yaml" <<CSSERVER
+cat > "${HOME}/.config/code-server/config.yaml" <<'CSSERVER'
 bind-addr: 0.0.0.0:8080
 auth: password
-password: $(cat "${HOME}/.code-server-password" 2>/dev/null || echo "changeme")
 cert: false
 CSSERVER
-
+# Inject password into config.yaml from file
+sudo python3 -c "
+from pathlib import Path
+pw = (Path('${HOME}/.code-server-password')).read_text().strip() if (Path('${HOME}/.code-server-password')).exists() else ''
+if pw:
+    p = Path('${HOME}/.config/code-server/config.yaml')
+    t = p.read_text()
+    if 'password:' not in t:
+        t = t.replace('auth: password', 'auth: password\npassword: ' + pw)
+        p.write_text(t)
+        print('[start-services] Password injected into config.yaml')
+"
 cat > "${HOME}/.local/share/code-server/User/settings.json" <<'CSSETTINGS'
 {
   "workbench.colorTheme": "Default Dark Modern",
