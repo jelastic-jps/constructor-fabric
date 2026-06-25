@@ -91,8 +91,8 @@ from pathlib import Path
 # Patch i18n message
 p = Path(sys.argv[1])
 d = json.loads(p.read_text())
-d["LOGIN_USING_ENV_PASSWORD"] = "Enter password"
-d["LOGIN_USING_HASHED_PASSWORD"] = "Enter password"
+d["LOGIN_USING_ENV_PASSWORD"] = "Your IDE Password"
+d["LOGIN_USING_HASHED_PASSWORD"] = "Your IDE Password"
 p.write_text(json.dumps(d, indent=4, ensure_ascii=False) + "\n")
 
 # Patch login.html — add auto-login script
