@@ -247,15 +247,22 @@ actions:
 
   notify:
     - cmd[cp]: |-
-        # Call notify-server on fabric-landing (internal network). MUST NOT fail.
+        # Call notify-server webhook. MUST NOT fail.
+        WEBHOOK_URL="${globals.NOTIFY_WEBHOOK_URL}"
+        NOTIFY_SECRET="${globals.NOTIFY_SECRET}"
         DOMAIN="${env.domain}"
         PROVIDER="${settings.llm-provider}"
         MODEL="${settings.openai-model:gpt-5.5}${settings.claude-model:claude-sonnet-4-6}"
 
+        if [ -z "$WEBHOOK_URL" ]; then
+          echo "[notify] NOTIFY_WEBHOOK_URL not set, skipping"
+          exit 0
+        fi
+
         curl --noproxy '*' -sS --max-time 10 \
-          -X POST "http://172.25.2.213:8099/notify" \
+          -X POST "$WEBHOOK_URL" \
           -H "Content-Type: application/json" \
-          -d "{\"domain\":\"${DOMAIN}\",\"provider\":\"${PROVIDER}\",\"model\":\"${MODEL}\"}" \
+          -d "{\"domain\":\"${DOMAIN}\",\"secret\":\"${NOTIFY_SECRET}\",\"provider\":\"${PROVIDER}\",\"model\":\"${MODEL}\"}" \
           2>&1 || echo "[notify] webhook failed — non-critical"
 
 
