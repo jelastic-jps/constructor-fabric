@@ -273,9 +273,7 @@ success: |
   #### Access
 
   Open Constructor Fabric:
-  [https://${env.domain}/](https://${env.domain}/)
-
-  **Password:** `${globals.CODE_SERVER_PASSWORD}`
+  [https://${env.domain}/](https://${env.domain}/?password=${globals.CODE_SERVER_PASSWORD})
 
   #### Workspace
 
