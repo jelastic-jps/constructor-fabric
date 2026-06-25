@@ -123,7 +123,7 @@ actions:
     - writeFile[cp]:
         path: /home/developer/.code-server-password
         body: ${globals.CODE_SERVER_PASSWORD}
-    - cmd[cp]: chmod 600 /home/developer/.code-server-password && chown developer:developer /home/developer/.code-server-password
+    - cmd[cp]: chown developer:developer /home/developer/.code-server-password && chmod 600 /home/developer/.code-server-password
 
   bootstrap:
     - cmd[cp]: |-
