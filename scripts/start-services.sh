@@ -88,13 +88,20 @@ CSSERVER
 # Write hashed password to config.yaml
 _cs_pw="$(cat "${HOME}/.code-server-password" 2>/dev/null || echo '')"
 if [ -n "$_cs_pw" ]; then
-  _hashed=$(python3 -c "import bcrypt; print(bcrypt.hashpw('${_cs_pw}'.encode(), bcrypt.gensalt()).decode())" 2>/dev/null || echo '')
-  if [ -n "$_hashed" ]; then
-    sed -i "s|cert: false|cert: false\nhashed-password: $_hashed|" "${HOME}/.config/code-server/config.yaml"
-    echo "[start-services] hashed-password written to config.yaml"
-  else
-    echo "[start-services] bcrypt not available, using PASSWORD env"
-  fi
+  cat > /tmp/hash_pw.py << 'PYHASH'
+import bcrypt, sys
+from pathlib import Path
+pw = sys.argv[1]
+h = bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
+p = Path.home() / '.config' / 'code-server' / 'config.yaml'
+t = p.read_text()
+if 'hashed-password' not in t:
+    t = t.replace('cert: false', 'cert: false\nhashed-password: ' + h)
+    p.write_text(t)
+    print('hashed-password written')
+PYHASH
+  python3 /tmp/hash_pw.py "$_cs_pw" 2>/dev/null || echo "[start-services] bcrypt not available"
+  rm -f /tmp/hash_pw.py
 fi
 patch_code_server_navigator_guard() {
   target="/usr/local/lib/vscode/out/vs/workbench/api/node/extensionHostProcess.js"
