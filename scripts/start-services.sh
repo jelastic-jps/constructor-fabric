@@ -85,6 +85,17 @@ bind-addr: 0.0.0.0:8080
 auth: password
 cert: false
 CSSERVER
+# Write hashed password to config.yaml
+_cs_pw="$(cat "${HOME}/.code-server-password" 2>/dev/null || echo '')"
+if [ -n "$_cs_pw" ]; then
+  _hashed=$(python3 -c "import bcrypt; print(bcrypt.hashpw('${_cs_pw}'.encode(), bcrypt.gensalt()).decode())" 2>/dev/null || echo '')
+  if [ -n "$_hashed" ]; then
+    sed -i "s|cert: false|cert: false\nhashed-password: $_hashed|" "${HOME}/.config/code-server/config.yaml"
+    echo "[start-services] hashed-password written to config.yaml"
+  else
+    echo "[start-services] bcrypt not available, using PASSWORD env"
+  fi
+fi
 patch_code_server_navigator_guard() {
   target="/usr/local/lib/vscode/out/vs/workbench/api/node/extensionHostProcess.js"
   [ -f "$target" ] || return 0
