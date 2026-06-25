@@ -78,9 +78,10 @@ exec /usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --disable-telemetry --e
 STARTSCRIPT
 chmod +x "${HOME}/start-code-server.sh"
 
-cat > "${HOME}/.config/code-server/config.yaml" <<'CSSERVER'
+cat > "${HOME}/.config/code-server/config.yaml" <<CSSERVER
 bind-addr: 0.0.0.0:8080
 auth: password
+password: $(cat "${HOME}/.code-server-password" 2>/dev/null || echo "changeme")
 cert: false
 CSSERVER
 
