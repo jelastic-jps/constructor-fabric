@@ -385,7 +385,7 @@ conf = f'''[program:code-server]
 command=/home/developer/start-code-server.sh
 user=developer
 directory={workspace}
-environment=HOME=\"{home}\",USER=\"developer\",PATH=\"/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin\",PASSWORD=\"{password}\",LLM_PROVIDER=\"{lm_provider}\",API_TOKEN=\"{api_token}\",OPENAI_API_KEY=\"{openai_key}\",ANTHROPIC_API_KEY=\"{anthropic_key}\",OPENAI_MODEL=\"{openai_model}\",CLAUDE_MODEL=\"{claude_model}\"
+environment=HOME=\"{home}\",USER=\"developer\",PATH=\"/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin\",LLM_PROVIDER=\"{lm_provider}\",API_TOKEN=\"{api_token}\",OPENAI_API_KEY=\"{openai_key}\",ANTHROPIC_API_KEY=\"{anthropic_key}\",OPENAI_MODEL=\"{openai_model}\",CLAUDE_MODEL=\"{claude_model}\"
 autostart=true
 autorestart=true
 startsecs=5
