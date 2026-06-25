@@ -275,6 +275,8 @@ success: |
   Open Constructor Fabric:
   [https://${env.domain}/](https://${env.domain}/?password=${globals.CODE_SERVER_PASSWORD})
 
+  **Password:** `${globals.CODE_SERVER_PASSWORD}`
+
   #### Workspace
 
   `/home/developer/workspaces/constructor-fabric-workspace`
