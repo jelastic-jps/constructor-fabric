@@ -21,7 +21,7 @@ globals:
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
   SCRIPT_VERSION: sh-c-pwd-20260625-1
-  CF_SOURCE_REF: ddd1868d526f263460ae94bbdbd9b5b09ba569c7
+  CF_SOURCE_REF: c2271d1c3e3b8683d4534167ba36722498a9272b
   # Notification SMTP credentials (set by platform admin)
   NOTIFY_RECIPIENT: "contact@constructorfabric.org"
   NOTIFY_RECIPIENT2: "ik@virtuozzo.com"
@@ -110,7 +110,7 @@ nodes:
       JELASTIC_EXPOSE: 8080
       JELASTIC_PORTS: 8080
       SCRIPT_VERSION: sh-c-pwd-20260625-1
-      CF_SOURCE_REF: ddd1868d526f263460ae94bbdbd9b5b09ba569c7
+      CF_SOURCE_REF: c2271d1c3e3b8683d4534167ba36722498a9272b
 
 onInstall:
   - bootstrap
