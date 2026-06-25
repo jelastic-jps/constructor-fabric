@@ -23,14 +23,7 @@ globals:
   SCRIPT_VERSION: fn-pwd-20260625-1
   CF_SOURCE_REF: main
   CODE_SERVER_PASSWORD: ${fn.password}
-  # Notification SMTP credentials (set by platform admin)
-  NOTIFY_RECIPIENT: "contact@constructorfabric.org"
-  NOTIFY_RECIPIENT2: "ik@virtuozzo.com"
-  SMTP_HOST: "smtp.gmail.com"
-  SMTP_PORT: "587"
-  SMTP_USER: "REDACTED_EMAIL"
-  SMTP_PASS: "REDACTED_SMTP_PASS"
-  SMTP_SENDER: "REDACTED_EMAIL"
+  # Notification — configure SMTP via JPS settings or platform env, NOT in globals
 
 settings:
   fields:
