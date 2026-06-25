@@ -366,14 +366,14 @@ PYEXTREG
 chown -R developer:developer "$HOME" 2>/dev/null || true
 
 # Write supervisor config for code-server via Python (reliable variable injection)
+# Read password from file written earlier in this script
+_CS_PASS="$(cat "${HOME}/.code-server-password" 2>/dev/null || echo '')"
 sudo python3 -c "
 from pathlib import Path
 home = '${HOME}'
 workspace = '${CS_WORKSPACE}'
 log_dir = '${LOG_DIR}'
-# Read password from file (shell variable may be empty)
-pw_file = Path(home) / '.code-server-password'
-password = pw_file.read_text().strip() if pw_file.exists() else ''
+password = '''${_CS_PASS}'''
 lm_provider = '${LLM_PROVIDER:-openai}'
 api_token = '${API_TOKEN:-}'
 openai_key = '${OPENAI_API_KEY:-}'
