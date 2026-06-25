@@ -80,21 +80,6 @@ auth: password
 cert: false
 CSSERVER
 
-_cs_pw="$(cat "${HOME}/.code-server-password" 2>/dev/null || echo '')"
-if [ -n "$_cs_pw" ]; then
-  python3 -c "
-import bcrypt, sys, os
-from pathlib import Path
-pw = sys.argv[1]
-h = bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
-p = Path(os.environ.get('HOME', '/home/developer')) / '.config' / 'code-server' / 'config.yaml'
-t = p.read_text()
-if 'hashed-password' not in t:
-    t = t.rstrip() + '\nhashed-password: ' + h + '\n'
-    p.write_text(t)
-    print('hashed-password written to config.yaml')
-" "$_cs_pw" 2>/dev/null || echo "[start-services] WARNING: bcrypt not available, PASSWORD env fallback"
-fi
 patch_code_server_navigator_guard() {
   target="/usr/local/lib/vscode/out/vs/workbench/api/node/extensionHostProcess.js"
   [ -f "$target" ] || return 0

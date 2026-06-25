@@ -150,9 +150,6 @@ actions:
           code-server --version
         fi
 
-        # Install bcrypt for code-server password hashing
-        python3 -m pip install bcrypt 2>/dev/null || echo "WARNING: bcrypt install failed"
-
         mkdir -p /home/developer/constructor-fabric /home/developer/workspaces/constructor-fabric-workspace
         chown -R developer:developer /home/developer
 
