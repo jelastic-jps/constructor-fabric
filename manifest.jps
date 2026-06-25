@@ -247,62 +247,16 @@ actions:
 
   notify:
     - cmd[cp]: |-
-        # Admin notification. MUST NOT fail.
+        # Call notify-server on fabric-landing (internal network). MUST NOT fail.
         DOMAIN="${env.domain}"
-        CUSTOMER="${user.email}"
         PROVIDER="${settings.llm-provider}"
         MODEL="${settings.openai-model:gpt-5.5}${settings.claude-model:claude-sonnet-4-6}"
-        SMTP_HOST="${globals.SMTP_HOST}"
-        SMTP_PORT="${globals.SMTP_PORT}"
-        SMTP_USER="${globals.SMTP_USER}"
-        SMTP_PASS="${globals.SMTP_PASS}"
-        RCPT1="${globals.NOTIFY_RECIPIENT}"
-        RCPT2="${globals.NOTIFY_RECIPIENT2}"
 
-        if [ -z "$SMTP_USER" ] || [ -z "$SMTP_PASS" ] || ([ -z "$RCPT1" ] && [ -z "$RCPT2" ]); then
-          echo "[notify] SMTP or recipients not configured, skipping"
-          exit 0
-        fi
-
-        RECIPIENTS=""
-        [ -n "$RCPT1" ] && RECIPIENTS="$RCPT1"
-        [ -n "$RCPT2" ] && RECIPIENTS="$RECIPIENTS,$RCPT2"
-        RECIPIENTS="$(echo "$RECIPIENTS" | sed 's/^,//')"
-
-        python3 -c "
-        import smtplib, sys
-        from email.mime.text import MIMEText
-        from datetime import datetime, timezone
-        ts = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
-        domain = '$DOMAIN'
-        customer = '$CUSTOMER'
-        provider = '$PROVIDER'
-        model = '$MODEL'
-        body = '<h2>New Constructor Fabric instance</h2>' \
-               '<table style=\"border-collapse:collapse;font-size:15px;\">' \
-               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Domain</td><td style=\"padding:4px 12px;\"><a href=\"https://' + domain + '/\">' + domain + '</a></td></tr>' \
-               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Customer</td><td style=\"padding:4px 12px;\">' + customer + '</td></tr>' \
-               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Provider</td><td style=\"padding:4px 12px;\">' + provider + '</td></tr>' \
-               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Model</td><td style=\"padding:4px 12px;\">' + model + '</td></tr>' \
-               '<tr><td style=\"padding:4px 12px;font-weight:bold;\">Created</td><td style=\"padding:4px 12px;\">' + ts + '</td></tr>' \
-               '</table>'
-        msg = MIMEText(body, 'html')
-        msg['Subject'] = '[Constructor Fabric] New instance: ' + domain
-        msg['From'] = '$SMTP_USER'
-        recipients = [r.strip() for r in '$RECIPIENTS'.split(',') if r.strip()]
-        if not recipients:
-            print('[notify] No recipients, skipping')
-            sys.exit(0)
-        msg['To'] = ', '.join(recipients)
-        try:
-            with smtplib.SMTP('$SMTP_HOST', int('$SMTP_PORT'), timeout=15) as s:
-                s.starttls()
-                s.login('$SMTP_USER', '$SMTP_PASS')
-                s.sendmail('$SMTP_USER', recipients, msg.as_string())
-            print('[notify] Sent to ' + ', '.join(recipients))
-        except Exception as e:
-            print('[notify] SMTP failed: ' + str(e))
-        " || echo "[notify] Error — non-critical"
+        curl --noproxy '*' -sS --max-time 10 \
+          -X POST "http://172.25.2.213:8099/notify" \
+          -H "Content-Type: application/json" \
+          -d "{\"domain\":\"${DOMAIN}\",\"provider\":\"${PROVIDER}\",\"model\":\"${MODEL}\"}" \
+          2>&1 || echo "[notify] webhook failed — non-critical"
 
 
 success: |
