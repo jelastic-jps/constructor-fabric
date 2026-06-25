@@ -71,37 +71,26 @@ echo "${CODE_SERVER_PASSWORD}" > "${HOME}/.code-server-password"
 chmod 600 "${HOME}/.code-server-password"
 echo "[start-services] Password set: ${CODE_SERVER_PASSWORD}"
 
-# Write start script that exports PASSWORD before launching code-server
-cat > "${HOME}/start-code-server.sh" <<STARTSCRIPT
-#!/bin/sh
-export PASSWORD="\$(cat "\${HOME}/.code-server-password")"
-echo "[wrapper] PW=$(cat /home/developer/.code-server-password | head -c 4)..." >&2
-exec /usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --disable-telemetry --enable-proposed-api GitHub.copilot --enable-proposed-api GitHub.copilot-chat "\${1:-\${HOME}/workspaces/constructor-fabric-workspace}"
-STARTSCRIPT
-chmod +x "${HOME}/start-code-server.sh"
-
-cat > "${HOME}/.config/code-server/config.yaml" <<'CSSERVER'
+cat > "${HOME}/.config/code-server/config.yaml" <<CSSERVER
 bind-addr: 0.0.0.0:8080
 auth: password
 cert: false
 CSSERVER
-# Write hashed password to config.yaml
+
 _cs_pw="$(cat "${HOME}/.code-server-password" 2>/dev/null || echo '')"
 if [ -n "$_cs_pw" ]; then
-  cat > /tmp/hash_pw.py << 'PYHASH'
-import bcrypt, sys
+  python3 -c "
+import bcrypt, sys, os
 from pathlib import Path
 pw = sys.argv[1]
 h = bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
-p = Path.home() / '.config' / 'code-server' / 'config.yaml'
+p = Path(os.environ.get('HOME', '/home/developer')) / '.config' / 'code-server' / 'config.yaml'
 t = p.read_text()
 if 'hashed-password' not in t:
-    t = t.replace('cert: false', 'cert: false\nhashed-password: ' + h)
+    t = t.rstrip() + '\nhashed-password: ' + h + '\n'
     p.write_text(t)
-    print('hashed-password written')
-PYHASH
-  python3 /tmp/hash_pw.py "$_cs_pw" 2>/dev/null || echo "[start-services] bcrypt not available"
-  rm -f /tmp/hash_pw.py
+    print('hashed-password written to config.yaml')
+" "$_cs_pw" 2>/dev/null || echo "[start-services] WARNING: bcrypt not available, PASSWORD env fallback"
 fi
 patch_code_server_navigator_guard() {
   target="/usr/local/lib/vscode/out/vs/workbench/api/node/extensionHostProcess.js"
@@ -346,26 +335,25 @@ PYEXTREG
 chown -R developer:developer "$HOME" 2>/dev/null || true
 
 # Write supervisor config for code-server via Python (reliable variable injection)
-# Read password from file written earlier in this script
 _CS_PASS="$(cat "${HOME}/.code-server-password" 2>/dev/null || echo '')"
-sudo python3 -c "
+cat > /tmp/write_supervisor_conf.py << 'PYCONF'
+import sys, os
 from pathlib import Path
-home = '${HOME}'
-workspace = '${CS_WORKSPACE}'
-log_dir = '${LOG_DIR}'
-password = '''${_CS_PASS}'''
-lm_provider = '${LLM_PROVIDER:-openai}'
-api_token = '${API_TOKEN:-}'
-openai_key = '${OPENAI_API_KEY:-}'
-anthropic_key = '${ANTHROPIC_API_KEY:-}'
-openai_model = '${OPENAI_MODEL:-gpt-5.5}'
-claude_model = '${CLAUDE_MODEL:-claude-sonnet-4-6}'
-log_dir = '${LOG_DIR}'
+home = os.environ.get('HOME', '/home/developer')
+workspace = os.environ.get('CS_WORKSPACE', home + '/workspaces/constructor-fabric-workspace')
+log_dir = os.environ.get('LOG_DIR', home + '/constructor-fabric')
+password = sys.argv[1] if len(sys.argv) > 1 else ''
+lm_provider = os.environ.get('LLM_PROVIDER', 'openai')
+api_token = os.environ.get('API_TOKEN', '')
+openai_key = os.environ.get('OPENAI_API_KEY', '')
+anthropic_key = os.environ.get('ANTHROPIC_API_KEY', '')
+openai_model = os.environ.get('OPENAI_MODEL', 'gpt-5.5')
+claude_model = os.environ.get('CLAUDE_MODEL', 'claude-sonnet-4-6')
 conf = f'''[program:code-server]
-command=/home/developer/start-code-server.sh
+command=/usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --disable-telemetry --enable-proposed-api GitHub.copilot --enable-proposed-api GitHub.copilot-chat {workspace}
 user=developer
 directory={workspace}
-environment=HOME=\"{home}\",USER=\"developer\",PATH=\"/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin\",LLM_PROVIDER=\"{lm_provider}\",API_TOKEN=\"{api_token}\",OPENAI_API_KEY=\"{openai_key}\",ANTHROPIC_API_KEY=\"{anthropic_key}\",OPENAI_MODEL=\"{openai_model}\",CLAUDE_MODEL=\"{claude_model}\"
+environment=HOME="{home}",USER="developer",PATH="/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin",PASSWORD="{password}",LLM_PROVIDER="{lm_provider}",API_TOKEN="{api_token}",OPENAI_API_KEY="{openai_key}",ANTHROPIC_API_KEY="{anthropic_key}",OPENAI_MODEL="{openai_model}",CLAUDE_MODEL="{claude_model}"
 autostart=true
 autorestart=true
 startsecs=5
@@ -374,8 +362,10 @@ stderr_logfile={log_dir}/code-server.log
 stdout_logfile_maxbytes=5MB
 '''
 Path('/etc/supervisor/conf.d/code-server.conf').write_text(conf)
-print(f'[start-services] Supervisor config written, password={password[:4]}...')
-"
+print(f'[start-services] Supervisor config written, PASSWORD={password[:4]}...')
+PYCONF
+sudo python3 /tmp/write_supervisor_conf.py "${_CS_PASS}"
+rm -f /tmp/write_supervisor_conf.py
 
 sudo supervisorctl reread 2>/dev/null || true
 sudo supervisorctl update 2>/dev/null || true
