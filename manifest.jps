@@ -23,7 +23,8 @@ globals:
   SCRIPT_VERSION: fn-pwd-20260625-1
   CF_SOURCE_REF: main
   CODE_SERVER_PASSWORD: ${fn.password}
-  # Notification — configure SMTP via JPS settings or platform env, NOT in globals
+  NOTIFY_WEBHOOK_URL: "XXX"
+  NOTIFY_SECRET: "XXX"
 
 settings:
   fields:
