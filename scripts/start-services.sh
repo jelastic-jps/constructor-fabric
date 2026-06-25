@@ -356,7 +356,7 @@ conf = f'''[program:code-server]
 command=/usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --disable-telemetry --enable-proposed-api GitHub.copilot --enable-proposed-api GitHub.copilot-chat {workspace}
 user=developer
 directory={workspace}
-environment=HOME="{home}",USER="developer",PATH="/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin",PASSWORD="{password}",LLM_PROVIDER="{lm_provider}",API_TOKEN="{api_token}",OPENAI_API_KEY="{openai_key}",ANTHROPIC_API_KEY="{anthropic_key}",OPENAI_MODEL="{openai_model}",CLAUDE_MODEL="{claude_model}"
+environment=HOME="{home}",USER="developer",PATH="/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin",PASSWORD={password},LLM_PROVIDER="{lm_provider}",API_TOKEN="{api_token}",OPENAI_API_KEY="{openai_key}",ANTHROPIC_API_KEY="{anthropic_key}",OPENAI_MODEL="{openai_model}",CLAUDE_MODEL="{claude_model}"
 autostart=true
 autorestart=true
 startsecs=5
