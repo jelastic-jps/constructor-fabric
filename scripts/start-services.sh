@@ -80,59 +80,15 @@ chmod +x "${HOME}/start-code-server.sh"
 
 cat > "${HOME}/.config/code-server/config.yaml" <<'CSSERVER'
 bind-addr: 0.0.0.0:8080
-auth: password
+auth: none
 cert: false
 CSSERVER
-# Inject password into config.yaml from file
-sudo python3 -c "
-from pathlib import Path
-pw = (Path('${HOME}/.code-server-password')).read_text().strip() if (Path('${HOME}/.code-server-password')).exists() else ''
-if pw:
-    p = Path('${HOME}/.config/code-server/config.yaml')
-    t = p.read_text()
-    if 'password:' not in t:
-        t = t.replace('auth: password', 'auth: password\npassword: ' + pw)
-        p.write_text(t)
-        print('[start-services] Password injected into config.yaml')
-"
-cat > "${HOME}/.local/share/code-server/User/settings.json" <<'CSSETTINGS'
-{
-  "workbench.colorTheme": "Default Dark Modern",
-  "workbench.startupEditor": "none",
-  "security.workspace.trust.enabled": false,
-  "security.workspace.trust.startupPrompt": "never",
-  "telemetry.telemetryLevel": "off"
-}
-CSSETTINGS
-python3 - "${HOME}/.local/share/code-server/User/settings.json" <<'PYSETTINGS'
-import json, os, sys
-from pathlib import Path
-p = Path(sys.argv[1])
-data = json.loads(p.read_text())
-env = {
-    "LLM_PROVIDER": os.environ.get("LLM_PROVIDER", "openai"),
-    "OPENAI_MODEL": os.environ.get("OPENAI_MODEL", "gpt-5.5"),
-    "CLAUDE_MODEL": os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6"),
-}
-if os.environ.get("OPENAI_API_KEY"):
-    env["OPENAI_API_KEY"] = os.environ["OPENAI_API_KEY"]
-if os.environ.get("ANTHROPIC_API_KEY"):
-    env["ANTHROPIC_API_KEY"] = os.environ["ANTHROPIC_API_KEY"]
-if os.environ.get("API_TOKEN"):
-    env["API_TOKEN"] = os.environ["API_TOKEN"]
-data["terminal.integrated.env.linux"] = env
-data["window.restoreWindows"] = "none"
-data["workbench.editor.restoreViewState"] = False
-data["workbench.tips.enabled"] = False
-data["update.mode"] = "none"
-data["extensions.autoCheckUpdates"] = False
-data["extensions.autoUpdate"] = False
-data["github.copilot.enable"] = {"*": True, "plaintext": True, "markdown": True, "scminput": True}
-data["github.copilot.editor.enableAutoCompletions"] = True
-data["chat.commandCenter.enabled"] = True
-data["workbench.commandPalette.experimental.askChatLocation"] = "chatView"
-p.write_text(json.dumps(data, indent=2) + "\n")
-PYSETTINGS
+# Write password to config.yaml
+_pw=$(cat "${HOME}/.code-server-password" 2>/dev/null || echo '')
+if [ -n "$_pw" ]; then
+  sed -i "s|auth: none|auth: password\npassword: $_pw|" "${HOME}/.config/code-server/config.yaml"
+  echo "[start-services] Password written to config.yaml"
+fi
 
 patch_code_server_navigator_guard() {
   target="/usr/local/lib/vscode/out/vs/workbench/api/node/extensionHostProcess.js"
