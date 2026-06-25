@@ -88,8 +88,8 @@ import json, sys
 from pathlib import Path
 p = Path(sys.argv[1])
 d = json.loads(p.read_text())
-d["LOGIN_USING_ENV_PASSWORD"] = "Enter the password from your Jelastic install success window."
-d["LOGIN_USING_HASHED_PASSWORD"] = "Enter the password from your Jelastic install success window."
+d["LOGIN_USING_ENV_PASSWORD"] = "Enter password"
+d["LOGIN_USING_HASHED_PASSWORD"] = "Enter password"
 p.write_text(json.dumps(d, indent=4, ensure_ascii=False) + "\n")
 print("[start-services] Patched login page message")
 PYI18N
