@@ -83,13 +83,6 @@ bind-addr: 0.0.0.0:8080
 auth: none
 cert: false
 CSSERVER
-# Write password to config.yaml
-_pw=$(cat "${HOME}/.code-server-password" 2>/dev/null || echo '')
-if [ -n "$_pw" ]; then
-  sed -i "s|auth: none|auth: password\npassword: $_pw|" "${HOME}/.config/code-server/config.yaml"
-  echo "[start-services] Password written to config.yaml"
-fi
-
 patch_code_server_navigator_guard() {
   target="/usr/local/lib/vscode/out/vs/workbench/api/node/extensionHostProcess.js"
   [ -f "$target" ] || return 0
