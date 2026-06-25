@@ -80,18 +80,36 @@ auth: password
 cert: false
 CSSERVER
 
-# Patch code-server login page message
+# Patch code-server login page message + auto-login from URL
 _i18n="/usr/local/out/node/i18n/locales/en.json"
+_login="/usr/local/src/browser/pages/login.html"
 if [ -f "$_i18n" ]; then
-  sudo python3 - "$_i18n" <<'PYI18N'
+  sudo python3 - "$_i18n" "$_login" <<'PYI18N'
 import json, sys
 from pathlib import Path
+
+# Patch i18n message
 p = Path(sys.argv[1])
 d = json.loads(p.read_text())
 d["LOGIN_USING_ENV_PASSWORD"] = "Enter password"
 d["LOGIN_USING_HASHED_PASSWORD"] = "Enter password"
 p.write_text(json.dumps(d, indent=4, ensure_ascii=False) + "\n")
-print("[start-services] Patched login page message")
+
+# Patch login.html — add auto-login script
+lp = Path(sys.argv[2])
+html = lp.read_text()
+if "autoLoginFromUrl" not in html:
+    script = """<script>
+(function autoLoginFromUrl(){
+  var pw = new URLSearchParams(window.location.search).get("password");
+  if (!pw) return;
+  var inp = document.querySelector("input.password");
+  if (inp) { inp.value = pw; inp.form.submit(); }
+})();
+</script>"""
+    html = html.replace("</body>", script + "\n</body>")
+    lp.write_text(html)
+    print("[start-services] Patched login.html with auto-login")
 PYI18N
 fi
 
