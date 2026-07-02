@@ -20,7 +20,7 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: fn-pwd-20260625-1
+  SCRIPT_VERSION: studio-latest-20260702-1
   CF_SOURCE_REF: main
   CODE_SERVER_PASSWORD: ${fn.password}
   NOTIFY_WEBHOOK_URL: "XXX"
@@ -103,7 +103,7 @@ nodes:
       no_proxy: localhost,127.0.0.1,::1
       JELASTIC_EXPOSE: 8080
       JELASTIC_PORTS: 8080
-      SCRIPT_VERSION: fn-pwd-20260625-1
+      SCRIPT_VERSION: studio-latest-20260702-1
       CF_SOURCE_REF: main
 
 onInstall:
@@ -222,18 +222,18 @@ actions:
         print('code-server trainer webview extension, provider env, and dark theme are configured')
         PYCHECK
 
-        cd /home/developer/cyber-constructor
-        cfc --version
-        cfc info --json >/tmp/cfc-info.json
-        cfc validate --json >/tmp/cfc-validate.json
+        cd /home/developer/studio
+        cfs --version
+        cfs info --json >/tmp/cfs-info.json
+        cfs validate --json >/tmp/cfs-validate.json
         python3 <<'PYCHECK'
         import json
-        info=json.load(open('/tmp/cfc-info.json'))
+        info=json.load(open('/tmp/cfs-info.json'))
         assert info['status'] == 'FOUND', info
-        validate=json.load(open('/tmp/cfc-validate.json'))
+        validate=json.load(open('/tmp/cfs-validate.json'))
         assert validate['status'] == 'PASS', validate
-        print('cyber-constructor info is FOUND')
-        print('cyber-constructor validate is PASS')
+        print('constructor-studio info is FOUND')
+        print('constructor-studio validate is PASS')
         PYCHECK
 
         # Display password for success text

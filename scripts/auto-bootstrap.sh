@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 export HOME="${HOME:-/home/developer}"
-export PATH="${HOME}/cyber-constructor/.venv/bin:${HOME}/.local/bin:/usr/local/bin:/opt/node-current/bin:$PATH"
-LOG="${HOME}/cyber-constructor/auto-bootstrap.log"
+export PATH="${HOME}/studio/.venv/bin:${HOME}/.local/bin:/usr/local/bin:/opt/node-current/bin:$PATH"
+LOG="${HOME}/studio/auto-bootstrap.log"
 exec >>"$LOG" 2>&1
 echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Constructor Fabric auto-bootstrap started"
 
@@ -75,27 +75,27 @@ cat > "$root/CONSTRUCTOR_FABRIC_PROMPTS.md" <<'PROMPTS'
 Use these prompts in any generated integration: VS Code/Copilot, Cursor, Windsurf, Codex, or Claude Code.
 
 ```text
-/cf-constructor Create a PRD for a lightweight team task manager with projects, tasks, comments, notifications, and a REST API. Include target users, product goals, core user journeys, non-goals, constraints, success metrics, and acceptance criteria.
+/studio Create a PRD for a lightweight team task manager with projects, tasks, comments, notifications, and a REST API. Include target users, product goals, core user journeys, non-goals, constraints, success metrics, and acceptance criteria.
 ```
 
 ```text
-/cf-constructor Decompose the PRD into feature artifacts. For each feature include user value, acceptance criteria, dependencies, risks, and traceability back to the PRD goals.
+/studio Decompose the PRD into feature artifacts. For each feature include user value, acceptance criteria, dependencies, risks, and traceability back to the PRD goals.
 ```
 
 ```text
-/cf-constructor Create an implementation task backlog for these features. Each task must include intent, expected files or modules, test requirements, completion criteria, dependencies, and traceability to the PRD and feature acceptance criteria.
+/studio Create an implementation task backlog for these features. Each task must include intent, expected files or modules, test requirements, completion criteria, dependencies, and traceability to the PRD and feature acceptance criteria.
 ```
 
 ```text
-/cf-constructor Produce implementation plans for the task backlog. Include sequencing, milestones, tests, risks, rollback notes, review checkpoints, and validation commands.
+/studio Produce implementation plans for the task backlog. Include sequencing, milestones, tests, risks, rollback notes, review checkpoints, and validation commands.
 ```
 
 ```text
-/cf-constructor Review the generated Constructor Fabric artifacts as a PRD -> features -> tasks -> plans tree. Identify any missing links, weak acceptance criteria, duplicate tasks, or gaps that should be fixed before validation.
+/studio Review the generated Constructor Fabric artifacts as a PRD -> features -> tasks -> plans tree. Identify any missing links, weak acceptance criteria, duplicate tasks, or gaps that should be fixed before validation.
 ```
 
 ```text
-/cf-constructor Fix any validation or traceability issues reported by cfc validate, then summarize the final PRD -> features -> tasks -> plans structure and the remaining implementation risks.
+/studio Fix any validation or traceability issues reported by cfs validate, then summarize the final PRD -> features -> tasks -> plans structure and the remaining implementation risks.
 ```
 PROMPTS
 if [ ! -f "$root/README.md" ]; then
@@ -109,20 +109,16 @@ This workspace was initialized automatically from the marketplace installation f
 - API token configured: $(if [ -n "$token" ]; then echo yes; else echo no; fi)
 
 Open the Electron Trainer popup for the step-by-step guide, then use the generated
-/cf-constructor workflow in your selected IDE or agent chat.
+/studio workflow in your selected IDE or agent chat.
 README
 fi
 
-if [ ! -d "$root/.cf-constructor" ]; then
-  printf 'd\n' | cfc init --no-cache --project-root "$root" --install-dir .cf-constructor --project-name "$slug" --force
-else
-  printf 'd\n' | cfc init --no-cache --project-root "$root" --install-dir .cf-constructor --project-name "$slug" --force
-fi
-cfc generate-agents --root "$root" -y
-(cd "$root" && cfc agents --json > "${HOME}/cyber-constructor/workspace-agents.json" && python3 - <<'PYAGENTS'
+cfs init --no-cache --project-root "$root" --install-dir .cf-studio --project-name "$slug" --force --yes
+cfs generate-agents --root "$root" -y
+(cd "$root" && cfs agents --json > "${HOME}/studio/workspace-agents.json" && python3 - <<'PYAGENTS'
 import json, sys
 from pathlib import Path
-text=json.dumps(json.loads((Path.home()/'cyber-constructor/workspace-agents.json').read_text())).lower()
+text=json.dumps(json.loads((Path.home()/'studio/workspace-agents.json').read_text())).lower()
 required=['windsurf','claude','copilot','openai']
 missing=[name for name in required if name not in text]
 if missing:
@@ -130,5 +126,5 @@ if missing:
 print('Generated Constructor Fabric integrations for: '+', '.join(required))
 PYAGENTS
 )
-(cd "$root" && cfc validate --json) || true
+(cd "$root" && cfs validate --json) || true
 echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Constructor Fabric auto-bootstrap finished for $root"
