@@ -393,9 +393,9 @@ sudo supervisorctl update 2>/dev/null || true
 sudo supervisorctl restart code-server 2>/dev/null || true
 
 
-if [ -x "${HOME}/cyber-constructor/auto-bootstrap.sh" ]; then
-  if ! pgrep -f "cyber-constructor/auto-bootstrap.sh" >/dev/null 2>&1; then
-    setsid sudo -u developer -H "${HOME}/cyber-constructor/auto-bootstrap.sh" </dev/null >"${HOME}/cyber-constructor/auto-bootstrap-launch.log" 2>&1 &
+if [ -x "${HOME}/studio/auto-bootstrap.sh" ]; then
+  if ! pgrep -f "studio/auto-bootstrap.sh" >/dev/null 2>&1; then
+    setsid sudo -u developer -H "${HOME}/studio/auto-bootstrap.sh" </dev/null >"${HOME}/studio/auto-bootstrap-launch.log" 2>&1 &
   fi
 fi
 
