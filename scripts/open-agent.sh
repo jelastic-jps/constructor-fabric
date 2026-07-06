@@ -1,7 +1,7 @@
         #!/bin/bash
         agent="${1:-codex}"
         export HOME="${HOME:-/home/developer}"
-        export PATH=${HOME}/cyber-constructor/.venv/bin:${HOME}/.local/bin:/usr/local/bin:/opt/node-current/bin:$PATH
+        export PATH=${HOME}/studio/.venv/bin:${HOME}/.local/bin:/usr/local/bin:/opt/node-current/bin:$PATH
         workspace="${HOME}/workspaces/constructor-fabric-workspace"
         mkdir -p "$workspace"
         cd "$workspace"
@@ -26,7 +26,7 @@
         cat <<'WELCOME'
         Constructor Fabric AI Fabric Trainer
         
-        Use this agent to drive the product flow with the generated /cf-constructor workflow.
+        Use this agent to drive the product flow with the generated /studio workflow.
         
         The Electron Trainer has a Copy prompt button on every step.
         The same copy/paste prompts are also saved here:
@@ -36,7 +36,7 @@
         The generated integrations are prepared for VS Code/Copilot, Cursor, Windsurf, Codex, and Claude Code.
         
         After the agent finishes, validate from this workspace with:
-        cfc validate && cfc list-ids && cfc toc
+        cfs validate && cfs list-ids && cfs toc
         WELCOME
         echo
         echo "Workspace: $workspace"
