@@ -2,8 +2,10 @@ FROM ubuntu:focal
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG UV_INSTALL_DIR=/home/developer/.local/bin
-ARG CYBER_CONSTRUCTOR_TARBALL_URL=https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/assets/cyber-constructor-v4.0.0.tar.gz
-ARG CYBER_CONSTRUCTOR_TARBALL_SHA256=8ca1c8005097cb3bdca521888a61cc3f0c508601a199722d2585e3130703a626
+ARG STUDIO_REPO=constructorfabric/studio
+# "latest" resolves to the newest published release at build time;
+# pass --build-arg STUDIO_VERSION=vX.Y.Z to pin a specific release.
+ARG STUDIO_VERSION=latest
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV TZ=Europe/Kyiv \
@@ -43,28 +45,42 @@ RUN mkdir -p /home/developer/.local/bin \
     && rm -f /tmp/install-uv.sh \
     && chown -R developer:developer /home/developer/.local
 
-RUN mkdir -p /home/developer/cfc-build /home/developer/cyber-constructor /home/developer/.cf-constructor/cache \
-    && cd /home/developer/cfc-build \
-    && curl --noproxy '*' -fsSL "${CYBER_CONSTRUCTOR_TARBALL_URL}" -o cyber-constructor.tar.gz \
-    && echo "${CYBER_CONSTRUCTOR_TARBALL_SHA256}  cyber-constructor.tar.gz" | sha256sum -c - \
-    && tar -xzf cyber-constructor.tar.gz -C /home/developer/cyber-constructor \
-    && find /home/developer/cyber-constructor \( -name '._*' -o -name '.DS_Store' \) -delete \
-    && cp -a /home/developer/cyber-constructor/skills /home/developer/.cf-constructor/cache/ \
-    && if [ -d /home/developer/cyber-constructor/config ]; then cp -a /home/developer/cyber-constructor/config /home/developer/.cf-constructor/cache/; fi \
-    && echo v4.0.0 > /home/developer/.cf-constructor/cache/.version \
-    && rm -rf /home/developer/cfc-build \
-    && chown -R developer:developer /home/developer/cyber-constructor /home/developer/.cf-constructor
+# Resolve the latest published Constructor Studio release tag via the
+# /releases/latest redirect, then bake its source into the image. The resolved
+# version is recorded in the skill cache .version file, which the install
+# layer below reads for setuptools-scm.
+RUN mkdir -p /home/developer/studio-build /home/developer/studio /home/developer/.cf-studio/cache \
+    && cd /home/developer/studio-build \
+    && if [ "${STUDIO_VERSION}" = "latest" ]; then \
+         STUDIO_VERSION="$(curl --noproxy '*' -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/${STUDIO_REPO}/releases/latest" | sed 's|.*/tag/||')"; \
+       fi \
+    && case "${STUDIO_VERSION}" in v[0-9]*) ;; *) echo "Failed to resolve Constructor Studio release (got: '${STUDIO_VERSION}')" >&2; exit 1;; esac \
+    && echo "Baking Constructor Studio ${STUDIO_VERSION}" \
+    && curl --noproxy '*' -fsSL "https://github.com/${STUDIO_REPO}/archive/refs/tags/${STUDIO_VERSION}.tar.gz" -o studio.tar.gz \
+    && tar -xzf studio.tar.gz --strip-components=1 -C /home/developer/studio \
+    && find /home/developer/studio \( -name '._*' -o -name '.DS_Store' \) -delete \
+    && cp -a /home/developer/studio/skills /home/developer/.cf-studio/cache/ \
+    && if [ -d /home/developer/studio/config ]; then cp -a /home/developer/studio/config /home/developer/.cf-studio/cache/; fi \
+    && echo "${STUDIO_VERSION}" > /home/developer/.cf-studio/cache/.version \
+    && rm -rf /home/developer/studio-build \
+    && chown -R developer:developer /home/developer/studio /home/developer/.cf-studio
 
 COPY . /home/developer/constructor-fabric/
 RUN chmod +x /home/developer/constructor-fabric/scripts/*.sh 2>/dev/null || true \
     && mkdir -p /home/developer/workspaces/constructor-fabric-workspace /home/developer/constructor-fabric/data \
     && /home/developer/.local/bin/uv python install 3.11 \
-    && /home/developer/.local/bin/uv venv --python 3.11 /home/developer/cyber-constructor/.venv \
-    && /home/developer/.local/bin/uv pip install --python /home/developer/cyber-constructor/.venv/bin/python -e /home/developer/cyber-constructor \
-    && ln -sf /home/developer/cyber-constructor/.venv/bin/cfc /usr/local/bin/cfc \
-    && ln -sf /home/developer/cyber-constructor/.venv/bin/cf-constructor /usr/local/bin/cf-constructor \
-    && printf 'd\n' | /usr/local/bin/cfc init --no-cache --project-root /home/developer/workspaces/constructor-fabric-workspace --install-dir .cf-constructor --project-name "constructor-fabric-workspace" --force \
-    && /usr/local/bin/cfc generate-agents --root /home/developer/workspaces/constructor-fabric-workspace -y \
+    && /home/developer/.local/bin/uv venv --python 3.11 /home/developer/studio/.venv \
+# Studio derives its package version from git metadata (setuptools-scm); the
+# release tarball has none, so pass the version resolved by the layer above.
+    && SETUPTOOLS_SCM_PRETEND_VERSION="$(sed 's/^v//' /home/developer/.cf-studio/cache/.version)" \
+       /home/developer/.local/bin/uv pip install --python /home/developer/studio/.venv/bin/python -e /home/developer/studio \
+    && ln -sf /home/developer/studio/.venv/bin/cfs /usr/local/bin/cfs \
+    && ln -sf /home/developer/studio/.venv/bin/constructor-studio /usr/local/bin/constructor-studio \
+# Transitional aliases for pre-rename callers; drop in PR 4 of the migration.
+    && ln -sf /home/developer/studio/.venv/bin/cfs /usr/local/bin/cfc \
+    && ln -sf /home/developer/studio/.venv/bin/cfs /usr/local/bin/cf-constructor \
+    && /usr/local/bin/cfs init --no-cache --project-root /home/developer/workspaces/constructor-fabric-workspace --install-dir .cf-studio --project-name "constructor-fabric-workspace" --force --yes \
+    && /usr/local/bin/cfs generate-agents --root /home/developer/workspaces/constructor-fabric-workspace -y \
     && cp -f /home/developer/constructor-fabric/trainer/index.html /home/developer/workspaces/constructor-fabric-workspace/.trainer-welcome.html 2>/dev/null || true \
     && chown -R developer:developer /home/developer
 
