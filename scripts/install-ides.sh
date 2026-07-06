@@ -195,7 +195,7 @@ fi
 # Open the workspace and command file, then focus Continue chat. This VSCodium
 # build does not support a --command CLI flag, so use xdotool when available to
 # invoke the command palette exactly like a user would.
-"$launcher" --user-data-dir="${HOME}/.config/VSCodium" --reuse-window --goto .vscode/cfc-commands.md . &
+"$launcher" --user-data-dir="${HOME}/.config/VSCodium" --reuse-window --goto CONSTRUCTOR_FABRIC_PROMPTS.md . &
 codium_pid=$!
 if command -v xdotool >/dev/null 2>&1; then
   for i in $(seq 1 40); do
@@ -400,15 +400,15 @@ lines += [
   "  - provider: code",
   "  - provider: docs",
   "prompts:",
-  "  - name: cf-constructor",
-  "    description: Run the Constructor Fabric SDLC workflow using the generated .cf-constructor workspace, cfc CLI, and traceability rules.",
+  "  - name: studio",
+  "    description: Run the Constructor Fabric SDLC workflow using the generated .cf-studio workspace, cfs CLI, and traceability rules.",
   "    prompt: |",
   "      You are Constructor Fabric inside the pre-initialized workspace.",
   "",
   "      User request:",
   "      {{{ input }}}",
   "",
-  "      Use AGENTS.md, .cf-constructor/.gen/AGENTS.md, the .cf-constructor adapter, generated cypilot skills, and cfc/cf-constructor CLI validation.",
+  "      Use AGENTS.md, .cf-studio/.gen/AGENTS.md, the .cf-studio adapter, generated studio skills, and cfs/constructor-studio CLI validation.",
 ]
 print("\n".join(lines))
 PYCONTINUECFG
