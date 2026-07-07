@@ -20,7 +20,7 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: studio-latest-20260702-1
+  SCRIPT_VERSION: code-server-current-20260707-1
   CF_SOURCE_REF: main
   CODE_SERVER_PASSWORD: ${fn.password}
   NOTIFY_WEBHOOK_URL: "XXX"
@@ -103,7 +103,7 @@ nodes:
       no_proxy: localhost,127.0.0.1,::1
       JELASTIC_EXPOSE: 8080
       JELASTIC_PORTS: 8080
-      SCRIPT_VERSION: studio-latest-20260702-1
+      SCRIPT_VERSION: code-server-current-20260707-1
       CF_SOURCE_REF: main
 
 onInstall:
@@ -137,7 +137,7 @@ actions:
 
         if ! command -v code-server >/dev/null 2>&1; then
           echo "Installing code-server..."
-          CODE_SERVER_VERSION=4.104.2
+          CODE_SERVER_VERSION=4.127.0
           curl --noproxy '*' -fsSL "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server-${CODE_SERVER_VERSION}-linux-amd64.tar.gz" -o /tmp/code-server.tar.gz
           tar -xzf /tmp/code-server.tar.gz --strip-components=1 -C /usr/local
           rm -f /tmp/code-server.tar.gz
@@ -201,21 +201,36 @@ actions:
         assert data.get('workbench.colorTheme') == 'Default Dark Modern'
         assert data.get('workbench.startupEditor') == 'none'
         assert data.get('window.restoreWindows') == 'none'
+        assert data.get('workbench.welcomePage.walkthroughs.openOnInstall') is False, 'welcome walkthrough auto-open is not suppressed'
         terminal_env = data.get('terminal.integrated.env.linux', {})
         assert terminal_env.get('LLM_PROVIDER') in ('openai', 'claude'), terminal_env
         assert data.get('github.copilot.editor.enableAutoCompletions') is True
         assert data.get('chat.commandCenter.enabled') is True
         extensions = Path('/home/developer/.local/share/code-server/extensions')
         names = {p.name.lower() for p in extensions.iterdir() if p.is_dir()} if extensions.exists() else set()
-        assert any(name.startswith('github.copilot-') or name == 'github.copilot' for name in names), names
-        assert 'github.copilot-chat-0.31.1' in names, names
+        # code-server >= 4.127.0 ships the unified GitHub Copilot (completions +
+        # Chat) as a built-in; marketplace copies must NOT be user-installed.
+        assert not any(name.startswith('github.copilot') for name in names), names
+        builtin_chat = json.loads(Path('/usr/local/lib/vscode/extensions/copilot/package.json').read_text())
+        assert builtin_chat.get('name') == 'copilot-chat', builtin_chat.get('name')
         trainer_ext_js = (ext / 'extension.js').read_text()
-        assert 'workbench.action.chat.triggerSetupForceSignIn' in trainer_ext_js, 'Copilot sign-in bridge command is missing'
-        assert "['read:user', 'repo', 'user:email', 'workflow']" in trainer_ext_js, 'Copilot sign-in bridge does not request Copilot GitHub scopes'
+        # The built-in unified Copilot handles its own sign-in; the trainer
+        # must not override the chat setup sign-in command or request extra
+        # GitHub scopes (read:user/repo/workflow).
+        assert 'triggerSetupForceSignIn' not in (ext / 'package.json').read_text(), 'stale Copilot sign-in bridge in trainer package.json'
+        assert "'read:user'" not in trainer_ext_js, 'stale Copilot sign-in scope escalation in trainer extension'
         code_server_host = Path('/usr/local/lib/vscode/out/vs/workbench/api/node/extensionHostProcess.js')
         assert 'value:globalThis.navigator' in code_server_host.read_text(), 'code-server navigator guard is not patched'
+        # The chat setup must request minimal GitHub scopes first; the upstream
+        # broad-scopes-first list is inlined into the workbench web bundle.
+        web_main = Path('/usr/local/lib/vscode/out/vs/workbench/workbench.web.main.internal.js')
+        assert 'providerScopes:[["read:user"' not in web_main.read_text(), 'chat provider scopes not patched in workbench web bundle'
         supervisor_conf = Path('/etc/supervisor/conf.d/code-server.conf').read_text()
         assert 'start-code-server.sh' in supervisor_conf or '--enable-proposed-api GitHub.copilot-chat' in supervisor_conf, supervisor_conf
+        # Workspace trust must stay disabled: in restricted mode the built-in
+        # Copilot and the trainer extension (no untrustedWorkspaces capability)
+        # are silently not loaded into the session.
+        assert '--disable-workspace-trust' in supervisor_conf, supervisor_conf
         trainer = Path('/home/developer/workspaces/constructor-fabric-workspace/.constructor-fabric-trainer/index.html')
         assert trainer.exists() and trainer.stat().st_size > 100, trainer
         assert Path('/home/developer/.constructor-fabric-ai.env').exists()

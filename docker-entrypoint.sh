@@ -23,7 +23,7 @@ if [ -f /etc/supervisor/conf.d/code-server.conf ]; then
   supervisorctl update 2>/dev/null || true
   supervisorctl start code-server 2>/dev/null || true
 else
-  sudo -u developer -H code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry "$CF_WORKSPACE" >"$LOG_DIR/code-server.log" 2>&1 &
+  sudo -u developer -H code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry --disable-workspace-trust "$CF_WORKSPACE" >"$LOG_DIR/code-server.log" 2>&1 &
 fi
 
 

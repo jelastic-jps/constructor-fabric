@@ -60,6 +60,30 @@ VSCODE
 }
 write_ai_env
 
+# Suppress the VS Code welcome tab on first open. workbench.startupEditor
+# alone is not enough: extensions with an openOnInstall walkthrough (the
+# built-in Copilot has one) open the Welcome/walkthrough tab on their first
+# activation. These must be user-level settings; merge so keys written by
+# other provisioning scripts are preserved.
+python3 - "${HOME}/.local/share/code-server/User/settings.json" <<'PYUSERSET'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+try:
+    data = json.loads(p.read_text()) if p.exists() else {}
+except Exception:
+    data = {}
+data.update({
+    'workbench.startupEditor': 'none',
+    'workbench.welcomePage.walkthroughs.openOnInstall': False,
+    'window.restoreWindows': 'none',
+})
+data.setdefault('workbench.colorTheme', 'Default Dark Modern')
+p.parent.mkdir(parents=True, exist_ok=True)
+p.write_text(json.dumps(data, indent=2) + '\n')
+print('merged welcome-suppression keys into code-server user settings')
+PYUSERSET
+
 # Use password from file if manifest already wrote it, otherwise generate
 if [ -f "${HOME}/.code-server-password" ] && [ -s "${HOME}/.code-server-password" ]; then
   CODE_SERVER_PASSWORD="$(cat "${HOME}/.code-server-password")"
@@ -123,15 +147,26 @@ patch_code_server_navigator_guard() {
   tmp="/tmp/extensionHostProcess.js.$$"
   python3 - "$target" "$tmp" <<'PYNAV'
 from pathlib import Path
-import sys
+import re, sys
 src = Path(sys.argv[1])
 dst = Path(sys.argv[2])
 s = src.read_text()
-old = 'zh.supportGlobalNavigator||Object.defineProperty(globalThis,"navigator",{get:()=>{td(new p1("navigator is now a global in nodejs, please see https://aka.ms/vscode-extensions/navigator for additional info on this error."))}});'
-new = 'zh.supportGlobalNavigator||Object.defineProperty(globalThis,"navigator",{value:globalThis.navigator||{userAgent:"Node.js",language:"en-US",languages:["en-US"],platform:"Linux"},configurable:!0});'
-if old not in s:
+# Minified identifier names change between code-server releases, so match the
+# guard structurally rather than by exact string.
+pattern = re.compile(
+    r'(\w+(?:\.\w+)*\.supportGlobalNavigator\|\|)'
+    r'Object\.defineProperty\(globalThis,"navigator",'
+    r'\{get:\(\)=>\{\w+\(new \w+\("navigator is now a global in nodejs[^"]*"\)\)\}\}\)'
+)
+replacement = (
+    r'\1Object.defineProperty(globalThis,"navigator",'
+    r'{value:globalThis.navigator||{userAgent:"Node.js",language:"en-US",'
+    r'languages:["en-US"],platform:"Linux"},configurable:!0})'
+)
+s2, n = pattern.subn(replacement, s, count=1)
+if n != 1:
     raise SystemExit("code-server navigator guard pattern not found")
-dst.write_text(s.replace(old, new, 1))
+dst.write_text(s2)
 print("patched code-server navigator guard for Copilot Chat")
 PYNAV
   sudo cp "$tmp" "$target"
@@ -140,48 +175,84 @@ PYNAV
 
 patch_code_server_navigator_guard
 
-install_code_server_vsix() {
-  publisher="$1"
-  ext="$2"
-  version="$3"
-  id="${publisher}.${ext}"
-  ext_dir="${HOME}/.local/share/code-server/extensions"
-  vsix="/tmp/${ext}.vsix"
-  mkdir -p "$ext_dir"
-  rm -f "${HOME}/.local/share/code-server/extensions/.obsolete" 2>/dev/null || true
-  expected_dir="${ext_dir}/$(printf '%s' "$id" | tr '[:upper:]' '[:lower:]')-${version}"
-  if [ -d "$expected_dir" ]; then
-    echo "${id}@${version} already installed"
-    return 0
-  fi
-  # The Docker image can contain an older baked extension version. code-server
-  # --list-extensions only reports the id, not the version, so remove old copies
-  # before installing the pinned compatible version.
-  find "$ext_dir" -maxdepth 1 -type d -iname "${id}-*" ! -path "$expected_dir" -print -exec rm -rf {} + 2>/dev/null || true
-  echo "Installing ${id}@${version} for code-server"
-  curl --noproxy '*' -fL -H 'Accept: application/octet-stream' -H 'User-Agent: Mozilla/5.0' \
-    "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/${publisher}/vsextensions/${ext}/${version}/vspackage" \
-    -o "$vsix"
-  python3 - "$vsix" <<'PYVSIX'
-import gzip, sys
+# The core chat setup signs in to GitHub with the FIRST scope list from
+# defaultChatAgent.providerScopes, which upstream ships as
+# read:user+user:email+repo+workflow. Copilot Chat works with a minimal
+# user:email session (it is listed as an accepted alternate), so put the
+# minimal scopes first and keep the broader set as a reusable alternate.
+# The scope list is read from product.json by node-side consumers but is
+# also INLINED into the built workbench bundles at build time, so both
+# must be patched for the browser sign-in flow to pick it up.
+patch_chat_provider_scopes() {
+  vscode_root="/usr/local/lib/vscode"
+  [ -d "$vscode_root" ] || return 0
+  tmp="/tmp/product.json.$$"
+  python3 - "$vscode_root/product.json" "$tmp" <<'PYSCOPES' || true
+import json, sys
 from pathlib import Path
-p = Path(sys.argv[1])
-b = p.read_bytes()
-if b.startswith(b'\x1f\x8b'):
-    p.write_bytes(gzip.decompress(b))
-    b = p.read_bytes()
-if not b.startswith(b'PK'):
-    raise SystemExit(f'{p} is not a VSIX/zip payload')
-PYVSIX
-  code-server --install-extension "$vsix" --force --extensions-dir "$ext_dir"
-  rm -f "$vsix"
+src, dst = Path(sys.argv[1]), Path(sys.argv[2])
+data = json.loads(src.read_text())
+agent = data.get('defaultChatAgent') or {}
+scopes = agent.get('providerScopes')
+if not scopes:
+    raise SystemExit('defaultChatAgent.providerScopes not found; skipping')
+minimal = ['user:email']
+ordered = [s for s in scopes if s == minimal] + [s for s in scopes if s != minimal]
+if minimal not in scopes:
+    ordered = [minimal] + scopes
+if ordered == scopes:
+    raise SystemExit(0)
+agent['providerScopes'] = ordered
+dst.write_text(json.dumps(data, indent=2) + '\n')
+print('patched defaultChatAgent.providerScopes in product.json')
+PYSCOPES
+  if [ -s "$tmp" ]; then
+    sudo cp "$tmp" "$vscode_root/product.json"
+  fi
+  rm -f "$tmp"
+  old_literal='providerScopes:[["read:user","user:email","repo","workflow"],["user:email"],["read:user"]]'
+  new_literal='providerScopes:[["user:email"],["read:user"],["read:user","user:email","repo","workflow"]]'
+  sudo grep -rlF "$old_literal" "$vscode_root/out" 2>/dev/null | while read -r bundle; do
+    sudo python3 - "$bundle" "$old_literal" "$new_literal" <<'PYBUNDLE'
+import sys
+from pathlib import Path
+p, old, new = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+p.write_text(p.read_text().replace(old, new))
+print(f'patched inlined chat provider scopes in {p}')
+PYBUNDLE
+  done
 }
 
-# User-required right-side AI: install GitHub Copilot and Copilot Chat.
-# Do not use the VS Code desktop-only --disable-extension flag; code-server 4.104.2
-# rejects it and that was the direct cause of the failed install.
-install_code_server_vsix GitHub copilot latest || echo "GitHub Copilot install failed; continuing"
-install_code_server_vsix GitHub copilot-chat 0.31.1 || echo "GitHub Copilot Chat install failed; continuing"
+patch_chat_provider_scopes
+
+# User-required right-side AI: GitHub Copilot (completions + Chat).
+# code-server 4.127.0 ships the unified "GitHub Copilot" extension as a
+# BUILT-IN (/usr/local/lib/vscode/extensions/copilot, copilot-chat 0.55.0),
+# which provides both completions and Chat. Do not install GitHub.copilot or
+# GitHub.copilot-chat from the marketplace on top of it: copilot-chat is
+# rejected as an incompatible downgrade, and reinstalling GitHub.copilot
+# aborts with "Please restart VS Code before reinstalling GitHub Copilot".
+# Old marketplace copies can still be present in images baked before the
+# upgrade; remove them so they cannot shadow or conflict with the built-in.
+find "${HOME}/.local/share/code-server/extensions" -maxdepth 1 -type d \
+  \( -iname 'github.copilot-[0-9]*' -o -iname 'github.copilot-chat-*' \) \
+  -print -exec rm -rf {} + 2>/dev/null || true
+registry="${HOME}/.local/share/code-server/extensions/extensions.json"
+if [ -f "$registry" ]; then
+  python3 - "$registry" <<'PYREG' || true
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+try:
+    data = json.loads(p.read_text())
+except Exception:
+    raise SystemExit(0)
+kept = [e for e in data if not str((e.get('identifier') or {}).get('id', '')).lower().startswith('github.copilot')]
+if len(kept) != len(data):
+    p.write_text(json.dumps(kept, indent=2) + '\n')
+    print('pruned stale github.copilot* entries from extensions.json')
+PYREG
+fi
 
 TRAINER_WELCOME_DIR="${CS_WORKSPACE}/.constructor-fabric-trainer"
 TRAINER_HTML="${TRAINER_WELCOME_DIR}/index.html"
@@ -213,14 +284,12 @@ cat > "$TRAINER_EXTENSION_DIR/package.json" <<'JSON'
   "activationEvents": [
     "*",
     "onStartupFinished",
-    "onCommand:constructorFabric.openTrainer",
-    "onCommand:workbench.action.chat.triggerSetupForceSignIn"
+    "onCommand:constructorFabric.openTrainer"
   ],
   "main": "./extension.js",
   "contributes": {
     "commands": [
-      { "command": "constructorFabric.openTrainer", "title": "Constructor Fabric: Open Trainer" },
-      { "command": "workbench.action.chat.triggerSetupForceSignIn", "title": "Constructor Fabric: Sign in to Copilot" }
+      { "command": "constructorFabric.openTrainer", "title": "Constructor Fabric: Open Trainer" }
     ]
   }
 }
@@ -275,36 +344,14 @@ function openTrainer(context) {
   if (file) console.log(`Constructor Fabric trainer opened from ${file}`);
 }
 
-async function triggerCopilotSignIn() {
-  const commands = await vscode.commands.getCommands(true);
-  const candidates = [
-    'github.copilot.signIn',
-    'github.copilot.chat.signIn',
-    'github.copilot.interactiveSession.signIn',
-    'github.copilot.acceptDeviceCode'
-  ];
-  for (const command of candidates) {
-    if (commands.includes(command)) {
-      console.log(`Forwarding Copilot sign-in to ${command}`);
-      return vscode.commands.executeCommand(command);
-    }
-  }
-  try {
-    // Copilot Chat does not accept a minimal user:email GitHub session. It
-    // repeatedly logs GitHubLoginFailed when only user:email exists. Request
-    // the broader scopes that the GitHub auth extension checks for Copilot.
-    const scopes = ['read:user', 'repo', 'user:email', 'workflow'];
-    await vscode.authentication.getSession('github', scopes, { createIfNone: true });
-    vscode.window.showInformationMessage('GitHub Copilot sign-in started. Complete auth, then reload this browser tab if Copilot Chat does not refresh automatically.');
-  } catch (error) {
-    vscode.window.showErrorMessage(`GitHub Copilot sign-in failed to start: ${error && error.message ? error.message : String(error)}`);
-    throw error;
-  }
-}
+// The old copilot-chat 0.31.x sign-in bridge (a triggerSetupForceSignIn
+// override requesting read:user/repo/workflow scopes) was removed: the
+// built-in unified Copilot in code-server >= 4.127.0 runs its own sign-in
+// with minimal scopes, and the override hijacked it and escalated the
+// GitHub permission request.
 
 function activate(context) {
   context.subscriptions.push(vscode.commands.registerCommand('constructorFabric.openTrainer', () => openTrainer(context)));
-  context.subscriptions.push(vscode.commands.registerCommand('workbench.action.chat.triggerSetupForceSignIn', triggerCopilotSignIn));
   openTrainer(context);
   setTimeout(() => openTrainer(context), 700);
   setTimeout(() => openTrainer(context), 2000);
@@ -371,7 +418,7 @@ anthropic_key = os.environ.get('ANTHROPIC_API_KEY', '')
 openai_model = os.environ.get('OPENAI_MODEL', 'gpt-5.5')
 claude_model = os.environ.get('CLAUDE_MODEL', 'claude-sonnet-4-6')
 conf = f'''[program:code-server]
-command=/usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --disable-telemetry --enable-proposed-api GitHub.copilot --enable-proposed-api GitHub.copilot-chat {workspace}
+command=/usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --disable-telemetry --disable-workspace-trust --enable-proposed-api GitHub.copilot --enable-proposed-api GitHub.copilot-chat {workspace}
 user=developer
 directory={workspace}
 environment=HOME="{home}",USER="developer",PATH="/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin",PASSWORD={password},LLM_PROVIDER="{lm_provider}",API_TOKEN="{api_token}",OPENAI_API_KEY="{openai_key}",ANTHROPIC_API_KEY="{anthropic_key}",OPENAI_MODEL="{openai_model}",CLAUDE_MODEL="{claude_model}"

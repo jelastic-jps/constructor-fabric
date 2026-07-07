@@ -32,7 +32,7 @@ RUN mkdir -p /opt \
     && ln -sf /opt/node-current/bin/npx /usr/local/bin/npx \
     && rm -f /tmp/node.tar.xz
 
-ARG CODE_SERVER_VERSION=4.104.2
+ARG CODE_SERVER_VERSION=4.127.0
 RUN curl --noproxy '*' -fsSL "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server-${CODE_SERVER_VERSION}-linux-amd64.tar.gz" \
       | tar -xz --strip-components=1 -C /usr/local \
     && code-server --version
