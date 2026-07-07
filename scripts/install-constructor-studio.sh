@@ -36,10 +36,6 @@ cd "$STUDIO_DIR"
 SETUPTOOLS_SCM_PRETEND_VERSION="${STUDIO_VERSION#v}" "${HOME}/.local/bin/uv" pip install --python "$STUDIO_DIR/.venv/bin/python" -e "$STUDIO_DIR" >"${HOME}/studio-install/pip-install.log" 2>&1
 ln -sf "$STUDIO_DIR/.venv/bin/cfs" "${HOME}/.local/bin/cfs"
 ln -sf "$STUDIO_DIR/.venv/bin/constructor-studio" "${HOME}/.local/bin/constructor-studio"
-# Transitional aliases: older scripts and baked images still call the pre-rename
-# CLI names; keep them working until every reference migrates to cfs.
-ln -sf "$STUDIO_DIR/.venv/bin/cfs" "${HOME}/.local/bin/cfc"
-ln -sf "$STUDIO_DIR/.venv/bin/cfs" "${HOME}/.local/bin/cf-constructor"
 # Remove the legacy pinned install left by older images (superseded by ${STUDIO_DIR})
 rm -rf "${HOME}/cyber-constructor" "${HOME}/.cf-constructor" "${HOME}/cfc-install"
 rm -rf "${HOME}/.cf-studio/cache"
@@ -172,6 +168,9 @@ README
 fi
 
 cfs init --no-cache --project-root "$root" --install-dir .cf-studio --project-name "$slug" --force --yes
+# init --force backs up the build-time .cf-studio before re-initializing; the
+# backup only holds generated state and would litter every fresh workspace.
+rm -rf "$root"/.cf-studio.*.backup
 cfs generate-agents --root "$root" -y
 (cd "$root" && cfs agents --json > "${HOME}/studio/workspace-agents.json" && python3 - <<'PYAGENTS'
 import json, sys
@@ -187,13 +186,6 @@ PYAGENTS
 (cd "$root" && cfs validate --json) || true
 echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Constructor Fabric auto-bootstrap finished for $root"
 CFCAUTO
-
-cat > "${HOME}/studio/run-cfc.sh" <<'CFCRUN'
-#!/bin/bash
-export HOME="${HOME:-/home/developer}"
-export PATH="${HOME}/studio/.venv/bin:${HOME}/.local/bin:/usr/local/bin:/opt/node-current/bin:$PATH"
-exec "${HOME}/studio/auto-bootstrap.sh"
-CFCRUN
 
 mkdir -p "${HOME}/constructor-fabric/trainer" "${HOME}/constructor-fabric/app/icons"
 if [ -f "${HOME}/constructor-fabric/assets/constructor-fabric-logo.png" ]; then
@@ -309,7 +301,6 @@ exit 1
 
 RUNTRAINER
 chmod +x "${HOME}/studio/auto-bootstrap.sh"
-chmod +x "${HOME}/studio/run-cfc.sh"
 chmod +x "${HOME}/constructor-fabric/run-trainer.sh"
 mkdir -p "${HOME}/Desktop" "${HOME}/.config/autostart"
 cat > "${HOME}/.config/autostart/constructor-fabric.desktop" <<'DESK'
@@ -395,14 +386,5 @@ echo
 read -r -p "Press Enter to close."
 OPENAGENT
 chmod +x "${HOME}/constructor-fabric/open-agent.sh"
-# Transitional shim: start-services.sh baked into older images still launches
-# auto-bootstrap from the legacy path on container restart. Remove together
-# with the CLI aliases once the published image is rebuilt.
-mkdir -p "${HOME}/cyber-constructor"
-cat > "${HOME}/cyber-constructor/auto-bootstrap.sh" <<'LEGACYSHIM'
-#!/bin/sh
-exec /home/developer/studio/auto-bootstrap.sh
-LEGACYSHIM
-chmod +x "${HOME}/cyber-constructor/auto-bootstrap.sh"
 cfs --version
 cfs validate --json
