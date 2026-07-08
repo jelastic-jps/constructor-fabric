@@ -76,9 +76,6 @@ RUN chmod +x /home/developer/constructor-fabric/scripts/*.sh 2>/dev/null || true
        /home/developer/.local/bin/uv pip install --python /home/developer/studio/.venv/bin/python -e /home/developer/studio \
     && ln -sf /home/developer/studio/.venv/bin/cfs /usr/local/bin/cfs \
     && ln -sf /home/developer/studio/.venv/bin/constructor-studio /usr/local/bin/constructor-studio \
-# Transitional aliases for pre-rename callers; drop in PR 4 of the migration.
-    && ln -sf /home/developer/studio/.venv/bin/cfs /usr/local/bin/cfc \
-    && ln -sf /home/developer/studio/.venv/bin/cfs /usr/local/bin/cf-constructor \
     && /usr/local/bin/cfs init --no-cache --project-root /home/developer/workspaces/constructor-fabric-workspace --install-dir .cf-studio --project-name "constructor-fabric-workspace" --force --yes \
     && /usr/local/bin/cfs generate-agents --root /home/developer/workspaces/constructor-fabric-workspace -y \
     && cp -f /home/developer/constructor-fabric/trainer/index.html /home/developer/workspaces/constructor-fabric-workspace/.trainer-welcome.html 2>/dev/null || true \

@@ -18,9 +18,9 @@ curl --noproxy '*' -fsSL "${TRAINER_BASE}/index.html?v=${SCRIPT_VERSION}" -o "${
 curl --noproxy '*' -fsSL "${TRAINER_BASE}/main.js?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/trainer/main.js" || true
 curl --noproxy '*' -fsSL "${TRAINER_BASE}/package.json?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/trainer/package.json" || true
 
-curl --noproxy '*' -fsSL "${SCRIPT_BASE}/install-cyber-constructor.sh?v=${SCRIPT_VERSION}" -o "${HOME}/install-cyber-constructor.sh"
-chmod +x "${HOME}/install-cyber-constructor.sh"
-"${HOME}/install-cyber-constructor.sh"
+curl --noproxy '*' -fsSL "${SCRIPT_BASE}/install-constructor-studio.sh?v=${SCRIPT_VERSION}" -o "${HOME}/install-constructor-studio.sh"
+chmod +x "${HOME}/install-constructor-studio.sh"
+"${HOME}/install-constructor-studio.sh"
 
 curl --noproxy '*' -fsSL "${SCRIPT_BASE}/start-services.sh?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/start-services.sh"
 chmod +x "${HOME}/constructor-fabric/start-services.sh"

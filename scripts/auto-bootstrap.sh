@@ -114,6 +114,9 @@ README
 fi
 
 cfs init --no-cache --project-root "$root" --install-dir .cf-studio --project-name "$slug" --force --yes
+# init --force backs up the build-time .cf-studio before re-initializing; the
+# backup only holds generated state and would litter every fresh workspace.
+rm -rf "$root"/.cf-studio.*.backup
 cfs generate-agents --root "$root" -y
 (cd "$root" && cfs agents --json > "${HOME}/studio/workspace-agents.json" && python3 - <<'PYAGENTS'
 import json, sys
