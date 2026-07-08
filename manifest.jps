@@ -20,7 +20,7 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: studio-cleanup-20260707-1
+  SCRIPT_VERSION: fetch-retry-20260708-1
   CF_SOURCE_REF: main
   CODE_SERVER_PASSWORD: ${fn.password}
   NOTIFY_WEBHOOK_URL: "XXX"
@@ -103,7 +103,7 @@ nodes:
       no_proxy: localhost,127.0.0.1,::1
       JELASTIC_EXPOSE: 8080
       JELASTIC_PORTS: 8080
-      SCRIPT_VERSION: studio-cleanup-20260707-1
+      SCRIPT_VERSION: fetch-retry-20260708-1
       CF_SOURCE_REF: main
 
 onInstall:
@@ -138,7 +138,7 @@ actions:
         if ! command -v code-server >/dev/null 2>&1; then
           echo "Installing code-server..."
           CODE_SERVER_VERSION=4.127.0
-          curl --noproxy '*' -fsSL "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server-${CODE_SERVER_VERSION}-linux-amd64.tar.gz" -o /tmp/code-server.tar.gz
+          curl --noproxy '*' --retry 3 --retry-delay 2 --retry-connrefused -fsSL "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server-${CODE_SERVER_VERSION}-linux-amd64.tar.gz" -o /tmp/code-server.tar.gz
           tar -xzf /tmp/code-server.tar.gz --strip-components=1 -C /usr/local
           rm -f /tmp/code-server.tar.gz
           code-server --version
@@ -159,7 +159,7 @@ actions:
         chmod 600 /home/developer/.constructor-fabric-ai.env
         chown developer:developer /home/developer/.constructor-fabric-ai.env
 
-        curl --noproxy '*' -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/scripts/bootstrap.sh?v=${globals.SCRIPT_VERSION}" -o /tmp/constructor-fabric-bootstrap.sh
+        curl --noproxy '*' --retry 3 --retry-delay 2 --retry-connrefused -fsSL "https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/${globals.CF_SOURCE_REF}/scripts/bootstrap.sh?v=${globals.SCRIPT_VERSION}" -o /tmp/constructor-fabric-bootstrap.sh
         chmod +x /tmp/constructor-fabric-bootstrap.sh
         chown developer:developer /tmp/constructor-fabric-bootstrap.sh
         su developer -c "/tmp/constructor-fabric-bootstrap.sh"
