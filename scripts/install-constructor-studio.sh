@@ -12,14 +12,14 @@ cd "${HOME}/studio-install"
 STUDIO_VERSION="${STUDIO_VERSION:-latest}"
 if [ "$STUDIO_VERSION" = "latest" ]; then
   echo "Resolving latest Constructor Studio release"
-  STUDIO_VERSION="$(curl --noproxy '*' -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/${STUDIO_REPO}/releases/latest" | sed 's|.*/tag/||')"
+  STUDIO_VERSION="$(curl --noproxy '*' --retry 3 --retry-delay 2 --retry-connrefused -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/${STUDIO_REPO}/releases/latest" | sed 's|.*/tag/||')"
 fi
 case "$STUDIO_VERSION" in
   v[0-9]*) ;;
   *) echo "Failed to resolve Constructor Studio release (got: '${STUDIO_VERSION}')" >&2; exit 1 ;;
 esac
 echo "Fetching Constructor Studio ${STUDIO_VERSION} source archive"
-curl --noproxy '*' -fsSL "https://github.com/${STUDIO_REPO}/archive/refs/tags/${STUDIO_VERSION}.tar.gz" -o studio.tar.gz
+curl --noproxy '*' --retry 3 --retry-delay 2 --retry-connrefused -fsSL "https://github.com/${STUDIO_REPO}/archive/refs/tags/${STUDIO_VERSION}.tar.gz" -o studio.tar.gz
 rm -rf "$STUDIO_DIR"
 mkdir -p "$STUDIO_DIR"
 tar -xzf studio.tar.gz --strip-components=1 -C "$STUDIO_DIR"
