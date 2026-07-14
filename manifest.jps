@@ -1,5 +1,5 @@
 type: install
-version: 0.5.4
+version: 0.6.0
 id: constructor-fabric
 baseUrl: https://raw.githubusercontent.com/jelastic-jps/constructor-fabric/main/
 name: Constructor Fabric
@@ -20,7 +20,7 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: fetch-retry-20260708-1
+  SCRIPT_VERSION: trainer-greenfield-20260709-1
   CF_SOURCE_REF: main
   CODE_SERVER_PASSWORD: ${fn.password}
   NOTIFY_WEBHOOK_URL: "XXX"
@@ -103,7 +103,7 @@ nodes:
       no_proxy: localhost,127.0.0.1,::1
       JELASTIC_EXPOSE: 8080
       JELASTIC_PORTS: 8080
-      SCRIPT_VERSION: fetch-retry-20260708-1
+      SCRIPT_VERSION: trainer-greenfield-20260709-1
       CF_SOURCE_REF: main
 
 onInstall:
@@ -188,11 +188,13 @@ actions:
         python3 - <<'PYCHECK'
         import json
         from pathlib import Path
-        ext = Path('/home/developer/.local/share/code-server/extensions/constructor-fabric.constructor-fabric-trainer-1.0.0')
-        assert (ext / 'package.json').exists(), ext
-        assert (ext / 'extension.js').exists(), ext
+        ext = Path('/home/developer/.local/share/code-server/extensions/constructor-fabric.constructor-fabric-trainer-2.0.0')
+        for rel in ('package.json', 'extension.js', 'ui/index.html', 'ui/trainer.js', 'ui/trainer.css', 'content/curriculum.json', 'content/brief.md'):
+            assert (ext / rel).exists(), str(ext / rel)
         pkg = json.loads((ext / 'package.json').read_text())
         assert 'onStartupFinished' in pkg.get('activationEvents', []), pkg
+        curriculum = json.loads((ext / 'content/curriculum.json').read_text())
+        assert len(curriculum['steps']) >= 12, 'trainer curriculum must have >= 12 steps'
         registry = json.loads(Path('/home/developer/.local/share/code-server/extensions/extensions.json').read_text())
         assert any((e.get('identifier') or {}).get('id') == 'constructor-fabric.constructor-fabric-trainer' for e in registry), registry
         settings = Path('/home/developer/.local/share/code-server/User/settings.json')
@@ -231,8 +233,15 @@ actions:
         # Copilot and the trainer extension (no untrustedWorkspaces capability)
         # are silently not loaded into the session.
         assert '--disable-workspace-trust' in supervisor_conf, supervisor_conf
-        trainer = Path('/home/developer/workspaces/constructor-fabric-workspace/.constructor-fabric-trainer/index.html')
-        assert trainer.exists() and trainer.stat().st_size > 100, trainer
+        ws = Path('/home/developer/workspaces/constructor-fabric-workspace')
+        # Greenfield training precondition: the trainee starts with an empty
+        # artifact tree and no application code.
+        assert not (ws / 'architecture').exists(), 'workspace must start without architecture/'
+        assert not (ws / 'src').exists(), 'workspace must start without src/'
+        assert not (ws / '.cf-studio/artifacts').exists(), 'workspace must start without registered artifacts'
+        # The Studio core runtime must be complete, or SDLC kit preset
+        # workflows fail at runtime ("missing write-docs.md").
+        assert (ws / '.cf-studio/.core/workflows/write-docs.md').exists(), '.core/workflows missing — cache copy incomplete'
         assert Path('/home/developer/.constructor-fabric-ai.env').exists()
         print('code-server trainer webview extension, provider env, and dark theme are configured')
         PYCHECK

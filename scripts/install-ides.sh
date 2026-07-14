@@ -195,7 +195,7 @@ fi
 # Open the workspace and command file, then focus Continue chat. This VSCodium
 # build does not support a --command CLI flag, so use xdotool when available to
 # invoke the command palette exactly like a user would.
-"$launcher" --user-data-dir="${HOME}/.config/VSCodium" --reuse-window --goto CONSTRUCTOR_FABRIC_PROMPTS.md . &
+"$launcher" --user-data-dir="${HOME}/.config/VSCodium" --reuse-window --goto README.md . &
 codium_pid=$!
 if command -v xdotool >/dev/null 2>&1; then
   for i in $(seq 1 40); do
@@ -230,9 +230,8 @@ create_gui_launchers(){
   clean_desktop_launchers
   ensure_chromium_wrapper
   
-  # Create desktop launchers with icons
-  desktop_link "Constructor Fabric Trainer" "${HOME}/constructor-fabric/run-trainer.sh" "$(icon_for trainer)" "Constructor-Fabric-Trainer.desktop"
-  
+  # Create desktop launchers with icons. (The Trainer runs inside code-server
+  # as a webview extension; it has no desktop launcher.)
   if command -v constructor-fabric-chromium >/dev/null 2>&1; then
     desktop_link "Chromium" "constructor-fabric-chromium %U" "$(icon_for chromium)" "Chromium.desktop" "Network;WebBrowser;"
   fi

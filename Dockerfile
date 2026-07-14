@@ -47,9 +47,9 @@ RUN mkdir -p /home/developer/.local/bin \
 
 # Resolve the latest published Constructor Studio release tag via the
 # /releases/latest redirect, then bake its source into the image. The resolved
-# version is recorded in the skill cache .version file, which the install
-# layer below reads for setuptools-scm.
-RUN mkdir -p /home/developer/studio-build /home/developer/studio /home/developer/.cf-studio/cache \
+# version is recorded in .studio-release-version, which the install layer
+# below reads for setuptools-scm.
+RUN mkdir -p /home/developer/studio-build /home/developer/studio \
     && cd /home/developer/studio-build \
     && if [ "${STUDIO_VERSION}" = "latest" ]; then \
          STUDIO_VERSION="$(curl --noproxy '*' -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/${STUDIO_REPO}/releases/latest" | sed 's|.*/tag/||')"; \
@@ -59,11 +59,9 @@ RUN mkdir -p /home/developer/studio-build /home/developer/studio /home/developer
     && curl --noproxy '*' -fsSL "https://github.com/${STUDIO_REPO}/archive/refs/tags/${STUDIO_VERSION}.tar.gz" -o studio.tar.gz \
     && tar -xzf studio.tar.gz --strip-components=1 -C /home/developer/studio \
     && find /home/developer/studio \( -name '._*' -o -name '.DS_Store' \) -delete \
-    && cp -a /home/developer/studio/skills /home/developer/.cf-studio/cache/ \
-    && if [ -d /home/developer/studio/config ]; then cp -a /home/developer/studio/config /home/developer/.cf-studio/cache/; fi \
-    && echo "${STUDIO_VERSION}" > /home/developer/.cf-studio/cache/.version \
+    && echo "${STUDIO_VERSION}" > /home/developer/.studio-release-version \
     && rm -rf /home/developer/studio-build \
-    && chown -R developer:developer /home/developer/studio /home/developer/.cf-studio
+    && chown -R developer:developer /home/developer/studio
 
 COPY . /home/developer/constructor-fabric/
 RUN chmod +x /home/developer/constructor-fabric/scripts/*.sh 2>/dev/null || true \
@@ -72,13 +70,23 @@ RUN chmod +x /home/developer/constructor-fabric/scripts/*.sh 2>/dev/null || true
     && /home/developer/.local/bin/uv venv --python 3.11 /home/developer/studio/.venv \
 # Studio derives its package version from git metadata (setuptools-scm); the
 # release tarball has none, so pass the version resolved by the layer above.
-    && SETUPTOOLS_SCM_PRETEND_VERSION="$(sed 's/^v//' /home/developer/.cf-studio/cache/.version)" \
+    && SETUPTOOLS_SCM_PRETEND_VERSION="$(sed 's/^v//' /home/developer/.studio-release-version)" \
        /home/developer/.local/bin/uv pip install --python /home/developer/studio/.venv/bin/python -e /home/developer/studio \
     && ln -sf /home/developer/studio/.venv/bin/cfs /usr/local/bin/cfs \
     && ln -sf /home/developer/studio/.venv/bin/constructor-studio /usr/local/bin/constructor-studio \
+# Seed the global skill-engine cache via Studio's supported local-seed path
+# (cfs update --source = studio's own `make update`); it copies the source
+# tree and writes .version/.provenance.json/version.toml. The trailing
+# "update project" phase exits non-zero here (no project yet) — the cache is
+# written first, so verify it explicitly.
+    && (/usr/local/bin/cfs update --source /home/developer/studio --force || true) \
+    && for d in skills workflows requirements schemas architecture; do \
+         test -d "/home/developer/.cf-studio/cache/$d" || { echo "cache seeding failed: missing $d" >&2; exit 1; }; \
+       done \
+    && test -f /home/developer/.cf-studio/cache/.provenance.json \
     && /usr/local/bin/cfs init --no-cache --project-root /home/developer/workspaces/constructor-fabric-workspace --install-dir .cf-studio --project-name "constructor-fabric-workspace" --force --yes \
     && /usr/local/bin/cfs generate-agents --root /home/developer/workspaces/constructor-fabric-workspace -y \
-    && cp -f /home/developer/constructor-fabric/trainer/index.html /home/developer/workspaces/constructor-fabric-workspace/.trainer-welcome.html 2>/dev/null || true \
+    && test -f /home/developer/workspaces/constructor-fabric-workspace/.cf-studio/.core/workflows/write-docs.md \
     && chown -R developer:developer /home/developer
 
 WORKDIR /home/developer/workspaces/constructor-fabric-workspace

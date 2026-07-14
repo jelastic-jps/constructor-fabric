@@ -2,6 +2,12 @@
 set -euo pipefail
 export HOME="${HOME:-/home/developer}"
 export PATH="${HOME}/studio/.venv/bin:${HOME}/.local/bin:/usr/local/bin:/opt/node-current/bin:$PATH"
+if [ -f "${HOME}/.constructor-fabric-ai.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "${HOME}/.constructor-fabric-ai.env"
+  set +a
+fi
 LOG="${HOME}/studio/auto-bootstrap.log"
 exec >>"$LOG" 2>&1
 echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Constructor Fabric auto-bootstrap started"
@@ -30,7 +36,7 @@ cat > "$root/.constructor-fabric.json" <<JSON
   "model": "$model",
   "api_token_set": $(if [ -n "$token" ]; then echo true; else echo false; fi),
   "source": "Virtuozzo install form",
-  "trainer": "Electron"
+  "trainer": "code-server-webview"
 }
 JSON
 {
@@ -69,35 +75,9 @@ VSCODESETTINGS
 VSCODESETTINGS
   fi
 done
-cat > "$root/CONSTRUCTOR_FABRIC_PROMPTS.md" <<'PROMPTS'
-# Constructor Fabric copy/paste prompts
-
-Use these prompts in any generated integration: VS Code/Copilot, Cursor, Windsurf, Codex, or Claude Code.
-
-```text
-/studio Create a PRD for a lightweight team task manager with projects, tasks, comments, notifications, and a REST API. Include target users, product goals, core user journeys, non-goals, constraints, success metrics, and acceptance criteria.
-```
-
-```text
-/studio Decompose the PRD into feature artifacts. For each feature include user value, acceptance criteria, dependencies, risks, and traceability back to the PRD goals.
-```
-
-```text
-/studio Create an implementation task backlog for these features. Each task must include intent, expected files or modules, test requirements, completion criteria, dependencies, and traceability to the PRD and feature acceptance criteria.
-```
-
-```text
-/studio Produce implementation plans for the task backlog. Include sequencing, milestones, tests, risks, rollback notes, review checkpoints, and validation commands.
-```
-
-```text
-/studio Review the generated Constructor Fabric artifacts as a PRD -> features -> tasks -> plans tree. Identify any missing links, weak acceptance criteria, duplicate tasks, or gaps that should be fixed before validation.
-```
-
-```text
-/studio Fix any validation or traceability issues reported by cfs validate, then summarize the final PRD -> features -> tasks -> plans structure and the remaining implementation risks.
-```
-PROMPTS
+# The Trainer webview is the single source of training content; remove the
+# legacy copy/paste prompt file from older images so it cannot drift.
+rm -f "$root/CONSTRUCTOR_FABRIC_PROMPTS.md"
 if [ ! -f "$root/README.md" ]; then
   cat > "$root/README.md" <<README
 # Constructor Fabric Workspace
@@ -108,8 +88,8 @@ This workspace was initialized automatically from the marketplace installation f
 - Model: $model
 - API token configured: $(if [ -n "$token" ]; then echo yes; else echo no; fi)
 
-Open the Electron Trainer popup for the step-by-step guide, then use the generated
-/studio workflow in your selected IDE or agent chat.
+The Constructor Fabric Trainer opens automatically inside the IDE and guides you
+step by step. To reopen it: press F1 and run "Constructor Fabric: Open Trainer".
 README
 fi
 
@@ -129,5 +109,20 @@ if missing:
 print('Generated Constructor Fabric integrations for: '+', '.join(required))
 PYAGENTS
 )
+# Final step of Studio deployment: refresh the Studio runtime and the installed
+# kits to their latest published versions (kits are fetched from their registered
+# GitHub sources). Non-fatal: the baked Studio/kit versions already work.
+(cd "$root" && cfs update --with-kits yes --yes) \
+  || echo "WARNING: cfs update --with-kits failed — continuing with baked Studio/kit versions"
 (cd "$root" && cfs validate --json) || true
+# Greenfield precondition: the trainee must start with an empty artifact tree.
+# Only warn (never fail) — on redeploys the trainee may legitimately have work
+# in progress, and the Trainer's own state tracks that.
+if [ ! -f "$root/.constructor-fabric-trainer/state.json" ]; then
+  for d in architecture src .cf-studio/artifacts; do
+    if [ -e "$root/$d" ]; then
+      echo "WARNING: fresh workspace already contains '$d/' — greenfield training expects it to be absent"
+    fi
+  done
+fi
 echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Constructor Fabric auto-bootstrap finished for $root"

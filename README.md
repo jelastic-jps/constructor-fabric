@@ -8,7 +8,8 @@ Layout:
 - Dockerfile: Docker Hub image build for the Constructor Fabric node
 - scripts/: operational shell scripts extracted from the monolithic manifest
 - configs/: desktop/panel/file-manager configuration snippets
-- trainer/: Electron trainer app files
+- trainer/: interactive Trainer for code-server — extension/ (webview backend + check runner), ui/ (renderer), content/ (curriculum + TaskLite brief); single source of truth for all training content
+- docs/trainer/: Trainer requirements and design — living documents, kept current as the Trainer evolves
 - images/: wallpaper/media assets used by the showcase
 - assets/: copied media assets and convenience files from the current worktree
 

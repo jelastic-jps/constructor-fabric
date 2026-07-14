@@ -1,0 +1,308 @@
+{
+  "version": 1,
+  "app": {
+    "name": "TaskLite",
+    "port": 5000
+  },
+  "links": {
+    "quickstart": "https://github.com/constructorfabric/studio-kit-sdlc/blob/main/guides/QUICKSTART.md",
+    "greenfield": "https://github.com/constructorfabric/studio-kit-sdlc/blob/main/guides/GREENFIELD.md",
+    "brownfield": "https://github.com/constructorfabric/studio-kit-sdlc/blob/main/guides/BROWNFIELD.md"
+  },
+  "steps": [
+    {
+      "id": "welcome",
+      "title": "Welcome",
+      "subtitle": "What you will build",
+      "gated": false,
+      "skippable": false,
+      "sections": {
+        "concept": "Welcome! You are about to get hands-on experience with **Constructor Studio** by building a small but real application — **TaskLite**, a team task tracker — from an empty workspace to a running, tested app.\n\n**Constructor Studio** is not an AI coding tool. It is a structure layer that sits on top of your AI chat agent and keeps AI-driven work **inspectable, repeatable, and traceable**. The AI provides the coordination and writing; Studio provides the process: which document comes next, what rules it must follow, and deterministic validation that proves nothing was skipped.\n\nYou will walk the Studio SDLC pipeline stage by stage:\n\n**PRD → DESIGN → ADR → DECOMPOSITION → FEATURE → CODE**\n\n| Stage | What it is |\n|---|---|\n| PRD | Product Requirements Document — WHAT the product must do: actors, functional requirements, use cases, acceptance criteria |\n| DESIGN | The technical architecture — HOW the product works: components, data model, API contracts |\n| ADR | Architecture Decision Record — one significant technical decision, with its context, the options considered, and the consequences |\n| DECOMPOSITION | The design sliced into an ordered list of small, independently implementable features |\n| FEATURE | One feature's exact behavior as precise numbered steps with Definitions of Done |\n| CODE | The implementation — source code and tests, carrying `@cpt` traceability markers |\n\nEach stage produces an *artifact* — a reviewable document in your workspace — and every artifact is linked to the next by traceability IDs (called **CPT IDs**). At the end, those IDs reach all the way into the source code as `@cpt` markers, so you can prove which requirement is implemented by which line of code.",
+        "actions": "Nothing to do yet — read the concept above, then look at the step list on the left. Every step follows the same rhythm:\n\n- **Read** a short explanation of the stage.\n- **Do** the work — usually by talking to the AI chat agent.\n- **Check** — press *Check my progress* and the Trainer verifies the result with Studio's own deterministic tools.\n\nOne discipline to remember from the start: **generate → validate → review → fix → validate again**. You never move on because the output *looks* fine; you move on because validation *passes*.",
+        "examplePrompt": null,
+        "success": "You understand what will be built (TaskLite), the pipeline you will follow (PRD → DESIGN → ADR → DECOMPOSITION → FEATURE → CODE), and the rhythm of every step (read, do, check).",
+        "troubleshooting": "If this panel ever disappears, reopen it any time: press `F1` (or `Ctrl+Shift+P`), type **Constructor Fabric: Open Trainer**, and press Enter. Your progress is saved automatically."
+      },
+      "checks": []
+    },
+    {
+      "id": "environment",
+      "title": "Meet the environment",
+      "subtitle": "IDE, AI Chat, and Studio",
+      "gated": false,
+      "skippable": false,
+      "sections": {
+        "concept": "You are inside a browser IDE (code-server — VS Code in the browser). Three surfaces matter here:\n\n- **This Trainer panel** — your guide. It explains, and it verifies.\n- **The AI chat agent** (on the right) — where almost all of the work happens. You describe what you want; the agent writes artifacts and code through **Constructor Studio** workflows.\n- **The Explorer** (on the left) — the workspace file tree, where you can open and read any file the agent creates.\n\n**Constructor Studio** is **already preinstalled and preconfigured** in this workspace, so you can go straight to using it.",
+        "actions": "1. In the chat input on the right, type the message below and send it.\n2. If prompted, follow the sign-in flow (GitHub recommended); the agent needs an account before it can respond.\n3. Select a model of your preference (less expensive one recommended).\n4. Glance at the Explorer on the left — the workspace is essentially empty apart from configuration. Everything that appears here, you will have created.",
+        "examplePrompt": "hello",
+        "success": "The chat has responded with a meaningful reply — you are talking to the agent — and you have selected your preferred model.",
+        "troubleshooting": "- **The chat asks you to sign in** — follow the sign-in flow (GitHub recommended); the agent needs an account before it can respond.\n- **No reply** — reload the browser tab; the chat extension loads a moment after the IDE starts, then send the message again."
+      },
+      "checks": []
+    },
+    {
+      "id": "brief",
+      "title": "The product brief",
+      "subtitle": "Your raw material",
+      "gated": false,
+      "skippable": false,
+      "includeBrief": true,
+      "sections": {
+        "concept": "Every real project starts with someone's rough intent — a product manager's notes, a customer conversation, a founder's pitch. That raw intent is **not** an artifact yet. Turning it into precise, validated documents is exactly what the pipeline is for.\n\nBelow is your raw material: the TaskLite product brief. Read it carefully — from the next step on, you will transform it stage by stage into a real application.\n\nA note on how you will work with the chat: this Trainer shows an **example prompt** on most steps. We recommend following the prompt's logic to ensure a smooth walkthrough — but you do not need to type the words precisely; you can formulate the same in your own words. Keep the *command* at the start (like `/cf make PRD for TaskLite`), which tells Studio which workflow to run, and give the agent what it needs to know in the same message.",
+        "actions": "Read the brief below. Notice what it does and does not say: it describes **what** users need (tasks, statuses, persistence, a public API) and what is out of scope — but it deliberately does not pick technologies or design the solution. Those decisions belong to later stages, and you will make them explicitly.",
+        "examplePrompt": null,
+        "success": "You have read the brief and can say in one sentence what TaskLite is: a small team task service: create / complete / delete via a public API, with persistent storage.",
+        "troubleshooting": "Nothing can go wrong here — when you have read the brief, continue to the next step."
+      },
+      "checks": []
+    },
+    {
+      "id": "prd",
+      "title": "Create and validate PRD artifact",
+      "subtitle": "Product requirements",
+      "gated": true,
+      "skippable": true,
+      "sections": {
+        "concept": "The **PRD** (Product Requirements Document) is the root artifact of the pipeline. It captures **WHAT** the product must do — actors, functional requirements, use cases, acceptance criteria — and deliberately avoids **HOW** (no technology choices, no architecture; **Constructor Studio**'s PRD rules actually forbid them).\n\nEvery requirement gets a **CPT ID** like `cpt-tasklite-fr-create-task`. These IDs are the anchors that everything downstream — design elements, features, code — will point back to. That is what makes the work traceable.\n\nWhen you send the prompt, Studio does more than write a document: it loads the PRD template and rules, drafts the artifact, runs deterministic validation on it, reviews it against a checklist, and asks your approval before fixing anything it found. Expect the agent to pause and ask you questions or offer menus — answer them; the gates are the point.",
+        "actions": "1. In the chat, ask for a PRD using the first prompt below (or your own words — keep the `/cf make PRD` command and tell it what TaskLite is).\n2. Follow the workflow: the agent may ask clarifying questions or present findings to approve. Read what it shows you.\n3. When the PRD is written, send the second prompt to validate it — and let the agent fix any findings it reports.\n4. Press **Check my progress** below — the passing check shows where the PRD was registered.\n5. Open the registered PRD file in the Explorer and skim it. Find at least one functional requirement and its `cpt-...-fr-...` ID.",
+        "prompts": [
+          {
+            "label": "1 — Create the PRD",
+            "text": "/cf make PRD for TaskLite. {{BRIEF_INLINE}}"
+          },
+          {
+            "label": "2 — Then validate it",
+            "text": "/cf validate PRD"
+          }
+        ],
+        "success": "A PRD artifact is registered in Studio's registry with its file present, and `/cf validate PRD` reported no unresolved findings. You have seen requirement IDs like `cpt-...-fr-...` in the document.",
+        "troubleshooting": "- **The agent wrote a document but validation fails** — this is normal and part of the process. Tell the agent: *\"Validate the PRD, show me the findings, and fix them.\"* The workflow's own validate-review-fix loop is exactly for this.\n- **The PRD file exists but the check finds nothing registered** — occasionally the workflow writes the document without registering it in Studio's artifact registry. Send `/cf register PRD` in the chat, then press **Check my progress** again."
+      },
+      "checks": [
+        {
+          "id": "prd-registered",
+          "type": "artifact_registered",
+          "params": {
+            "kind": "PRD"
+          },
+          "label": "A PRD artifact is registered and its file exists",
+          "failHint": "No PRD in Studio's artifact registry yet (or the registered file is missing). Registration happens automatically when the `/cf make PRD` workflow completes — ask the agent to finish creating and registering the PRD."
+        }
+      ]
+    },
+    {
+      "id": "design",
+      "title": "Create and validate DESIGN artifact",
+      "subtitle": "Technical architecture",
+      "gated": true,
+      "skippable": true,
+      "sections": {
+        "concept": "The **DESIGN** document is the technical answer to the PRD: components, data model, API contracts, sequences. Where the PRD said *what*, DESIGN says **how** — and every design element carries its own CPT ID and points back at the requirements it satisfies. Here the traceability chain gains its first connection: DESIGN elements referencing PRD requirements.\n\nFor TaskLite the design should stay deliberately small: a simple single-page UI backed by a small JSON REST API, in one small web application.",
+        "actions": "1. Ask for the DESIGN with the first prompt below.\n2. As before: answer the workflow's questions, review what it shows you, approve fixes.\n3. When the DESIGN is written, send the second prompt to validate it — and let the agent fix any findings it reports.\n4. Press **Check my progress** below.\n5. Open the DESIGN document (the passing check shows its registered path). Find the component model and check that design elements reference PRD requirement IDs — that is traceability in action.",
+        "prompts": [
+          {
+            "label": "1 — Create the DESIGN",
+            "text": "/cf make DESIGN from PRD. Imply implementation in Python 3.11. The app must start and run with a single command. Keep the design as small as the product: one small service, a single process, no external services."
+          },
+          {
+            "label": "2 — Then validate it",
+            "text": "/cf validate DESIGN"
+          }
+        ],
+        "success": "A DESIGN artifact is registered with its file present, `/cf validate DESIGN` reported no unresolved findings, and its elements reference PRD IDs (look for `cpt-...-fr-...` mentioned inside the design).",
+        "troubleshooting": "- **Validation reports unresolved references** — the design mentions IDs that do not exist in the PRD (or vice versa). Paste the findings into the chat; the agent will reconcile them.\n- **The DESIGN file exists but the check finds nothing registered** — occasionally the workflow writes the document without registering it in Studio's artifact registry. Send `/cf register DESIGN` in the chat, then press **Check my progress** again."
+      },
+      "checks": [
+        {
+          "id": "design-registered",
+          "type": "artifact_registered",
+          "params": {
+            "kind": "DESIGN"
+          },
+          "label": "A DESIGN artifact is registered and its file exists",
+          "failHint": "No DESIGN in Studio's artifact registry yet (or the registered file is missing). Ask the agent to finish the `/cf make DESIGN` workflow — it registers the DESIGN when it completes."
+        }
+      ]
+    },
+    {
+      "id": "adr",
+      "title": "Create and validate ADR artifact",
+      "subtitle": "One architecture decision",
+      "gated": true,
+      "skippable": true,
+      "sections": {
+        "concept": "An **ADR** (Architecture Decision Record) captures **one** significant decision: the context, the options considered, the outcome, and its consequences. ADRs exist so that six months later nobody has to guess *why* the system works this way.\n\nTaskLite has a perfect decision waiting: **how to store tasks**. The DESIGN needs persistence, but the exact choice — a file? an embedded database? — deserves its own record. That choice is yours now, made explicitly.",
+        "actions": "1. Ask the chat for an ADR on task storage using the first prompt below.\n2. Engage with it: the workflow will lay out options (typically SQLite vs. a JSON file). Pick the one you find convincing — there is no wrong answer here, only an undocumented one.\n3. When the ADR is written, send the second prompt to validate it — and let the agent fix any findings it reports.\n4. Press **Check my progress** below.\n5. Open the new ADR (the passing check shows its registered path) and read the consequences section — that is the part future readers thank you for.",
+        "prompts": [
+          {
+            "label": "1 — Create the ADR",
+            "text": "/cf make ADR for TaskLite task storage. Compare SQLite against a plain JSON file for persisting tasks."
+          },
+          {
+            "label": "2 — Then validate it",
+            "text": "/cf validate ADR"
+          }
+        ],
+        "success": "An ADR artifact is registered with its file present, and `/cf validate ADR` reported no unresolved findings. The ADR names a decision, not just options.",
+        "troubleshooting": "- **Validation fails after the ADR** — paste the findings from the check below into the chat and ask the agent to fix and re-validate.\n- **You disagree with the recommendation** — good, that means you are reading it. Tell the agent to record the option you prefer; the ADR documents *your* decision.\n- **The ADR file exists but the check finds nothing registered** — occasionally the workflow writes the document without registering it in Studio's artifact registry. Send `/cf register ADR` in the chat, then press **Check my progress** again."
+      },
+      "checks": [
+        {
+          "id": "adr-registered",
+          "type": "artifact_registered",
+          "params": {
+            "kind": "ADR"
+          },
+          "label": "An ADR artifact is registered and its file exists",
+          "failHint": "No ADR in Studio's artifact registry yet (or the registered file is missing). Ask the agent to finish the `/cf make ADR` workflow — it registers the ADR when it completes."
+        }
+      ]
+    },
+    {
+      "id": "decomposition",
+      "title": "Create and validate DECOMPOSITION artifact",
+      "subtitle": "Slice into features",
+      "gated": true,
+      "skippable": true,
+      "sections": {
+        "concept": "**DECOMPOSITION** slices the design into an **ordered list of implementable features** — each small enough to build and verify on its own, each declaring what it depends on and which requirements and design elements it covers.\n\nThis ordering is what lets the implementation stage proceed feature by feature instead of as one big bang. The coverage links also enable a powerful later question: *is every requirement covered by some feature?* — a question `/cf validate DECOMPOSITION` answers deterministically instead of by hope.",
+        "actions": "1. Ask for the decomposition with the first prompt below. For TaskLite, 2–3 features is the right size (for example: task creation and listing, status toggling, task deletion).\n2. Review the proposed order — dependencies should come first (you cannot toggle a task that cannot be created).\n3. When the decomposition is written, send the second prompt to validate it — and let the agent fix any findings it reports.\n4. Press **Check my progress** below.\n5. Open the DECOMPOSITION document (the passing check shows its registered path) and look at one feature entry: its scope, its dependencies, its coverage checkboxes.",
+        "prompts": [
+          {
+            "label": "1 — Create the DECOMPOSITION",
+            "text": "/cf make DECOMPOSITION. Aim for 2 to 3 small features, each independently implementable and testable, with clear dependencies and coverage of the PRD requirements."
+          },
+          {
+            "label": "2 — Then validate it",
+            "text": "/cf validate DECOMPOSITION"
+          }
+        ],
+        "success": "A DECOMPOSITION artifact is registered with 2–3 ordered feature entries, and `/cf validate DECOMPOSITION` reported no unresolved findings.",
+        "troubleshooting": "- **The agent proposed too many features** — ask it to merge: *\"Fold these into at most 3 features; this is a small app.\"*\n- **Coverage findings in validation** — some requirement is not covered by any feature. Paste the findings into the chat; the agent will extend a feature's coverage or add one.\n- **Order looks wrong** — tell the agent which feature must come first and why; dependency order matters in the implement stage.\n- **The DECOMPOSITION file exists but the check finds nothing registered** — occasionally the workflow writes the document without registering it in Studio's artifact registry. Send `/cf register DECOMPOSITION` in the chat, then press **Check my progress** again."
+      },
+      "checks": [
+        {
+          "id": "decomposition-registered",
+          "type": "artifact_registered",
+          "params": {
+            "kind": "DECOMPOSITION"
+          },
+          "label": "A DECOMPOSITION artifact is registered and its file exists",
+          "failHint": "No DECOMPOSITION in Studio's artifact registry yet (or the registered file is missing). Ask the agent to finish the `/cf make DECOMPOSITION` workflow — it registers the decomposition when it completes."
+        }
+      ]
+    },
+    {
+      "id": "features",
+      "title": "Create and validate FEATURE spec artifacts",
+      "subtitle": "Behavior, step by step",
+      "gated": true,
+      "skippable": true,
+      "sections": {
+        "concept": "A **FEATURE** spec describes one feature's behavior precisely enough to implement without guessing: plain-English, numbered step lists for flows, algorithms, and states, where every step has its own instruction ID.\n\nWhy so precise? Because these are the IDs that will appear **in the source code**. A FEATURE's flows, algorithms, and Definitions of Done are marked `to_code` — during implementation, each instruction gets a matching `@cpt` marker in the code. The spec is not documentation *about* the code; it is the checklist the code must satisfy line by line.\n\nYou will write one FEATURE spec per entry in your decomposition.",
+        "actions": "1. Ask for the FEATURE specs with the first prompt below — the workflow will work through the DECOMPOSITION's features one by one; stay engaged and approve as it goes.\n2. Read the results — notice the numbered steps with checkboxes and the Definitions of Done.\n3. When the specs are written, send the second prompt to validate them — and let the agent fix any findings it reports.\n4. Press **Check my progress** below.",
+        "prompts": [
+          {
+            "label": "1 — Create the FEATURE specs",
+            "text": "/cf make FEATURE for all features"
+          },
+          {
+            "label": "2 — Then validate them",
+            "text": "/cf validate FEATURE for all features"
+          }
+        ],
+        "success": "Every feature from the DECOMPOSITION has a registered FEATURE spec, and validation reported no unresolved findings. You can point at a numbered step and its instruction ID.",
+        "troubleshooting": "- **Validation flags a feature spec** — same loop as always: paste the findings into the chat, agent fixes, re-check.\n- **A spec is vague (\"the user manages tasks\")** — push for precision: *\"Rewrite this flow as concrete numbered steps — one action per step.\"* Vague specs make the implement stage guess, and guessing is what this whole method removes.\n- **You lost track of which features are done** — ask the agent: *\"List the DECOMPOSITION features and which ones already have FEATURE specs.\"*\n- **The FEATURE spec files exist but the check finds nothing registered** — occasionally the workflow writes the documents without registering them in Studio's artifact registry. Send `/cf register FEATURE for all features` in the chat, then press **Check my progress** again."
+      },
+      "checks": [
+        {
+          "id": "features-registered",
+          "type": "artifact_registered",
+          "params": {
+            "kind": "FEATURE"
+          },
+          "label": "FEATURE specs are registered and their files exist",
+          "failHint": "No FEATURE specs in Studio's artifact registry yet (or a registered file is missing). Ask the agent to finish the `/cf make FEATURE` workflow for each planned feature."
+        }
+      ]
+    },
+    {
+      "id": "implement",
+      "title": "Implement and validate the code",
+      "subtitle": "Specs become code",
+      "gated": true,
+      "skippable": true,
+      "sections": {
+        "concept": "Now the payoff stage: **implementation**. The `/cf implement` workflow takes one FEATURE spec and writes the code for it — including two things ordinary AI coding sessions skip:\n\n- **`@cpt` markers**: every instruction from the spec gets a paired marker in the code (`@cpt-begin` / `@cpt-end`), binding that exact code block to that exact spec step.\n- **The checkbox cascade**: as instructions get implemented, their checkboxes flip in the FEATURE spec, which rolls up to the DECOMPOSITION status, which rolls up further. Your documents *know* how done the code is.\n\nThe workflow implements features **one at a time, in decomposition order** — even when you ask for all of them at once. After each one, it runs tests and validation before moving on. This stage is the longest — a real app is being written. Let the agent work, read what it shows you, and keep the validate-fix loop going.",
+        "actions": "1. Ask the chat to implement the features with the first prompt below — the workflow takes them one at a time, in decomposition order; stay engaged and approve as it goes.\n2. It writes code and tests, runs them, and maintains the markers. Approve fixes when asked.\n3. When implementation finishes, send the second prompt to validate the code — and let the agent fix any findings it reports.\n4. Open a source file and find a `@cpt-begin` marker — then open the FEATURE spec and find the same instruction ID with its checkbox now ticked.\n5. Press **Check my progress**.",
+        "prompts": [
+          {
+            "label": "1 — Implement all features",
+            "text": "/cf implement all features"
+          },
+          {
+            "label": "2 — Then validate the code",
+            "text": "/cf validate code"
+          }
+        ],
+        "success": "All features implemented; source files carry `@cpt` markers; `/cf validate code` reported no unresolved findings.",
+        "troubleshooting": "- **Tests fail during the workflow** — paste the failing output into the chat: *\"These tests fail — fix the implementation (or the tests, if they mis-read the spec).\"*\n- **No `@cpt` markers in the code** — tell the agent: *\"Add the @cpt traceability markers required by the codebase rules for every to_code instruction of this feature.\"*\n- **The project environment is missing dependencies** — ask the agent: *\"Set up the project environment so the app and its tests actually run.\"*\n- **The agent mixes features together instead of finishing them one by one** — tell it: *\"Implement one feature at a time, in decomposition order, completing each before starting the next.\"*\n- **This step takes long** — that is expected; it is where the application actually gets built."
+      },
+      "checks": [
+        {
+          "id": "markers",
+          "type": "markers_present",
+          "params": {},
+          "label": "CPT traceability references present in source code",
+          "failHint": "No `cpt-…` traceability references found outside the artifact documents. Ask the agent to add the `@cpt` markers required by the codebase rules to the implemented code."
+        }
+      ]
+    },
+    {
+      "id": "run",
+      "title": "Run the app",
+      "subtitle": "See your app live",
+      "gated": false,
+      "skippable": false,
+      "sections": {
+        "concept": "Time to meet the application you specified into existence. From here on, TaskLite is not documents anymore — it is running software serving requests.",
+        "actions": "1. Run the app following the instructions in the project's README or GETTING_STARTED file (open a terminal: menu ☰ → Terminal → New Terminal).\n2. Alternatively, ask the agent to run it for you — use the prompt below.\n3. Once it is up, try it: ask the agent how to reach the API, or use the commands from the README or GETTING_STARTED to create and list a task.",
+        "examplePrompt": "Run the app",
+        "success": "The app starts without errors and responds to requests — creating and listing a task through the API works. You built this: from a brief, through validated documents, to running software.",
+        "troubleshooting": "- **The app won't start** — paste the error output into the chat and ask the agent to fix it.\n- **Nothing seems to respond** — ask the agent which URL and port the app listens on, and how to test it with curl.\n- **Tasks vanish after restart** — persistence is broken; that violates a PRD requirement. Ask the agent to fix storage per the ADR — and notice how the artifacts give you the exact language to demand it."
+      },
+      "checks": []
+    },
+    {
+      "id": "traceability",
+      "title": "Traceability",
+      "subtitle": "The whole chain, proven",
+      "gated": false,
+      "skippable": false,
+      "sections": {
+        "concept": "This is the moment everything connects. You now have requirements, decisions, a design, features, code, and tests — and every link between them is machine-checkable.\n\n**Coverage** asks: does every `to_code` instruction from the FEATURE specs actually have a matching `@cpt` marker in the code? Not \"probably\" — measurably, as a percentage.\n\nThis is what **Constructor Studio** buys you over freestyle AI coding: when someone asks *\"is the persistence requirement actually implemented, and where?\"*, the answer is a traced chain — requirement ID → design element → feature instruction → code marker → test — not an archaeology project.",
+        "actions": "In the chat, explore the traceability map with the prompt below — ask follow-ups, e.g. *\"which code implements the create-task requirement?\"*",
+        "examplePrompt": "/cf show the TaskLite traceability map",
+        "success": "You have traced at least one requirement end-to-end — from a PRD requirement, through design and feature, to the code that implements it.",
+        "troubleshooting": "- **The map shows an orphan marker** (a code marker pointing at a non-existent ID) — ask the agent to fix the marker or the spec."
+      },
+      "checks": []
+    },
+    {
+      "id": "wrapup",
+      "title": "Wrap-up",
+      "subtitle": "Done — and what's next",
+      "gated": false,
+      "skippable": false,
+      "isWrapup": true,
+      "sections": {
+        "concept": "**You did it.** From an empty workspace, guided by one brief, you produced:\n\n- a validated **PRD**, a **DESIGN**, a storage **ADR**, a **DECOMPOSITION**, and step-by-step **FEATURE** specs,\n- a working **application** with tests passing,\n- and a **traceable chain** from every requirement down to the code that implements it.\n\nThat is a complete Studio-enforced SDLC pass — the same discipline scales from this tiny app to real products, because none of the steps you took were toy steps.",
+        "actions": "**Keep learning.** Send the prompt below — `/cf-help` opens **Constructor Studio**'s own guided tour of everything it can do. The guides linked below go deeper on every stage.\n\n**Do it again — with your own idea.** The best way to make this stick is a second pass where the product brief is *yours*. Press **Restart training** below: the Trainer archives everything you built (nothing is deleted — it moves to a `training-archive/` folder) and resets to step 1. On the second run, replace TaskLite with your own small app idea in every prompt.",
+        "examplePrompt": "/cf-help",
+        "success": "There is nothing left to pass — you finished.",
+        "troubleshooting": "**Restart training** archives your work into `training-archive/<timestamp>/` inside the workspace — you can always open and revisit it there."
+      },
+      "checks": []
+    }
+  ]
+}
