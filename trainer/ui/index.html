@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src %%CSP%%; script-src %%CSP%%; img-src %%CSP%% data:; font-src %%CSP%%;">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Constructor Fabric Trainer</title>
+  <link rel="stylesheet" href="%%BASE%%/trainer.css">
+</head>
+<body>
+  <div id="app" class="app">
+    <aside class="side">
+      <div class="brand">
+        <div class="logo">CF</div>
+        <div>
+          <h1>Constructor Fabric</h1>
+        </div>
+      </div>
+      <nav id="nav" class="nav"></nav>
+    </aside>
+    <main class="main">
+      <section id="content" class="card">
+        <p class="loading">Loading the trainer…</p>
+      </section>
+      <footer class="footer">
+        <button class="btn secondary" id="prevBtn">Back</button>
+        <span id="footNote" class="foot-note"></span>
+        <button class="btn primary" id="nextBtn">Next</button>
+      </footer>
+    </main>
+  </div>
+  <script src="%%BASE%%/trainer.js"></script>
+</body>
+</html>

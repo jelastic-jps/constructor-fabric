@@ -14,13 +14,24 @@ mkdir -p "${HOME}/constructor-fabric/app" "${HOME}/constructor-fabric/data" "${H
 
 curl --noproxy '*' --retry 3 --retry-delay 2 --retry-connrefused -fsSL "${ASSET_BASE}/constructor-fabric-logo.png?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/app/icon.png" || true
 curl --noproxy '*' --retry 3 --retry-delay 2 --retry-connrefused -fsSL "${ASSET_BASE}/constructor-fabric-wallpaper.png?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/app/wallpaper.png" || true
-curl --noproxy '*' --retry 3 --retry-delay 2 --retry-connrefused -fsSL "${TRAINER_BASE}/index.html?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/trainer/index.html" || true
-curl --noproxy '*' --retry 3 --retry-delay 2 --retry-connrefused -fsSL "${TRAINER_BASE}/main.js?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/trainer/main.js" || true
-curl --noproxy '*' --retry 3 --retry-delay 2 --retry-connrefused -fsSL "${TRAINER_BASE}/package.json?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/trainer/package.json" || true
+# Refresh the Trainer (extension + ui + content) from the repo; the image
+# already ships a baked copy, so failed downloads fall back to it.
+TRAINER_FILES="extension/package.json extension/extension.js ui/index.html ui/trainer.js ui/trainer.css content/curriculum.json content/brief.md"
+for f in $TRAINER_FILES; do
+  mkdir -p "${HOME}/constructor-fabric/trainer/$(dirname "$f")"
+  curl --noproxy '*' --retry 3 --retry-delay 2 --retry-connrefused -fsSL "${TRAINER_BASE}/${f}?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/trainer/${f}" || true
+done
+rm -f "${HOME}/constructor-fabric/trainer/index.html" "${HOME}/constructor-fabric/trainer/main.js" "${HOME}/constructor-fabric/trainer/package.json"
 
 curl --noproxy '*' --retry 3 --retry-delay 2 --retry-connrefused -fsSL "${SCRIPT_BASE}/install-constructor-studio.sh?v=${SCRIPT_VERSION}" -o "${HOME}/install-constructor-studio.sh"
 chmod +x "${HOME}/install-constructor-studio.sh"
 "${HOME}/install-constructor-studio.sh"
+
+# Place the workspace auto-bootstrap script (single source: scripts/auto-bootstrap.sh);
+# fall back to the copy baked into the image if the download fails.
+curl --noproxy '*' --retry 3 --retry-delay 2 --retry-connrefused -fsSL "${SCRIPT_BASE}/auto-bootstrap.sh?v=${SCRIPT_VERSION}" -o "${HOME}/studio/auto-bootstrap.sh" \
+  || cp "${HOME}/constructor-fabric/scripts/auto-bootstrap.sh" "${HOME}/studio/auto-bootstrap.sh"
+chmod +x "${HOME}/studio/auto-bootstrap.sh"
 
 curl --noproxy '*' --retry 3 --retry-delay 2 --retry-connrefused -fsSL "${SCRIPT_BASE}/start-services.sh?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/start-services.sh"
 chmod +x "${HOME}/constructor-fabric/start-services.sh"

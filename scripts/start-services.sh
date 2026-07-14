@@ -254,112 +254,40 @@ if len(kept) != len(data):
 PYREG
 fi
 
-TRAINER_WELCOME_DIR="${CS_WORKSPACE}/.constructor-fabric-trainer"
-TRAINER_HTML="${TRAINER_WELCOME_DIR}/index.html"
-mkdir -p "$TRAINER_WELCOME_DIR"
-if [ -d "$TRAINER_DIR" ]; then
-  cp -R "$TRAINER_DIR"/. "$TRAINER_WELCOME_DIR"/ 2>/dev/null || true
-fi
-if [ ! -f "$TRAINER_HTML" ]; then
-  cat > "$TRAINER_HTML" <<'HTML'
-<!doctype html><html><head><meta charset="utf-8"><title>Constructor Fabric Trainer</title><style>body{margin:0;background:#0f172a;color:#e5e7eb;font-family:system-ui,sans-serif;padding:32px}main{max-width:980px;margin:auto}h1{color:#fff}</style></head><body><main><h1>Constructor Fabric Trainer</h1><p>The trainer is rendered directly inside code-server. No separate trainer service is required.</p></main></body></html>
-HTML
-fi
-
+# Install the Trainer extension from the repo-shipped trainer/ directory —
+# the single source of truth for all training content and code
+# (trainer/extension + trainer/ui + trainer/content).
 EXTENSIONS_DIR="${HOME}/.local/share/code-server/extensions"
 TRAINER_EXTENSION_ID="constructor-fabric.constructor-fabric-trainer"
-TRAINER_EXTENSION_VERSION="1.0.0"
+TRAINER_EXTENSION_VERSION="2.0.0"
 TRAINER_EXTENSION_DIR="${EXTENSIONS_DIR}/${TRAINER_EXTENSION_ID}-${TRAINER_EXTENSION_VERSION}"
-rm -rf "${EXTENSIONS_DIR}/constructor-fabric-trainer" "${TRAINER_EXTENSION_DIR}"
+
+for f in extension/package.json extension/extension.js ui/index.html ui/trainer.js ui/trainer.css content/curriculum.json content/brief.md; do
+  if [ ! -s "${TRAINER_DIR}/${f}" ]; then
+    echo "trainer file missing or empty: ${TRAINER_DIR}/${f}" >&2
+    exit 1
+  fi
+done
+node --check "${TRAINER_DIR}/extension/extension.js"
+python3 - "${TRAINER_DIR}/content/curriculum.json" <<'PYCURR'
+import json, sys
+data = json.load(open(sys.argv[1]))
+assert len(data["steps"]) >= 12, "curriculum must have >= 12 steps"
+assert data["app"]["port"], "curriculum must define the app port"
+print(f"curriculum OK: {len(data['steps'])} steps")
+PYCURR
+
+rm -rf "${EXTENSIONS_DIR}/constructor-fabric-trainer" "${EXTENSIONS_DIR}/${TRAINER_EXTENSION_ID}-"*
 mkdir -p "$TRAINER_EXTENSION_DIR"
-cat > "$TRAINER_EXTENSION_DIR/package.json" <<'JSON'
-{
-  "name": "constructor-fabric-trainer",
-  "displayName": "Constructor Fabric Trainer",
-  "description": "Opens the Constructor Fabric trainer inside code-server on startup.",
-  "version": "1.0.0",
-  "publisher": "constructor-fabric",
-  "engines": { "vscode": "^1.104.0" },
-  "categories": ["Other"],
-  "activationEvents": [
-    "*",
-    "onStartupFinished",
-    "onCommand:constructorFabric.openTrainer"
-  ],
-  "main": "./extension.js",
-  "contributes": {
-    "commands": [
-      { "command": "constructorFabric.openTrainer", "title": "Constructor Fabric: Open Trainer" }
-    ]
-  }
-}
-JSON
-cat > "$TRAINER_EXTENSION_DIR/extension.js" <<'JS'
-const vscode = require('vscode');
-const fs = require('fs');
-const path = require('path');
+cp "${TRAINER_DIR}/extension/package.json" "${TRAINER_DIR}/extension/extension.js" "$TRAINER_EXTENSION_DIR/"
+cp -R "${TRAINER_DIR}/ui" "${TRAINER_DIR}/content" "$TRAINER_EXTENSION_DIR/"
 
-let panel;
-
-function workspaceRoot() {
-  const folders = vscode.workspace.workspaceFolders;
-  if (folders && folders.length) return folders[0].uri.fsPath;
-  return '/home/developer/workspaces/constructor-fabric-workspace';
-}
-
-function trainerHtml(root) {
-  const candidates = [
-    path.join(root, '.constructor-fabric-trainer', 'index.html'),
-    path.join(root, '.trainer-welcome.html'),
-    '/home/developer/constructor-fabric/trainer/index.html'
-  ];
-  for (const file of candidates) {
-    if (fs.existsSync(file)) return { file, html: fs.readFileSync(file, 'utf8') };
-  }
-  return { file: null, html: '<!doctype html><h1>Constructor Fabric Trainer</h1><p>Trainer HTML was not found in this workspace.</p>' };
-}
-
-function openTrainer(context) {
-  const root = workspaceRoot();
-  const { file, html } = trainerHtml(root);
-  if (panel) {
-    panel.reveal(vscode.ViewColumn.One);
-  } else {
-    panel = vscode.window.createWebviewPanel(
-      'constructorFabricTrainer',
-      'Constructor Fabric Trainer',
-      vscode.ViewColumn.One,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [
-          vscode.Uri.file(path.join(root, '.constructor-fabric-trainer')),
-          vscode.Uri.file('/home/developer/constructor-fabric/trainer')
-        ]
-      }
-    );
-    panel.onDidDispose(() => { panel = undefined; }, null, context.subscriptions);
-  }
-  panel.webview.html = html;
-  if (file) console.log(`Constructor Fabric trainer opened from ${file}`);
-}
-
-// The old copilot-chat 0.31.x sign-in bridge (a triggerSetupForceSignIn
-// override requesting read:user/repo/workflow scopes) was removed: the
-// built-in unified Copilot in code-server >= 4.127.0 runs its own sign-in
-// with minimal scopes, and the override hijacked it and escalated the
-// GitHub permission request.
-
-function activate(context) {
-  context.subscriptions.push(vscode.commands.registerCommand('constructorFabric.openTrainer', () => openTrainer(context)));
-  openTrainer(context);
-  setTimeout(() => openTrainer(context), 700);
-  setTimeout(() => openTrainer(context), 2000);
-}
-
-function deactivate() {}
-module.exports = { activate, deactivate };
-JS
+# Older images copied static trainer pages into the workspace; remove the
+# stale content but preserve trainer progress (state.json).
+rm -f "${CS_WORKSPACE}/.constructor-fabric-trainer/index.html" \
+      "${CS_WORKSPACE}/.constructor-fabric-trainer/main.js" \
+      "${CS_WORKSPACE}/.constructor-fabric-trainer/package.json" \
+      "${CS_WORKSPACE}/.trainer-welcome.html" 2>/dev/null || true
 
 # Register the local trainer extension in code-server's user extension registry.
 # A bare directory with package.json is not reliably discovered after Marketplace
