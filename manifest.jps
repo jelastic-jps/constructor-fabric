@@ -20,7 +20,7 @@ globals:
   LLM_PROVIDER: openai
   OPENAI_MODEL: gpt-5.5
   CLAUDE_MODEL: claude-sonnet-4-6
-  SCRIPT_VERSION: trainer-greenfield-20260709-1
+  SCRIPT_VERSION: fix-settings-env-20260717
   CF_SOURCE_REF: main
   CODE_SERVER_PASSWORD: ${fn.password}
   NOTIFY_WEBHOOK_URL: "XXX"
@@ -103,7 +103,7 @@ nodes:
       no_proxy: localhost,127.0.0.1,::1
       JELASTIC_EXPOSE: 8080
       JELASTIC_PORTS: 8080
-      SCRIPT_VERSION: trainer-greenfield-20260709-1
+      SCRIPT_VERSION: fix-settings-env-20260717
       CF_SOURCE_REF: main
 
 onInstall:
