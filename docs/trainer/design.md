@@ -253,9 +253,9 @@ step is ungated, and reaching the app is part of following the project's own doc
 - **Local Docker end-to-end replay (required before PR review)**: build the image
   from the repo `Dockerfile`, start a container that replays the full JPS bootstrap
   path (`bootstrap.sh` → `install-constructor-studio.sh` → `start-services.sh` →
-  `auto-bootstrap.sh`) with the same env the manifest would inject
-  (LLM_PROVIDER / model / API token — token to be provided by the user at that
-  point), expose port 8080 locally, then hand the user the access URL and the IDE
+  `auto-bootstrap.sh`) with the same env the manifest would inject (only the
+  IDE password since 2026-07-17 — no LLM provider/model/API key),
+  expose port 8080 locally, then hand the user the access URL and the IDE
   password so they can personally walk through the entire Trainer curriculum
   end-to-end. Friction found in that walkthrough is fixed before the PR is opened.
 - The user's Docker walkthrough doubles as the pilot run: record wall-clock/token

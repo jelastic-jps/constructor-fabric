@@ -49,6 +49,29 @@ Resolved decisions (implementation review, 2026-07-09):
   "open app" button, no HTTP-probe gate. The trainee runs the app per the project's
   README/GETTING_STARTED or asks the agent ("Run the app" prompt). Supersedes the
   proxy one-click requirement (old FR-5) and the port-5000 expectation.
+- No provider/model/API-key provisioning (2026-07-17): the install form requests
+  only an optional IDE password. The chat agent (GitHub Copilot) authenticates
+  with the trainee's GitHub account; the model is chosen in the chat UI via the
+  Auto picker, and a personal Anthropic/OpenAI key can be added via Manage
+  Models — both taught in Trainer step 2. All key/model plumbing (manifest
+  settings + env, `.constructor-fabric-ai.env`, workspace `.env` copies,
+  supervisor env, terminal-env settings, open-agent key export) was removed,
+  along with the verify assert on `terminal.integrated.env.linux`.
+- IDE password is mandatory and never recorded (2026-07-17): the install form
+  requires the password; it is argon2-hashed into code-server's own
+  `hashed-password` config and the plaintext transport file is deleted. It is
+  not shown in the success text, not logged, not placed in the supervisor
+  environment, and the legacy `?password=` auto-login URL patch is removed
+  (verify asserts all of this). Lost passwords require reinstalling.
+- User-facing branding pass (2026-07-18): marketplace short description, install
+  form, topology labels, success screen, and the code-server login page (i18n
+  patch in start-services.sh) all use the "Constructor Studio Training
+  Environment" naming; the password is called "environment password"
+  everywhere; login page header/hint/SIGN IN button customized; success screen
+  reduced to heading + link + password note.
+- Legacy sweep completed (2026-07-18): deleted the unreferenced VNC/desktop-era
+  remnants — scripts/install-ides.sh, scripts/app-server.py, scripts/run-cfc.sh,
+  and configs/ (openbox/LXDE files). Notify webhook tooling kept (operational).
 
 ## 1. Overview
 
@@ -73,7 +96,8 @@ CPT traceability in code, passing tests, and the app actually running.
 - **Chat agent** — the AI coding assistant preconfigured in code-server; executes the
   Studio `cf-*` workflows when prompted by the Trainee. Not controlled by the Trainer.
 - **Trainer** — the interactive webview + verification backend being specified here.
-- **Environment operator** — deploys the JPS manifest; provides LLM provider/model/token.
+- **Environment operator** — deploys the JPS manifest (only an optional IDE password;
+  no LLM provider/model/API key — removed 2026-07-17, see decision log).
 
 ## 3. Scope
 
