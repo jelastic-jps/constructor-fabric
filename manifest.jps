@@ -75,7 +75,7 @@ settings:
       tooltip: Password for code-server IDE access. Leave empty to auto-generate.
 
 nodes:
-  - image: ihorman/constructor-fabric:latest
+  - image: ihorman/constructor-fabric:20260717
     nodeType: docker
     displayName: Constructor Fabric
     cloudlets: 64
