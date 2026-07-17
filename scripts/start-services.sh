@@ -73,15 +73,30 @@ try:
     data = json.loads(p.read_text()) if p.exists() else {}
 except Exception:
     data = {}
+import os
+lm_provider = os.environ.get('LLM_PROVIDER', 'openai')
+openai_key = os.environ.get('OPENAI_API_KEY', '')
+anthropic_key = os.environ.get('ANTHROPIC_API_KEY', '')
+openai_model = os.environ.get('OPENAI_MODEL', 'gpt-5.5')
+claude_model = os.environ.get('CLAUDE_MODEL', 'claude-sonnet-4-6')
 data.update({
     'workbench.startupEditor': 'none',
     'workbench.welcomePage.walkthroughs.openOnInstall': False,
     'window.restoreWindows': 'none',
+    'terminal.integrated.env.linux': {
+        'LLM_PROVIDER': lm_provider,
+        'OPENAI_API_KEY': openai_key,
+        'ANTHROPIC_API_KEY': anthropic_key,
+        'OPENAI_MODEL': openai_model,
+        'CLAUDE_MODEL': claude_model,
+    },
+    'github.copilot.editor.enableAutoCompletions': True,
+    'chat.commandCenter.enabled': True,
 })
 data.setdefault('workbench.colorTheme', 'Default Dark Modern')
 p.parent.mkdir(parents=True, exist_ok=True)
 p.write_text(json.dumps(data, indent=2) + '\n')
-print('merged welcome-suppression keys into code-server user settings')
+print('merged welcome-suppression and provider env keys into code-server user settings')
 PYUSERSET
 
 # Use password from file if manifest already wrote it, otherwise generate
