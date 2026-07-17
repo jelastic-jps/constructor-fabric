@@ -10,43 +10,10 @@ LOG_DIR="${HOME}/constructor-fabric"
 TRAINER_DIR="${HOME}/constructor-fabric/trainer"
 mkdir -p "$LOG_DIR" "$CS_WORKSPACE" "${HOME}/.config/code-server" "${HOME}/.local/share/code-server/User"
 
-write_ai_env() {
-  # JPS writes the install-form provider/token into this file before switching
-  # to the developer user. Source it here because su/sudo/login shells can drop
-  # container env vars during bootstrap.
-  if [ -f "${HOME}/.constructor-fabric-ai.env" ]; then
-    set -a
-    # shellcheck disable=SC1091
-    . "${HOME}/.constructor-fabric-ai.env"
-    set +a
-  fi
-
-  provider="$(printenv LLM_PROVIDER || true)"
-  [ -n "$provider" ] || provider=openai
-  case "$provider" in openai|claude) ;; *) provider=openai ;; esac
-
-  api_token="$(printenv API_TOKEN || true)"
-  openai_key="$(printenv OPENAI_API_KEY || true)"
-  anthropic_key="$(printenv ANTHROPIC_API_KEY || true)"
-  openai_model="$(printenv OPENAI_MODEL || true)"
-  claude_model="$(printenv CLAUDE_MODEL || true)"
-  [ -n "$openai_model" ] || openai_model=gpt-5.5
-  [ -n "$claude_model" ] || claude_model=claude-sonnet-4-6
-
-  if [ -z "$openai_key" ] && [ "$provider" = "openai" ] && [ -n "$api_token" ]; then openai_key="$api_token"; fi
-  if [ -z "$anthropic_key" ] && [ "$provider" = "claude" ] && [ -n "$api_token" ]; then anthropic_key="$api_token"; fi
-
-  umask 077
-  cat > "${HOME}/.constructor-fabric-ai.env" <<ENV
-LLM_PROVIDER=$provider
-API_TOKEN=$api_token
-OPENAI_API_KEY=$openai_key
-ANTHROPIC_API_KEY=$anthropic_key
-OPENAI_MODEL=$openai_model
-CLAUDE_MODEL=$claude_model
-ENV
-  cp "${HOME}/.constructor-fabric-ai.env" "$CS_WORKSPACE/.env" 2>/dev/null || true
-  cp "${HOME}/.constructor-fabric-ai.env" "$CS_WORKSPACE/.env.constructor-fabric" 2>/dev/null || true
+write_workspace_settings() {
+  # The chat agent (GitHub Copilot) authenticates with the trainee's GitHub
+  # account and the model is picked in the chat UI (Auto / Manage Models) —
+  # no provider, model, or API key is provisioned by the environment.
   mkdir -p "$CS_WORKSPACE/.vscode"
   cat > "$CS_WORKSPACE/.vscode/settings.json" <<'VSCODE'
 {
@@ -58,7 +25,7 @@ ENV
 }
 VSCODE
 }
-write_ai_env
+write_workspace_settings
 
 # Suppress the VS Code welcome tab on first open. workbench.startupEditor
 # alone is not enough: extensions with an openOnInstall walkthrough (the
@@ -73,82 +40,85 @@ try:
     data = json.loads(p.read_text()) if p.exists() else {}
 except Exception:
     data = {}
-import os
-lm_provider = os.environ.get('LLM_PROVIDER', 'openai')
-openai_key = os.environ.get('OPENAI_API_KEY', '')
-anthropic_key = os.environ.get('ANTHROPIC_API_KEY', '')
-openai_model = os.environ.get('OPENAI_MODEL', 'gpt-5.5')
-claude_model = os.environ.get('CLAUDE_MODEL', 'claude-sonnet-4-6')
 data.update({
     'workbench.startupEditor': 'none',
     'workbench.welcomePage.walkthroughs.openOnInstall': False,
     'window.restoreWindows': 'none',
-    'terminal.integrated.env.linux': {
-        'LLM_PROVIDER': lm_provider,
-        'OPENAI_API_KEY': openai_key,
-        'ANTHROPIC_API_KEY': anthropic_key,
-        'OPENAI_MODEL': openai_model,
-        'CLAUDE_MODEL': claude_model,
-    },
     'github.copilot.editor.enableAutoCompletions': True,
     'chat.commandCenter.enabled': True,
 })
+# Purge the legacy terminal-env key an older image's baked script may have
+# written (it used to carry API keys; the feature is removed).
+data.pop('terminal.integrated.env.linux', None)
 data.setdefault('workbench.colorTheme', 'Default Dark Modern')
 p.parent.mkdir(parents=True, exist_ok=True)
 p.write_text(json.dumps(data, indent=2) + '\n')
-print('merged welcome-suppression and provider env keys into code-server user settings')
+print('merged welcome-suppression keys into code-server user settings')
 PYUSERSET
 
-# Use password from file if manifest already wrote it, otherwise generate
+# IDE password handling: the mandatory install-form password arrives via the
+# transport file ~/.code-server-password. It is argon2-hashed into code-server's
+# own config (hashed-password) and the plaintext is deleted — the password is
+# never persisted or logged anywhere. On container restart the existing hash is
+# kept. Without either (bare local run), a random throwaway is hashed and
+# discarded; re-provision with a password to get access.
+_cs_config="${HOME}/.config/code-server/config.yaml"
+_hash_pw() {
+  printf '%s' "$1" | node -e 'const a=require("/usr/local/node_modules/argon2");let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>a.hash(d).then(h=>{console.log(h);}).catch(e=>{console.error(e);process.exit(1);}));'
+}
 if [ -f "${HOME}/.code-server-password" ] && [ -s "${HOME}/.code-server-password" ]; then
-  CODE_SERVER_PASSWORD="$(cat "${HOME}/.code-server-password")"
+  _cs_hash="$(_hash_pw "$(cat "${HOME}/.code-server-password")")"
+  rm -f "${HOME}/.code-server-password"
+  echo "[start-services] IDE password hashed into code-server config; plaintext removed"
+elif [ -f "$_cs_config" ] && grep -q '^hashed-password:' "$_cs_config"; then
+  _cs_hash=""
+  echo "[start-services] Existing hashed IDE password kept"
 else
-  if [ -z "${CODE_SERVER_PASSWORD:-}" ]; then
-    CODE_SERVER_PASSWORD=$(head -c 18 /dev/urandom | base64 | tr -d '/+=' | head -c 16)
-  fi
-  echo "${CODE_SERVER_PASSWORD}" > "${HOME}/.code-server-password"
-  chmod 600 "${HOME}/.code-server-password"
+  _cs_hash="$(_hash_pw "$(head -c 24 /dev/urandom | base64)")"
+  echo "[start-services] No IDE password provided — a random unrecorded one was hashed; re-provision with a password to gain access"
 fi
-export PASSWORD="${CODE_SERVER_PASSWORD}"
-export CODE_SERVER_PASSWORD
-echo "[start-services] Password set: ${CODE_SERVER_PASSWORD}"
-
-cat > "${HOME}/.config/code-server/config.yaml" <<CSSERVER
+if [ -n "$_cs_hash" ]; then
+  umask 077
+  cat > "$_cs_config" <<CSSERVER
 bind-addr: 0.0.0.0:8080
 auth: password
+hashed-password: "$_cs_hash"
 cert: false
 CSSERVER
+  chmod 600 "$_cs_config"
+fi
 
-# Patch code-server login page message + auto-login from URL
+# Patch code-server login page message; remove any legacy ?password= auto-login
+# patch (URLs must never carry the IDE password).
 _i18n="/usr/local/out/node/i18n/locales/en.json"
 _login="/usr/local/src/browser/pages/login.html"
 if [ -f "$_i18n" ]; then
   sudo python3 - "$_i18n" "$_login" <<'PYI18N'
-import json, sys
+import json, re, sys
 from pathlib import Path
 
 # Patch i18n message
 p = Path(sys.argv[1])
 d = json.loads(p.read_text())
-d["LOGIN_USING_ENV_PASSWORD"] = "Your IDE Password"
-d["LOGIN_USING_HASHED_PASSWORD"] = "Your IDE Password"
+# Login page copy: branded header, no stock "Please log in below." line, and
+# no mention of where the password lives ("IDE"/config specifics stay hidden).
+d["WELCOME"] = "Welcome to your own Constructor Studio Training Environment"
+d["LOGIN_TITLE"] = "Constructor Studio Training login"
+d["LOGIN_BELOW"] = ""
+_signin = "Sign in with the environment password you chose during the sign up process."
+d["LOGIN_PASSWORD"] = _signin
+d["LOGIN_USING_ENV_PASSWORD"] = _signin
+d["LOGIN_USING_HASHED_PASSWORD"] = _signin
+d["SUBMIT"] = "SIGN IN"
 p.write_text(json.dumps(d, indent=4, ensure_ascii=False) + "\n")
 
-# Patch login.html — add auto-login script
+# Strip the legacy auto-login-from-URL patch if a previous image applied it.
 lp = Path(sys.argv[2])
 html = lp.read_text()
-if "autoLoginFromUrl" not in html:
-    script = """<script>
-(function autoLoginFromUrl(){
-  var pw = new URLSearchParams(window.location.search).get("password");
-  if (!pw) return;
-  var inp = document.querySelector("input.password");
-  if (inp) { inp.value = pw; inp.form.submit(); }
-})();
-</script>"""
-    html = html.replace("</body>", script + "\n</body>")
+if "autoLoginFromUrl" in html:
+    html = re.sub(r"<script>\s*\(function autoLoginFromUrl.*?</script>\s*", "", html, flags=re.S)
     lp.write_text(html)
-    print("[start-services] Patched login.html with auto-login")
+    print("[start-services] Removed legacy auto-login patch from login.html")
 PYI18N
 fi
 
@@ -345,26 +315,20 @@ PYEXTREG
 # arbitrary local trainer HTML and fails on fresh installs when run as developer.
 chown -R developer:developer "$HOME" 2>/dev/null || true
 
-# Write supervisor config for code-server via Python (reliable variable injection)
-_CS_PASS="$(cat "${HOME}/.code-server-password" 2>/dev/null || echo '')"
+# Write supervisor config for code-server via Python (reliable variable
+# injection). Authentication comes from the argon2 hashed-password in
+# code-server's config.yaml — no password in the process environment.
 cat > /tmp/write_supervisor_conf.py << 'PYCONF'
-import sys, os
+import os
 from pathlib import Path
 home = '/home/developer'
 workspace = os.environ.get('CS_WORKSPACE', home + '/workspaces/constructor-fabric-workspace')
 log_dir = os.environ.get('LOG_DIR', home + '/constructor-fabric')
-password = sys.argv[1] if len(sys.argv) > 1 else ''
-lm_provider = os.environ.get('LLM_PROVIDER', 'openai')
-api_token = os.environ.get('API_TOKEN', '')
-openai_key = os.environ.get('OPENAI_API_KEY', '')
-anthropic_key = os.environ.get('ANTHROPIC_API_KEY', '')
-openai_model = os.environ.get('OPENAI_MODEL', 'gpt-5.5')
-claude_model = os.environ.get('CLAUDE_MODEL', 'claude-sonnet-4-6')
 conf = f'''[program:code-server]
 command=/usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --disable-telemetry --disable-workspace-trust --enable-proposed-api GitHub.copilot --enable-proposed-api GitHub.copilot-chat {workspace}
 user=developer
 directory={workspace}
-environment=HOME="{home}",USER="developer",PATH="/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin",PASSWORD={password},LLM_PROVIDER="{lm_provider}",API_TOKEN="{api_token}",OPENAI_API_KEY="{openai_key}",ANTHROPIC_API_KEY="{anthropic_key}",OPENAI_MODEL="{openai_model}",CLAUDE_MODEL="{claude_model}"
+environment=HOME="{home}",USER="developer",PATH="/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin"
 autostart=true
 autorestart=true
 startsecs=5
@@ -373,9 +337,9 @@ stderr_logfile={log_dir}/code-server.log
 stdout_logfile_maxbytes=5MB
 '''
 Path('/etc/supervisor/conf.d/code-server.conf').write_text(conf)
-print(f'[start-services] Supervisor config written, PASSWORD={password[:4]}...')
+print('[start-services] Supervisor config written (auth via hashed-password)')
 PYCONF
-sudo python3 /tmp/write_supervisor_conf.py "${_CS_PASS}"
+sudo python3 /tmp/write_supervisor_conf.py
 rm -f /tmp/write_supervisor_conf.py
 
 sudo supervisorctl reread 2>/dev/null || true

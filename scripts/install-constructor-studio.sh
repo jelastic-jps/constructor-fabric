@@ -76,23 +76,6 @@ export PATH="${HOME}/studio/.venv/bin:${HOME}/.local/bin:/usr/local/bin:/opt/nod
 workspace="${HOME}/workspaces/constructor-fabric-workspace"
 mkdir -p "$workspace"
 cd "$workspace"
-if [ -f .env.constructor-fabric ]; then
-  set -a
-  . ./.env.constructor-fabric 2>/dev/null || true
-  set +a
-fi
-provider="$(python3 - <<'PYCFG' 2>/dev/null || true
-import json, pathlib
-p=pathlib.Path('.constructor-fabric.json')
-if p.exists():
-    print(json.loads(p.read_text()).get('provider',''))
-PYCFG
-)"
-existing_openai_key="$(printenv OPENAI_API_KEY || true)"
-existing_anthropic_key="$(printenv ANTHROPIC_API_KEY || true)"
-install_api_token="$(printenv API_TOKEN || true)"
-if [ -z "$existing_openai_key" ] && [ -n "$install_api_token" ]; then export OPENAI_API_KEY="$install_api_token"; fi
-if [ -z "$existing_anthropic_key" ] && [ -n "$install_api_token" ]; then export ANTHROPIC_API_KEY="$install_api_token"; fi
 clear
 cat <<'WELCOME'
 Constructor Fabric — Constructor Studio workspace
