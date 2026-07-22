@@ -17,7 +17,7 @@ ssl: true
 skipNodeEmails: true
 
 globals:
-  SCRIPT_VERSION: trainer-greenfield-20260718-1
+  SCRIPT_VERSION: cs4129-20260721-1
   CF_SOURCE_REF: main
   NOTIFY_WEBHOOK_URL: "XXX"
   NOTIFY_SECRET: "XXX"
@@ -32,7 +32,7 @@ settings:
       tooltip: Password for signing in to your training environment. It is stored only as a hash — keep it safe; it is not displayed or recoverable after installation.
 
 nodes:
-  - image: ihorman/constructor-fabric:20260717
+  - image: sstimss/constructor-fabric:20260721
     nodeType: docker
     displayName: Constructor Studio Training
     cloudlets: 64
@@ -54,7 +54,7 @@ nodes:
       no_proxy: localhost,127.0.0.1,::1
       JELASTIC_EXPOSE: 8080
       JELASTIC_PORTS: 8080
-      SCRIPT_VERSION: trainer-greenfield-20260718-1
+      SCRIPT_VERSION: cs4129-20260721-1
       CF_SOURCE_REF: main
 
 onInstall:
@@ -90,7 +90,7 @@ actions:
 
         if ! command -v code-server >/dev/null 2>&1; then
           echo "Installing code-server..."
-          CODE_SERVER_VERSION=4.127.0
+          CODE_SERVER_VERSION=4.129.0
           curl --noproxy '*' --retry 3 --retry-delay 2 --retry-connrefused -fsSL "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server-${CODE_SERVER_VERSION}-linux-amd64.tar.gz" -o /tmp/code-server.tar.gz
           tar -xzf /tmp/code-server.tar.gz --strip-components=1 -C /usr/local
           rm -f /tmp/code-server.tar.gz
