@@ -72,6 +72,12 @@ Resolved decisions (implementation review, 2026-07-09):
 - Legacy sweep completed (2026-07-18): deleted the unreferenced VNC/desktop-era
   remnants — scripts/install-ides.sh, scripts/app-server.py, scripts/run-cfc.sh,
   and configs/ (openbox/LXDE files). Notify webhook tooling kept (operational).
+- Trainer navigation moved to a top bar (2026-07-21, user decision — the left
+  sidebar consumed too much screen space): numbered status chips with
+  short-title tooltips replace the sidebar step list (labels under the chips
+  were tried and rejected); the in-content step header became a one-line
+  sticky element (fonts/colors unchanged). Step short titles are curriculum
+  data (`shortTitle`), not renderer constants.
 
 ## 1. Overview
 

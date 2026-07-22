@@ -23,7 +23,8 @@
         "success": "You understand what will be built (TaskLite), the pipeline you will follow (PRD → DESIGN → ADR → DECOMPOSITION → FEATURE → CODE), and the rhythm of every step (read, do, check).",
         "troubleshooting": "If this panel ever disappears, reopen it any time: press `F1` (or `Ctrl+Shift+P`), type **Constructor Fabric: Open Trainer**, and press Enter. Your progress is saved automatically."
       },
-      "checks": []
+      "checks": [],
+      "shortTitle": "Welcome"
     },
     {
       "id": "environment",
@@ -38,7 +39,8 @@
         "success": "The chat has responded with a meaningful reply — you are talking to the agent — and you have selected your preferred model.",
         "troubleshooting": "- **The chat asks you to sign in** — follow the sign-in flow (GitHub recommended); the agent needs an account before it can respond.\n- **No reply** — reload the browser tab; the chat extension loads a moment after the IDE starts, then send the message again."
       },
-      "checks": []
+      "checks": [],
+      "shortTitle": "Environment"
     },
     {
       "id": "brief",
@@ -54,7 +56,8 @@
         "success": "You have read the brief and can say in one sentence what TaskLite is: a small team task service: create / complete / delete via a public API, with persistent storage.",
         "troubleshooting": "Nothing can go wrong here — when you have read the brief, continue to the next step."
       },
-      "checks": []
+      "checks": [],
+      "shortTitle": "Product brief"
     },
     {
       "id": "prd",
@@ -88,7 +91,8 @@
           "label": "A PRD artifact is registered and its file exists",
           "failHint": "No PRD in Studio's artifact registry yet (or the registered file is missing). Registration happens automatically when the `/cf make PRD` workflow completes — ask the agent to finish creating and registering the PRD."
         }
-      ]
+      ],
+      "shortTitle": "PRD"
     },
     {
       "id": "design",
@@ -122,7 +126,8 @@
           "label": "A DESIGN artifact is registered and its file exists",
           "failHint": "No DESIGN in Studio's artifact registry yet (or the registered file is missing). Ask the agent to finish the `/cf make DESIGN` workflow — it registers the DESIGN when it completes."
         }
-      ]
+      ],
+      "shortTitle": "DESIGN"
     },
     {
       "id": "adr",
@@ -156,7 +161,8 @@
           "label": "An ADR artifact is registered and its file exists",
           "failHint": "No ADR in Studio's artifact registry yet (or the registered file is missing). Ask the agent to finish the `/cf make ADR` workflow — it registers the ADR when it completes."
         }
-      ]
+      ],
+      "shortTitle": "ADR"
     },
     {
       "id": "decomposition",
@@ -190,7 +196,8 @@
           "label": "A DECOMPOSITION artifact is registered and its file exists",
           "failHint": "No DECOMPOSITION in Studio's artifact registry yet (or the registered file is missing). Ask the agent to finish the `/cf make DECOMPOSITION` workflow — it registers the decomposition when it completes."
         }
-      ]
+      ],
+      "shortTitle": "DECOMPOSITION"
     },
     {
       "id": "features",
@@ -224,7 +231,8 @@
           "label": "FEATURE specs are registered and their files exist",
           "failHint": "No FEATURE specs in Studio's artifact registry yet (or a registered file is missing). Ask the agent to finish the `/cf make FEATURE` workflow for each planned feature."
         }
-      ]
+      ],
+      "shortTitle": "FEATURE"
     },
     {
       "id": "implement",
@@ -256,7 +264,8 @@
           "label": "CPT traceability references present in source code",
           "failHint": "No `cpt-…` traceability references found outside the artifact documents. Ask the agent to add the `@cpt` markers required by the codebase rules to the implemented code."
         }
-      ]
+      ],
+      "shortTitle": "Code"
     },
     {
       "id": "run",
@@ -271,7 +280,8 @@
         "success": "The app starts without errors and responds to requests — creating and listing a task through the API works. You built this: from a brief, through validated documents, to running software.",
         "troubleshooting": "- **The app won't start** — paste the error output into the chat and ask the agent to fix it.\n- **Nothing seems to respond** — ask the agent which URL and port the app listens on, and how to test it with curl.\n- **Tasks vanish after restart** — persistence is broken; that violates a PRD requirement. Ask the agent to fix storage per the ADR — and notice how the artifacts give you the exact language to demand it."
       },
-      "checks": []
+      "checks": [],
+      "shortTitle": "Run"
     },
     {
       "id": "traceability",
@@ -286,7 +296,8 @@
         "success": "You have traced at least one requirement end-to-end — from a PRD requirement, through design and feature, to the code that implements it.",
         "troubleshooting": "- **The map shows an orphan marker** (a code marker pointing at a non-existent ID) — ask the agent to fix the marker or the spec."
       },
-      "checks": []
+      "checks": [],
+      "shortTitle": "Trace"
     },
     {
       "id": "wrapup",
@@ -302,7 +313,8 @@
         "success": "There is nothing left to pass — you finished.",
         "troubleshooting": "**Restart training** archives your work into `training-archive/<timestamp>/` inside the workspace — you can always open and revisit it there."
       },
-      "checks": []
+      "checks": [],
+      "shortTitle": "Wrap-up"
     }
   ]
 }
