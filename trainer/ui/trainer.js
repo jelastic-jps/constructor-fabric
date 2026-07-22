@@ -217,9 +217,10 @@
       if (status === 'passed') cls.push('passed');
       if (status === 'skipped') cls.push('skipped');
       if (idx > maxIdx) cls.push('locked');
-      return '<div class="' + cls.join(' ') + '" data-step="' + esc(step.id) + '" data-idx="' + idx + '">' +
+      var tooltip = step.shortTitle || step.title;
+      return '<div class="' + cls.join(' ') + '" data-step="' + esc(step.id) + '" data-idx="' + idx + '"' +
+        ' title="' + esc(tooltip) + '">' +
         '<div class="mark">' + mark + '</div>' +
-        '<div><b>' + esc(step.title) + '</b><span>' + esc(step.subtitle || '') + '</span></div>' +
         '</div>';
     }).join('');
     document.getElementById('nav').innerHTML = html;

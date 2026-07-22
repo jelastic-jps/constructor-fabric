@@ -128,9 +128,14 @@ drives restart archiving without hardcoding artifact paths.
 - `gated: true` → "Next" enabled only when all checks pass or the trainee uses
   "Skip anyway" (recorded). Steps 1–3 and 12 are ungated and complete via the
   entered-then-exited rule (FR-4.5).
-- UI conventions: sticky sidebar (step list stays put while content scrolls);
-  step badges are always numbers, colored by status (green passed / amber skipped /
-  neutral pending, teal row highlight for active).
+- UI conventions (top navigation since 2026-07-21; replaces the earlier sticky
+  sidebar): a compact sticky top bar holds the CF brand and one numbered chip
+  per step, colored by status (green passed / amber skipped / neutral pending,
+  teal ring for active; locked steps dimmed and unclickable). Hovering a chip
+  shows the step's `shortTitle` (a per-step field in curriculum.json) as a
+  tooltip. The step header inside the content is a single line
+  ("STEP N OF 12" kicker + title) and is itself sticky under the top bar, so
+  step context stays visible while long content scrolls.
 
 ## 4. Check types (backend implementations)
 

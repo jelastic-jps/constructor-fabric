@@ -24,55 +24,62 @@ body {
   line-height: 1.6;
 }
 
-.app { display: grid; grid-template-columns: 265px 1fr; min-height: 100vh; }
+.app { display: flex; flex-direction: column; min-height: 100vh; }
 
-.side {
-  padding: 18px 14px;
+/* Compact top bar: brand on the left, numbered step strip on the right.
+   Sticky so navigation stays reachable while the step content scrolls. */
+.topbar {
+  display: flex; align-items: center; gap: 18px;
+  padding: 8px 16px;
   background: var(--panel);
-  border-right: 1px solid var(--border);
-  overflow-y: auto;
-  /* Keep the step list in view while the step content scrolls. */
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  align-self: start;
-  box-sizing: border-box;
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 10;
 }
 
-.brand { display: flex; gap: 10px; align-items: center; margin: 4px 4px 16px; }
+.brand { display: flex; gap: 8px; align-items: center; flex: none; margin-right: 2px; }
 .logo {
-  width: 38px; height: 38px; border-radius: 10px; flex: none;
+  width: 28px; height: 28px; border-radius: 8px; flex: none;
   background: linear-gradient(135deg, var(--accent), var(--accent2));
-  display: grid; place-items: center; font-weight: 800; color: #04111f;
+  display: grid; place-items: center; font-weight: 800; font-size: 12px; color: #04111f;
 }
-.brand h1 { font-size: 14px; margin: 0; }
-.brand p { margin: 2px 0 0; color: var(--muted); font-size: 11px; }
+.brand h1 { font-size: 13px; margin: 0; white-space: nowrap; }
 
-.nav-step {
-  display: flex; gap: 8px; align-items: center;
-  padding: 3px 9px; margin: 0; border-radius: 9px;
-  color: var(--fg); cursor: pointer; border: 1px solid transparent;
-  line-height: 1.25;
+.nav {
+  display: flex; align-items: center; gap: 4px;
+  overflow-x: auto; scrollbar-width: thin;
+  padding: 2px 0;
 }
-.nav-step + .nav-step { margin-top: 4px; }
-.nav-step.active { background: rgba(45, 212, 191, 0.12); border-color: rgba(45, 212, 191, 0.4); color: var(--fg); }
-.nav-step.locked { opacity: 0.45; cursor: default; }
+.nav-step {
+  flex: none; cursor: pointer; border-radius: 50%;
+  border: 2px solid transparent; padding: 1px;
+  line-height: 0;
+}
+.nav-step.active { border-color: var(--accent); }
+.nav-step.locked { opacity: 0.4; cursor: default; }
 .nav-step .mark {
-  width: 20px; height: 20px; border-radius: 50%; flex: none;
+  width: 22px; height: 22px; border-radius: 50%;
   display: grid; place-items: center; font-size: 10.5px; font-weight: 700;
   background: rgba(255, 255, 255, 0.09); color: var(--fg);
 }
 .nav-step.passed .mark { background: rgba(52, 211, 153, 0.22); color: var(--ok); }
 .nav-step.skipped .mark { background: rgba(251, 191, 36, 0.2); color: var(--warn); }
-.nav-step b { display: block; font-size: 12.5px; font-weight: 600; }
-.nav-step span { display: block; font-size: 10.5px; margin-top: 1px; }
+.nav-step:not(.locked):hover .mark { background: rgba(45, 212, 191, 0.18); }
 
 .main { display: flex; flex-direction: column; min-height: 100vh; }
 .card { flex: 1; padding: 26px 34px 12px; max-width: 860px; }
 .loading { color: var(--muted); }
 
-.step-head .kicker { color: var(--accent); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
-.step-head h2 { margin: 4px 0 14px; font-size: 24px; line-height: 1.2; }
+/* One-line sticky step header: kicker and title keep their own fonts/colors,
+   laid out on a single baseline and pinned below the top bar while the step
+   content scrolls. */
+.step-head {
+  display: flex; align-items: baseline; gap: 12px;
+  position: sticky; top: 45px; z-index: 5;
+  background: var(--bg);
+  padding: 10px 0 8px; margin: -10px 0 8px;
+}
+.step-head .kicker { color: var(--accent); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; flex: none; }
+.step-head h2 { margin: 0; font-size: 24px; line-height: 1.2; }
 
 .md p { margin: 0 0 10px; }
 .md h3 { font-size: 15px; margin: 16px 0 6px; }
