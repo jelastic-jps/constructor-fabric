@@ -17,14 +17,23 @@ ssl: true
 skipNodeEmails: true
 
 globals:
-  SCRIPT_VERSION: cs4129-20260721-1
+  SCRIPT_VERSION: agent-choice-20260723-1
   CF_SOURCE_REF: main
   NOTIFY_WEBHOOK_URL: "XXX"
   NOTIFY_SECRET: "XXX"
 
 settings:
   fields:
-    - caption: Constructor Studio Environment Password
+    - caption: Choose AI Coding Agent to deploy
+      type: list
+      inputType: string
+      name: coding-agent
+      default: claude
+      values:
+        claude: Claude Code by Anthropic
+        codex: Codex by OpenAI
+      tooltip: The AI coding agent deployed into your training environment.
+    - caption: Set Constructor Studio Environment Password
       type: string
       inputType: password
       name: ide-password
@@ -54,16 +63,25 @@ nodes:
       no_proxy: localhost,127.0.0.1,::1
       JELASTIC_EXPOSE: 8080
       JELASTIC_PORTS: 8080
-      SCRIPT_VERSION: cs4129-20260721-1
+      SCRIPT_VERSION: agent-choice-20260723-1
       CF_SOURCE_REF: main
 
 onInstall:
+  - writeAgentChoice
   - writePassword
   - bootstrap
   - verify
   - notify
 
 actions:
+  writeAgentChoice:
+    # File transport (like the password): su/sudo transitions during bootstrap
+    # drop container env vars. Read by install-coding-agent.sh and verify.
+    - writeFile[cp]:
+        path: /home/developer/.cf-coding-agent
+        body: ${settings.coding-agent:claude}
+    - cmd[cp]: chown developer:developer /home/developer/.cf-coding-agent
+
   writePassword:
     # Transport only: start-services.sh argon2-hashes this into code-server's
     # config and deletes the plaintext file.
@@ -145,15 +163,31 @@ actions:
         assert data.get('workbench.startupEditor') == 'none'
         assert data.get('window.restoreWindows') == 'none'
         assert data.get('workbench.welcomePage.walkthroughs.openOnInstall') is False, 'welcome walkthrough auto-open is not suppressed'
-        assert data.get('github.copilot.editor.enableAutoCompletions') is True
-        assert data.get('chat.commandCenter.enabled') is True
         extensions = Path('/home/developer/.local/share/code-server/extensions')
         names = {p.name.lower() for p in extensions.iterdir() if p.is_dir()} if extensions.exists() else set()
         # code-server >= 4.127.0 ships the unified GitHub Copilot (completions +
         # Chat) as a built-in; marketplace copies must NOT be user-installed.
         assert not any(name.startswith('github.copilot') for name in names), names
-        builtin_chat = json.loads(Path('/usr/local/lib/vscode/extensions/copilot/package.json').read_text())
-        assert builtin_chat.get('name') == 'copilot-chat', builtin_chat.get('name')
+        # Agent-dependent surface: the install-form choice decides which chat
+        # agent is deployed and whether the built-in Copilot stays.
+        try:
+            agent = Path('/home/developer/.cf-coding-agent').read_text().strip() or 'copilot'
+        except OSError:
+            agent = 'copilot'
+        if agent not in ('claude', 'codex', 'copilot'):
+            agent = 'copilot'
+        builtin_copilot = Path('/usr/local/lib/vscode/extensions/copilot')
+        if agent == 'copilot':
+            assert data.get('github.copilot.editor.enableAutoCompletions') is True
+            assert data.get('chat.commandCenter.enabled') is True
+            builtin_chat = json.loads((builtin_copilot / 'package.json').read_text())
+            assert builtin_chat.get('name') == 'copilot-chat', builtin_chat.get('name')
+        else:
+            expected_ext = {'claude': 'anthropic.claude-code', 'codex': 'openai.chatgpt'}[agent]
+            assert any(n.startswith(expected_ext) for n in names), (expected_ext, names)
+            assert not builtin_copilot.exists(), 'built-in Copilot must be removed for agent=' + agent
+            assert data.get('chat.disableAIFeatures') is True, 'built-in chat must be disabled for agent=' + agent
+            assert data.get('chat.commandCenter.enabled') is False
         trainer_ext_js = (ext / 'extension.js').read_text()
         # The built-in unified Copilot handles its own sign-in; the trainer
         # must not override the chat setup sign-in command or request extra

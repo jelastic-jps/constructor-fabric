@@ -33,6 +33,10 @@ curl --noproxy '*' --retry 3 --retry-delay 2 --retry-connrefused -fsSL "${SCRIPT
   || cp "${HOME}/constructor-fabric/scripts/auto-bootstrap.sh" "${HOME}/studio/auto-bootstrap.sh"
 chmod +x "${HOME}/studio/auto-bootstrap.sh"
 
+curl --noproxy '*' --retry 3 --retry-delay 2 --retry-connrefused -fsSL "${SCRIPT_BASE}/install-coding-agent.sh?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/install-coding-agent.sh" \
+  || cp "${HOME}/constructor-fabric/scripts/install-coding-agent.sh" "${HOME}/constructor-fabric/install-coding-agent.sh"
+chmod +x "${HOME}/constructor-fabric/install-coding-agent.sh"
+
 curl --noproxy '*' --retry 3 --retry-delay 2 --retry-connrefused -fsSL "${SCRIPT_BASE}/start-services.sh?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/start-services.sh"
 chmod +x "${HOME}/constructor-fabric/start-services.sh"
 "${HOME}/constructor-fabric/start-services.sh"

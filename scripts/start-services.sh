@@ -11,9 +11,9 @@ TRAINER_DIR="${HOME}/constructor-fabric/trainer"
 mkdir -p "$LOG_DIR" "$CS_WORKSPACE" "${HOME}/.config/code-server" "${HOME}/.local/share/code-server/User"
 
 write_workspace_settings() {
-  # The chat agent (GitHub Copilot) authenticates with the trainee's GitHub
-  # account and the model is picked in the chat UI (Auto / Manage Models) —
-  # no provider, model, or API key is provisioned by the environment.
+  # The chat agent is chosen at deploy time (claude | codex | copilot) and
+  # signs in with the trainee's own account — no provider, model, or API key
+  # is provisioned by the environment.
   mkdir -p "$CS_WORKSPACE/.vscode"
   cat > "$CS_WORKSPACE/.vscode/settings.json" <<'VSCODE'
 {
@@ -27,15 +27,24 @@ VSCODE
 }
 write_workspace_settings
 
+# The deploy-time AI coding agent choice (claude | codex | copilot), written
+# by the JPS manifest. A missing/invalid file falls back to copilot so the
+# environment keeps a working built-in agent even if the choice never arrived.
+CF_AGENT="$(cat "${HOME}/.cf-coding-agent" 2>/dev/null | tr -d '[:space:]' || true)"
+case "$CF_AGENT" in claude|codex|copilot) ;; *) CF_AGENT=copilot ;; esac
+
 # Suppress the VS Code welcome tab on first open. workbench.startupEditor
 # alone is not enough: extensions with an openOnInstall walkthrough (the
 # built-in Copilot has one) open the Welcome/walkthrough tab on their first
 # activation. These must be user-level settings; merge so keys written by
-# other provisioning scripts are preserved.
-python3 - "${HOME}/.local/share/code-server/User/settings.json" <<'PYUSERSET'
+# other provisioning scripts are preserved. Chat-surface settings depend on
+# the selected coding agent: Copilot uses the built-in chat; Claude Code and
+# Codex bring their own panel, so the built-in chat is disabled for them.
+python3 - "${HOME}/.local/share/code-server/User/settings.json" "$CF_AGENT" <<'PYUSERSET'
 import json, sys
 from pathlib import Path
 p = Path(sys.argv[1])
+agent = sys.argv[2] if len(sys.argv) > 2 else 'copilot'
 try:
     data = json.loads(p.read_text()) if p.exists() else {}
 except Exception:
@@ -44,16 +53,26 @@ data.update({
     'workbench.startupEditor': 'none',
     'workbench.welcomePage.walkthroughs.openOnInstall': False,
     'window.restoreWindows': 'none',
-    'github.copilot.editor.enableAutoCompletions': True,
-    'chat.commandCenter.enabled': True,
 })
+if agent == 'copilot':
+    data.update({
+        'github.copilot.editor.enableAutoCompletions': True,
+        'chat.commandCenter.enabled': True,
+    })
+    data.pop('chat.disableAIFeatures', None)
+else:
+    data.update({
+        'chat.disableAIFeatures': True,
+        'chat.commandCenter.enabled': False,
+    })
+    data.pop('github.copilot.editor.enableAutoCompletions', None)
 # Purge the legacy terminal-env key an older image's baked script may have
 # written (it used to carry API keys; the feature is removed).
 data.pop('terminal.integrated.env.linux', None)
 data.setdefault('workbench.colorTheme', 'Default Dark Modern')
 p.parent.mkdir(parents=True, exist_ok=True)
 p.write_text(json.dumps(data, indent=2) + '\n')
-print('merged welcome-suppression keys into code-server user settings')
+print('merged welcome-suppression and agent chat settings (%s) into user settings' % agent)
 PYUSERSET
 
 # IDE password handling: the mandatory install-form password arrives via the
@@ -315,6 +334,19 @@ PYEXTREG
 # arbitrary local trainer HTML and fails on fresh installs when run as developer.
 chown -R developer:developer "$HOME" 2>/dev/null || true
 
+# Deploy the selected AI coding agent (installs CLI + IDE extension; for
+# claude/codex it removes the built-in Copilot from this environment). Looks
+# for the script next to this one first (bootstrap download), then the baked
+# repo copy.
+for _agent_script in \
+  "$(dirname "$0")/install-coding-agent.sh" \
+  "${HOME}/constructor-fabric/scripts/install-coding-agent.sh"; do
+  if [ -f "$_agent_script" ]; then
+    sh "$_agent_script"
+    break
+  fi
+done
+
 # Write supervisor config for code-server via Python (reliable variable
 # injection). Authentication comes from the argon2 hashed-password in
 # code-server's config.yaml — no password in the process environment.
@@ -344,7 +376,6 @@ rm -f /tmp/write_supervisor_conf.py
 
 sudo supervisorctl reread 2>/dev/null || true
 sudo supervisorctl update 2>/dev/null || true
-sudo supervisorctl restart code-server 2>/dev/null || true
 
 
 if [ -x "${HOME}/studio/auto-bootstrap.sh" ]; then
@@ -352,5 +383,15 @@ if [ -x "${HOME}/studio/auto-bootstrap.sh" ]; then
     setsid sudo -u developer -H "${HOME}/studio/auto-bootstrap.sh" </dev/null >"${HOME}/studio/auto-bootstrap-launch.log" 2>&1 &
   fi
 fi
+
+# Final restart, after every configuration step above. The autostart from
+# `supervisorctl update` may have launched code-server before the last config
+# write settled, and several settings (chat surface, color theme) plus the
+# deploy-time agent extension are only read at process startup. Bouncing here
+# guarantees they are all live on the first browser connection. auto-bootstrap
+# is a detached background job (Studio provisioning; writes only live-watched
+# workspace files) and is unaffected by this restart.
+sleep 2
+sudo supervisorctl restart code-server 2>/dev/null || sudo supervisorctl start code-server 2>/dev/null || true
 
 echo "plain code-server configured with inline trainer webview extension"

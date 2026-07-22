@@ -82,6 +82,28 @@ Resolved decisions (implementation review, 2026-07-09):
   trainees no longer see "code-server vX has been released!" notices. Runtime
   image hosting moved from the ihorman Docker Hub account to sstimss
   (manifest pin: sstimss/constructor-fabric:20260721).
+- Deploy-time AI coding agent choice (2026-07-22): the install form offers
+  "Claude Code by Anthropic" (default) and "Codex by OpenAI". The choice is
+  written to ~/.cf-coding-agent (file transport, like the password; a
+  missing/invalid file falls back to copilot everywhere, so an environment
+  the choice never reached still has the built-in agent to work with);
+  scripts/install-coding-agent.sh installs the chosen agent's CLI (npm) and
+  IDE extension (Open VSX) and removes the built-in GitHub Copilot from the
+  environment — at deploy time only: the image keeps Copilot so a future
+  "keep GitHub Copilot" option stays a one-word change (the copilot value is
+  already handled by scripts and verify). Chat-surface settings and the
+  manifest verify asserts are agent-conditional. For claude/codex the built-in
+  chat is disabled (`chat.disableAIFeatures: true`) so only the agent's own
+  panel shows; this does NOT break the Codex view — an "empty Codex panel"
+  seen during testing was a client-side Chrome renderer freeze (long-lived
+  code-server tabs across shared localhost origins), reproduced with the
+  setting both on and off and cleared by a fresh renderer, not a settings
+  change. start-services.sh ends with an explicit code-server restart after all
+  configuration so settings/extensions that VS Code only reads at startup are
+  live on the first connection. Trainer step 2 and the
+  workspace README were genericized (any-agent sign-in wording). The
+  production platform proxies the agent OAuth callback correctly, so no
+  localhost:PORT/callback workaround is taught.
 
 ## 1. Overview
 
