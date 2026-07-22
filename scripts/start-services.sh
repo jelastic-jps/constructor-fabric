@@ -211,7 +211,7 @@ PYBUNDLE
 patch_chat_provider_scopes
 
 # User-required right-side AI: GitHub Copilot (completions + Chat).
-# code-server 4.127.0 ships the unified "GitHub Copilot" extension as a
+# code-server >= 4.127.0 ships the unified "GitHub Copilot" extension as a
 # BUILT-IN (/usr/local/lib/vscode/extensions/copilot, copilot-chat 0.55.0),
 # which provides both completions and Chat. Do not install GitHub.copilot or
 # GitHub.copilot-chat from the marketplace on top of it: copilot-chat is
@@ -325,7 +325,7 @@ home = '/home/developer'
 workspace = os.environ.get('CS_WORKSPACE', home + '/workspaces/constructor-fabric-workspace')
 log_dir = os.environ.get('LOG_DIR', home + '/constructor-fabric')
 conf = f'''[program:code-server]
-command=/usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --disable-telemetry --disable-workspace-trust --enable-proposed-api GitHub.copilot --enable-proposed-api GitHub.copilot-chat {workspace}
+command=/usr/local/bin/code-server --bind-addr 0.0.0.0:8080 --disable-telemetry --disable-update-check --disable-workspace-trust --enable-proposed-api GitHub.copilot --enable-proposed-api GitHub.copilot-chat {workspace}
 user=developer
 directory={workspace}
 environment=HOME="{home}",USER="developer",PATH="/opt/node-current/bin:/home/developer/.local/bin:/usr/local/bin:/usr/bin:/bin"

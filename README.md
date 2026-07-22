@@ -14,7 +14,7 @@ Layout:
 - assets/: copied media assets and convenience files from the current worktree
 
 Published runtime image:
-- ihorman/constructor-fabric:latest
+- sstimss/constructor-fabric (date-tagged, pinned in manifest.jps)
 
 Source reference repos on GitHub often use multi-folder layouts like:
 - README.md

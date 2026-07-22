@@ -72,6 +72,10 @@ Resolved decisions (implementation review, 2026-07-09):
 - Legacy sweep completed (2026-07-18): deleted the unreferenced VNC/desktop-era
   remnants — scripts/install-ides.sh, scripts/app-server.py, scripts/run-cfc.sh,
   and configs/ (openbox/LXDE files). Notify webhook tooling kept (operational).
+- code-server bumped to 4.129.0 and its update check disabled (2026-07-22):
+  trainees no longer see "code-server vX has been released!" notices. Runtime
+  image hosting moved from the ihorman Docker Hub account to sstimss
+  (manifest pin: sstimss/constructor-fabric:20260721).
 
 ## 1. Overview
 
