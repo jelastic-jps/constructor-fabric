@@ -78,6 +78,10 @@ Resolved decisions (implementation review, 2026-07-09):
   were tried and rejected); the in-content step header became a one-line
   sticky element (fonts/colors unchanged). Step short titles are curriculum
   data (`shortTitle`), not renderer constants.
+- code-server bumped to 4.129.0 and its update check disabled (2026-07-22):
+  trainees no longer see "code-server vX has been released!" notices. Runtime
+  image hosting moved from the ihorman Docker Hub account to sstimss
+  (manifest pin: sstimss/constructor-fabric:20260721).
 
 ## 1. Overview
 
