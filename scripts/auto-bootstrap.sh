@@ -30,9 +30,9 @@ This workspace was initialized automatically by the marketplace installation.
 The Constructor Fabric Trainer opens automatically inside the IDE and guides you
 step by step. To reopen it: press F1 and run "Constructor Fabric: Open Trainer".
 
-The AI chat agent (GitHub Copilot Chat) signs in with your GitHub account. Pick
-a model with the Auto selector in the chat input; your own Anthropic or OpenAI
-API key can be added there via Manage Models.
+The AI chat agent panel is on the right side of the IDE. Sign in when the
+agent prompts you (subscription account or API key); the Trainer's step 2
+walks you through it.
 README
 fi
 
