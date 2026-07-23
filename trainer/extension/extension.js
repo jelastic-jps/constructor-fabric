@@ -515,9 +515,39 @@ function restartTraining(curriculum, state) {
 // ---------------------------------------------------------------------------
 // Webview
 
+// The AI coding agent deployed into this environment (claude | codex |
+// copilot), chosen on the install form and written to ~/.cf-coding-agent by
+// the JPS manifest. Same fallback as the deploy scripts: missing or invalid
+// file means the built-in Copilot was kept.
+const CODING_AGENTS = ['claude', 'codex', 'copilot'];
+function deployedAgent() {
+  try {
+    const raw = fs.readFileSync(path.join(process.env.HOME || '/home/developer', '.cf-coding-agent'), 'utf8').trim();
+    return CODING_AGENTS.includes(raw) ? raw : 'copilot';
+  } catch (e) {
+    return 'copilot';
+  }
+}
+
+// A curriculum section value is either a plain string or an object keyed by
+// agent ({claude: ..., codex: ..., copilot: ...}) resolved at load time, so
+// the webview only ever sees plain strings.
+function resolveSectionsForAgent(curriculum, agent) {
+  for (const step of curriculum.steps || []) {
+    const sections = step.sections || {};
+    for (const key of Object.keys(sections)) {
+      const value = sections[key];
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        sections[key] = value[agent] !== undefined ? value[agent] : value.default;
+      }
+    }
+  }
+  return curriculum;
+}
+
 function loadCurriculum(context) {
   const raw = fs.readFileSync(path.join(context.extensionPath, 'content', 'curriculum.json'), 'utf8');
-  return JSON.parse(raw);
+  return resolveSectionsForAgent(JSON.parse(raw), deployedAgent());
 }
 
 function loadBrief(context) {

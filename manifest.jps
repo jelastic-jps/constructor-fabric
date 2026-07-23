@@ -17,7 +17,7 @@ ssl: true
 skipNodeEmails: true
 
 globals:
-  SCRIPT_VERSION: agent-choice-20260723-1
+  SCRIPT_VERSION: agent-choice-20260723-4
   CF_SOURCE_REF: main
   NOTIFY_WEBHOOK_URL: "XXX"
   NOTIFY_SECRET: "XXX"
@@ -32,6 +32,7 @@ settings:
       values:
         claude: Claude Code by Anthropic
         codex: Codex by OpenAI
+        copilot: GitHub Copilot
       tooltip: The AI coding agent deployed into your training environment.
     - caption: Set Constructor Studio Environment Password
       type: string
@@ -63,7 +64,7 @@ nodes:
       no_proxy: localhost,127.0.0.1,::1
       JELASTIC_EXPOSE: 8080
       JELASTIC_PORTS: 8080
-      SCRIPT_VERSION: agent-choice-20260723-1
+      SCRIPT_VERSION: agent-choice-20260723-4
       CF_SOURCE_REF: main
 
 onInstall:
@@ -188,6 +189,9 @@ actions:
             assert not builtin_copilot.exists(), 'built-in Copilot must be removed for agent=' + agent
             assert data.get('chat.disableAIFeatures') is True, 'built-in chat must be disabled for agent=' + agent
             assert data.get('chat.commandCenter.enabled') is False
+            # Terminal-first sign-in for both agents: the panel stays closed
+            # until the trainee opens it (Trainer step 2 teaches the flow).
+            assert data.get('workbench.secondarySideBar.defaultVisibility') == 'hidden'
         trainer_ext_js = (ext / 'extension.js').read_text()
         # The built-in unified Copilot handles its own sign-in; the trainer
         # must not override the chat setup sign-in command or request extra

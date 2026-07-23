@@ -60,12 +60,18 @@ if agent == 'copilot':
         'chat.commandCenter.enabled': True,
     })
     data.pop('chat.disableAIFeatures', None)
+    data.pop('workbench.secondarySideBar.defaultVisibility', None)
 else:
     data.update({
         'chat.disableAIFeatures': True,
         'chat.commandCenter.enabled': False,
     })
     data.pop('github.copilot.editor.enableAutoCompletions', None)
+    # Agent sign-in is taught terminal-first (Trainer step 2): the panels'
+    # own browser OAuth dead-ends on a localhost callback in a web IDE
+    # (claude: random-port loopback; codex: localhost:1455). Keep the panel
+    # closed until the trainee opens it signed-in.
+    data['workbench.secondarySideBar.defaultVisibility'] = 'hidden'
 # Purge the legacy terminal-env key an older image's baked script may have
 # written (it used to carry API keys; the feature is removed).
 data.pop('terminal.integrated.env.linux', None)
