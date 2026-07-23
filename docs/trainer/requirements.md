@@ -101,9 +101,47 @@ Resolved decisions (implementation review, 2026-07-09):
   change. start-services.sh ends with an explicit code-server restart after all
   configuration so settings/extensions that VS Code only reads at startup are
   live on the first connection. Trainer step 2 and the
-  workspace README were genericized (any-agent sign-in wording). The
-  production platform proxies the agent OAuth callback correctly, so no
-  localhost:PORT/callback workaround is taught.
+  workspace README were genericized (any-agent sign-in wording).
+- Agent-conditional Trainer step 2 with terminal-first Claude sign-in
+  (2026-07-23, after prod testing disproved the assumption that the platform
+  proxies the agent OAuth callback): panel-initiated agent sign-in runs the
+  bundled CLI's OAuth loopback listener on a random ephemeral port inside the
+  container and redirects the browser to localhost:PORT/callback —
+  unreachable from the trainee's machine and not proxyable (random,
+  per-attempt port). Design response, per user decision:
+  (a) curriculum sections may be objects keyed by agent
+  ({claude, codex, copilot}, or any subset plus "default"); the trainer
+  extension resolves them at load time against ~/.cf-coding-agent (same
+  copilot fallback as the deploy scripts), so the webview only sees strings;
+  (b) step 2's what-to-do and troubleshooting are per-agent. The Claude flow
+  is terminal-first: `claude` in the IDE terminal detects the headless
+  environment and switches to the manual-code OAuth flow
+  (redirect to platform.claude.com/oauth/code/callback, code pasted back at
+  "Paste code here if prompted"), verified by TUI capture in the local
+  replay — no callback problem at all; the panel is then opened signed-in
+  (shared ~/.claude credentials). The Codex flow is terminal-first too:
+  `codex login --device-auth` is a device-code flow (open
+  auth.openai.com/codex/device, enter the one-time code the terminal shows;
+  15-minute expiry) with no callback at all — plain `codex login` itself
+  prints "On a remote or headless machine? Use codex login --device-auth
+  instead" (verified in the local replay; panel and terminal share ~/.codex
+  auth). This supersedes the /proxy/PORT/callback URL-rewrite remedy: the
+  rewrite still works (verified in prod for claude) but is no longer taught;
+  codex troubleshooting redirects panel-initiated sign-ins to the terminal
+  flow. The Copilot flow keeps the pre-agent-choice GitHub wording;
+  (c) for claude and codex deployments the panel does not auto-open:
+  workbench.secondarySideBar.defaultVisibility=hidden is set at deploy time
+  (the workbench default visibleInWorkspace is what auto-opened it) and
+  verify asserts it (hidden for claude/codex, absent for copilot);
+  (d) step 2's opening bullets no longer mention a chat panel location —
+  the agent is introduced by the per-agent instructions (for copilot, step 2
+  keeps its original pre-agent-choice content in full: concept, GitHub
+  sign-in actions, success, and troubleshooting are the copilot-keyed
+  variants);
+  (e) the install form now offers "GitHub Copilot" as a third, user-selectable
+  choice (2026-07-23) — the previously fallback-only copilot value became a
+  form option; scripts and verify already handled it, so this was a
+  manifest-values-only change.
 
 ## 1. Overview
 

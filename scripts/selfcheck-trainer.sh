@@ -38,10 +38,21 @@ ids = [s['id'] for s in steps]
 assert len(ids) == len(set(ids)), 'duplicate step ids'
 known_checks = {'file_exists', 'glob_nonempty', 'artifact_registered', 'cfs_validate',
                 'cfs_coverage', 'markers_present', 'tests_pass', 'http_probe', 'git_committed'}
+AGENTS = {'claude', 'codex', 'copilot'}
 for s in steps:
     assert s.get('title') and 'sections' in s, f'step {s.get("id")} incomplete'
     for key in ('concept', 'actions', 'success', 'troubleshooting'):
         assert key in s['sections'], f'step {s["id"]} missing section {key}'
+        v = s['sections'][key]
+        # A section is a plain string, or an object keyed by coding agent
+        # (resolved by the extension against ~/.cf-coding-agent at load time).
+        if isinstance(v, dict):
+            assert set(v) == AGENTS or 'default' in v, \
+                f'step {s["id"]} section {key}: conditional must cover {sorted(AGENTS)} or provide default'
+            assert all(isinstance(x, str) for x in v.values()), \
+                f'step {s["id"]} section {key}: conditional values must be strings'
+        else:
+            assert isinstance(v, str), f'step {s["id"]} section {key}: must be string or agent-keyed object'
     for c in s.get('checks', []):
         assert c['type'] in known_checks, f'step {s["id"]}: unknown check type {c["type"]}'
         assert c.get('id') and c.get('label'), f'step {s["id"]}: check needs id+label'
