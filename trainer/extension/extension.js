@@ -10,6 +10,17 @@ const path = require('path');
 const http = require('http');
 const { execFile } = require('child_process');
 
+// A missing or broken emitter must never stop the Trainer loading. The image
+// ships a baked copy and bootstrap.sh refreshes it, but an older image whose
+// refresh failed would otherwise throw here and take the whole extension down —
+// which is exactly the failure mode telemetry is forbidden from causing.
+let telemetry;
+try {
+  telemetry = require('./telemetry');
+} catch (e) {
+  telemetry = { init() {}, emit() {}, dispose() {}, setVersion() {} };
+}
+
 const STATE_DIRNAME = '.constructor-fabric-trainer';
 const STATE_FILENAME = 'state.json';
 const ARCHIVE_DIRNAME = 'training-archive';
@@ -416,6 +427,13 @@ const CHECKERS = {
   git_committed: checkGitCommitted
 };
 
+// 1-based position in the curriculum. The collector rejects an out-of-range
+// index, so an unknown step yields undefined and the prop is simply omitted.
+function stepIndex(curriculum, stepId) {
+  const i = curriculum.steps.findIndex((s) => s.id === stepId);
+  return i < 0 ? undefined : i + 1;
+}
+
 async function runStepChecks(curriculum, state, stepId) {
   const step = curriculum.steps.find((s) => s.id === stepId);
   if (!step) return [];
@@ -433,6 +451,7 @@ async function runStepChecks(curriculum, state, stepId) {
     results.push(Object.assign({ id: check.id, label: check.label, failHint: check.failHint }, result));
   }
   const stepState = state.steps[stepId] || {};
+  const statusBefore = stepState.status;
   stepState.lastCheckAt = new Date().toISOString();
   stepState.checks = {};
   for (const r of results) stepState.checks[r.id] = { ok: r.ok, summary: r.summary };
@@ -445,6 +464,22 @@ async function runStepChecks(curriculum, state, stepId) {
   }
   state.steps[stepId] = stepState;
   saveState(state);
+
+  // check_id and the ok boolean ONLY. `summary` can contain cfs validate
+  // output — arbitrary text derived from the trainee's own artifacts — and
+  // must never leave the container.
+  for (const r of results) {
+    telemetry.emit('step_check_run', { step_id: stepId, check_id: r.id, ok: !!r.ok });
+  }
+
+  // Completion is the final step first reaching 'passed'. Guarded on the prior
+  // status because an ungated step is re-marked 'passed' every time its checks
+  // run, which would otherwise emit on every click.
+  const lastStep = curriculum.steps[curriculum.steps.length - 1];
+  if (lastStep && lastStep.id === stepId && statusBefore !== 'passed' && stepState.status === 'passed') {
+    telemetry.emit('training_completed', {});
+  }
+
   return results;
 }
 
@@ -583,6 +618,31 @@ async function handleMessage(context, msg) {
           appName: curriculum.app.name
         }
       });
+      telemetry.emit('trainer_opened', {});
+
+      // The FIRST step also completes on entry, and for two reasons.
+      //
+      // As a metric: it is the "someone signed in and actually opened the
+      // Trainer" meter, which is the first thing the funnel should measure.
+      //
+      // As a correctness fix: step_entered is emitted only from setStep, and
+      // the funnel is built exclusively from step_entered. Opening the Trainer
+      // shows step 1 without any setStep, so a trainee who read the welcome and
+      // clicked to step 2 registered on step 2 but never on step 1 — leaving
+      // the first curriculum row reading LOWER than the second.
+      const first = curriculum.steps[0];
+      if (first && state.currentStep === first.id) {
+        const firstState = state.steps[first.id] || {};
+        if (firstState.status !== 'passed' && firstState.status !== 'skipped') {
+          firstState.status = 'passed';
+          firstState.completedAt = new Date().toISOString();
+          state.steps[first.id] = firstState;
+          saveState(state);
+          post({ type: 'stateChanged', state });
+          telemetry.emit('step_entered', { step_id: first.id, step_index: 1 });
+          telemetry.emit('step_completed', { step_id: first.id, step_index: 1 });
+        }
+      }
       break;
     }
     case 'setStep': {
@@ -596,11 +656,34 @@ async function handleMessage(context, msg) {
             prevState.status = 'passed';
             prevState.completedAt = new Date().toISOString();
             state.steps[prev.id] = prevState;
+            telemetry.emit('step_completed', { step_id: prev.id, step_index: stepIndex(curriculum, prev.id) });
           }
         }
         state.currentStep = msg.stepId;
+
+        // The final step is the exception to the rule above: there is nowhere
+        // to navigate away to, so it completes on ENTRY. Otherwise the training
+        // could only ever register as finished by running that step's checks,
+        // and a trainee who reaches the end and stops would never count as
+        // having completed it.
+        const last = curriculum.steps[curriculum.steps.length - 1];
+        const enteringLast = !!last && last.id === msg.stepId;
+        const lastState = enteringLast ? (state.steps[msg.stepId] || {}) : null;
+        const finishesNow =
+          enteringLast && lastState.status !== 'passed' && lastState.status !== 'skipped';
+        if (finishesNow) {
+          lastState.status = 'passed';
+          lastState.completedAt = new Date().toISOString();
+          state.steps[msg.stepId] = lastState;
+        }
+
         saveState(state);
         post({ type: 'stateChanged', state });
+        telemetry.emit('step_entered', { step_id: msg.stepId, step_index: stepIndex(curriculum, msg.stepId) });
+        if (finishesNow) {
+          telemetry.emit('step_completed', { step_id: msg.stepId, step_index: stepIndex(curriculum, msg.stepId) });
+          telemetry.emit('training_completed', {});
+        }
       }
       break;
     }
@@ -623,6 +706,7 @@ async function handleMessage(context, msg) {
       state.steps[msg.stepId] = stepState;
       saveState(state);
       post({ type: 'stateChanged', state });
+      telemetry.emit('step_skipped', { step_id: msg.stepId, step_index: stepIndex(curriculum, msg.stepId) });
       break;
     }
     case 'openExternal': {
@@ -637,6 +721,9 @@ async function handleMessage(context, msg) {
       try {
         const result = restartTraining(curriculum, state);
         post({ type: 'restarted', state: result.state, moved: result.moved, archiveDir: result.archiveDir });
+        // The spool lives under STATE_DIRNAME, which is in PROTECTED_TOP, so a
+        // restart never archives it — pending events survive and still ship.
+        telemetry.emit('training_restarted', {});
         vscode.window.showInformationMessage(
           result.moved
             ? 'Training restarted. ' + result.moved + ' item(s) archived to ' + result.archiveDir + '.'
@@ -678,6 +765,14 @@ function openTrainer(context) {
 }
 
 function activate(context) {
+  // Dormant unless manifest.jps planted its config; never throws either way.
+  try {
+    telemetry.setVersion(require('./package.json').version);
+    telemetry.init(path.join(workspaceRoot(), STATE_DIRNAME));
+  } catch (e) {
+    // Telemetry must never affect activation.
+  }
+
   context.subscriptions.push(
     vscode.commands.registerCommand('constructorFabric.openTrainer', () => openTrainer(context))
   );
@@ -688,5 +783,5 @@ function activate(context) {
   setTimeout(() => openTrainer(context), 2000);
 }
 
-function deactivate() {}
+function deactivate() { telemetry.dispose(); }
 module.exports = { activate, deactivate };

@@ -58,6 +58,14 @@ for s in steps:
         assert c.get('id') and c.get('label'), f'step {s["id"]}: check needs id+label'
     if s.get('gated'):
         assert s.get('checks'), f'gated step {s["id"]} has no checks'
+
+# Telemetry is disclosed, not silent. Step 1 is the only place a trainee is told
+# their progress is recorded, so the sentence must survive curriculum edits —
+# losing it turns disclosed collection into silent collection.
+welcome = steps[0]['sections']['concept']
+assert isinstance(welcome, str), 'step 1 concept must be a plain string for the disclosure check'
+assert 'records your progress' in welcome, 'step 1 is missing the telemetry disclosure sentence'
+assert 'never records your prompts' in welcome, 'step 1 disclosure must state what is NOT recorded'
 gated = [s['id'] for s in steps if s.get('gated')]
 assert gated, 'no gated steps at all'
 print(f'curriculum OK: {len(steps)} steps, gated: {", ".join(gated)}')

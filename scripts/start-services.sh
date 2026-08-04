@@ -272,7 +272,7 @@ TRAINER_EXTENSION_ID="constructor-fabric.constructor-fabric-trainer"
 TRAINER_EXTENSION_VERSION="2.0.0"
 TRAINER_EXTENSION_DIR="${EXTENSIONS_DIR}/${TRAINER_EXTENSION_ID}-${TRAINER_EXTENSION_VERSION}"
 
-for f in extension/package.json extension/extension.js ui/index.html ui/trainer.js ui/trainer.css content/curriculum.json content/brief.md; do
+for f in extension/package.json extension/extension.js extension/telemetry.js ui/index.html ui/trainer.js ui/trainer.css content/curriculum.json content/brief.md; do
   if [ ! -s "${TRAINER_DIR}/${f}" ]; then
     echo "trainer file missing or empty: ${TRAINER_DIR}/${f}" >&2
     exit 1
@@ -289,7 +289,10 @@ PYCURR
 
 rm -rf "${EXTENSIONS_DIR}/constructor-fabric-trainer" "${EXTENSIONS_DIR}/${TRAINER_EXTENSION_ID}-"*
 mkdir -p "$TRAINER_EXTENSION_DIR"
-cp "${TRAINER_DIR}/extension/package.json" "${TRAINER_DIR}/extension/extension.js" "$TRAINER_EXTENSION_DIR/"
+# telemetry.js is required by extension.js. Omitting it here would not
+# crash the Trainer (extension.js falls back to a no-op emitter), but
+# telemetry would be silently dead in every environment.
+cp "${TRAINER_DIR}/extension/package.json" "${TRAINER_DIR}/extension/extension.js" "${TRAINER_DIR}/extension/telemetry.js" "$TRAINER_EXTENSION_DIR/"
 cp -R "${TRAINER_DIR}/ui" "${TRAINER_DIR}/content" "$TRAINER_EXTENSION_DIR/"
 
 # Older images copied static trainer pages into the workspace; remove the
