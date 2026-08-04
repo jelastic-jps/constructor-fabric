@@ -335,6 +335,44 @@ Priorities: p1 = must have for first release, p2 = should have, p3 = nice to hav
 2. Remove or explicitly quarantine unused VNC/LXDE-era assets (`configs/`,
    `patch-x11vnc.py`, `install-ides.sh`, `landing.html`) — final list at design time (p2).
 
+### FR-7b Journey telemetry — manifest emitter (p1)
+1. `manifest.jps` plants two files using the established file transport
+   (`writeFile[cp]` + `chown`, because `su`/`sudo` during bootstrap drops
+   container env vars): `.cf-install-id` (a UUID identifying this environment for
+   its whole life, never reused) and `.cf-telemetry` (collector URL and secret,
+   read later by the Trainer emitter).
+2. The `notify` action is **replaced** by `telemetry`, which sends exactly one
+   `environment_provisioned` event. It is the only event that ever carries an
+   address; every later event carries `install_id` alone.
+3. **MUST NOT fail the install.** Every path ends in `exit 0`; the worst outcome
+   is one environment missing from the funnel. Inherited from the rule the inert
+   `notify` action already carried.
+4. The dead notify path is deleted: `scripts/notify-install.sh`,
+   `scripts/notify-install.py`, `scripts/notify-server.py`. `NOTIFY_WEBHOOK_URL`
+   held the literal string `"XXX"` in every commit since 2026-06-25, so the
+   action always hit its empty-URL branch and exited 0. Nothing depended on it.
+
+**Resolved decision (2026-07-31): the secret is substituted at paste time, never
+committed.** This repository is public, so `manifest.jps` carries the placeholder
+`REPLACE_WITH_TELEMETRY_SECRET`. The manifest is pasted by hand into the
+platform's JPS field, and the real value is filled in during that step — so it
+never enters git history and is never indexed. The repo copy and the deployed
+copy differ on that one line by design; do not "fix" the placeholder.
+
+Two consequences of the substitution being manual: a paste that forgets it
+degrades to **silence, not breakage** (the emitter skips on the `REPLACE_`
+prefix and the install still succeeds), so missing data after a manifest update
+is the first thing to check; and the secret must match what is configured on the
+collector, or every event is rejected with 401 and the emitters have no way to
+report it.
+
+Per-environment credentials were considered and deferred — they would remove the
+residual in which a trainee can graft fabricated environments onto a guessed
+address, but need a new registration endpoint with its own abuse controls.
+
+Contract details live in the telemetry service's own specification — envelope
+shape, `seq` origin, prop allowlisting and the collector's failure semantics.
+
 ### FR-8 Deployment integration (p1)
 1. `manifest.jps` `verify` extends to assert the new Trainer is installed, its state
    mechanism works, and the workspace precondition set (FR-9) holds.
