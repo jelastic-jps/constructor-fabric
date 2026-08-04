@@ -40,6 +40,7 @@ const BACKOFF_MAX_MS = 30 * 60 * 1000; // capped, but retried indefinitely:
                                        // a container can regain egress at any time
 const REQUEST_TIMEOUT_MS = 10 * 1000;
 
+let EMITTER_VERSION = '0.0.0';  // set by setVersion() from package.json
 let config = null;        // { url, secret, installId } once loaded
 let sessionId = null;     // fresh per extension host start — see nextSeq()
 let seq = 0;
@@ -132,6 +133,12 @@ function postBatch(events, done) {
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': body.length,
+        // Identify the client explicitly. Node sends no User-Agent by default,
+        // which happens to pass today — but relying on the ABSENCE of a header
+        // is fragile, and the manifest emitter was blocked in production by a
+        // Cloudflare bot rule matching urllib's default UA. Name ourselves
+        // rather than depend on not being noticed.
+        'User-Agent': 'cf-telemetry-trainer/' + EMITTER_VERSION,
         // HMAC over the raw body, so the secret itself never crosses the wire.
         'X-CF-Signature':
           'sha256=' + crypto.createHmac('sha256', config.secret).update(body).digest('hex')
@@ -266,7 +273,6 @@ function dispose() {
   }
 }
 
-let EMITTER_VERSION = '0.0.0';
 function setVersion(v) { if (v) EMITTER_VERSION = String(v); }
 
 module.exports = { init, emit, dispose, setVersion };

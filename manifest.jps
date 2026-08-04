@@ -326,9 +326,15 @@ actions:
             data=body,
             headers={
                 "Content-Type": "application/json",
+                # Identify the client. urllib defaults to "Python-urllib/3.x",
+                # which Cloudflare's managed bot rules reject with 403 before the
+                # request reaches the collector — the install log then shows
+                # "emit failed - non-critical" and the environment is never
+                # bound to anyone. Observed in production. Any non-default
+                # User-Agent passes.
+                "User-Agent": "cf-telemetry-manifest/" + os.environ.get("CF_VERSION", "unknown"),
                 # HMAC over the raw body, so the secret itself never crosses the
-                # wire. It is public (see globals), so this proves integrity, not
-                # origin.
+                # wire.
                 "X-CF-Signature": "sha256=" + hmac.new(
                     secret.encode(), body, hashlib.sha256).hexdigest(),
             },
