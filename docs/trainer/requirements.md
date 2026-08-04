@@ -427,6 +427,20 @@ shape, `seq` origin, prop allowlisting and the collector's failure semantics.
    present, so a curriculum edit cannot silently turn disclosed collection into
    silent collection.
 
+**Resolved decision (2026-08-05): both emitters send an explicit User-Agent.**
+The first production deploy lost its `environment_provisioned` event to a
+Cloudflare managed bot rule that rejects urllib's default `Python-urllib/3.x`
+with 403 — before the request reaches the collector. The install log showed only
+`[telemetry] HTTPError: HTTP Error 403: Forbidden` followed by
+`emit failed - non-critical`, exactly as the MUST-NOT-FAIL rule intends, so the
+environment deployed cleanly and was simply never bound to anyone.
+
+Verified against production: `Python-urllib` → 403 at the edge; any other
+User-Agent → reaches the collector. Node sends no UA and passed, which is why
+the Trainer emitter was unaffected — but relying on the absence of a header is
+fragile, so it now names itself too. `scripts/check-telemetry.py` reproduces
+both cases from inside a container.
+
 ### FR-8 Deployment integration (p1)
 1. `manifest.jps` `verify` extends to assert the new Trainer is installed, its state
    mechanism works, and the workspace precondition set (FR-9) holds.
