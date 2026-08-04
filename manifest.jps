@@ -19,8 +19,17 @@ skipNodeEmails: true
 globals:
   SCRIPT_VERSION: agent-choice-20260723-4
   CF_SOURCE_REF: main
-  NOTIFY_WEBHOOK_URL: "XXX"
-  NOTIFY_SECRET: "XXX"
+  # Journey telemetry. The URL is baked into every published manifest and can
+  # never be changed for an environment already installed, so it is fixed.
+  #
+  # TELEMETRY_SECRET stays a placeholder HERE, on purpose. This repository is
+  # public; the real value is substituted by hand when this manifest is pasted
+  # into the platform's JPS field, so it never enters git history. Do not
+  # "fix" it — the repo copy and the deployed copy differ on this line by
+  # design. A paste that forgets the substitution degrades to silence rather
+  # than breakage: the emitter below skips on the REPLACE_ prefix.
+  TELEMETRY_URL: "https://telemetry.cfabric.org"
+  TELEMETRY_SECRET: "REPLACE_WITH_TELEMETRY_SECRET"
 
 settings:
   fields:
@@ -69,10 +78,11 @@ nodes:
 
 onInstall:
   - writeAgentChoice
+  - writeTelemetryIdentity
   - writePassword
   - bootstrap
   - verify
-  - notify
+  - telemetry
 
 actions:
   writeAgentChoice:
@@ -82,6 +92,26 @@ actions:
         path: /home/developer/.cf-coding-agent
         body: ${settings.coding-agent:claude}
     - cmd[cp]: chown developer:developer /home/developer/.cf-coding-agent
+
+  writeTelemetryIdentity:
+    # Same file transport as the agent choice and the password: su/sudo
+    # transitions during bootstrap drop container env vars, so anything the
+    # Trainer needs has to arrive on disk.
+    #
+    # Runs before bootstrap so the Trainer can read both files the moment it
+    # starts. install_id identifies THIS environment for its whole life and is
+    # never reused; the collector groups environments into people server-side,
+    # so nothing here needs to know about that.
+    - cmd[cp]: |-
+        set -eu
+        cat /proc/sys/kernel/random/uuid > /home/developer/.cf-install-id
+        chown developer:developer /home/developer/.cf-install-id
+    - writeFile[cp]:
+        path: /home/developer/.cf-telemetry
+        body: |-
+          TELEMETRY_URL=${globals.TELEMETRY_URL}
+          TELEMETRY_SECRET=${globals.TELEMETRY_SECRET}
+    - cmd[cp]: chown developer:developer /home/developer/.cf-telemetry
 
   writePassword:
     # Transport only: start-services.sh argon2-hashes this into code-server's
@@ -245,23 +275,77 @@ actions:
 
         echo "=== All checks passed ==="
 
-  notify:
+  telemetry:
+    # The single binding event: the only event that ever carries an address.
+    # Every later event from the Trainer carries install_id alone.
+    #
+    # MUST NOT fail the install. A telemetry problem is never the trainee's
+    # problem, so every path here ends in exit 0 and the worst outcome is one
+    # environment missing from the funnel.
     - cmd[cp]: |-
-        # Call notify-server webhook. MUST NOT fail.
-        WEBHOOK_URL="${globals.NOTIFY_WEBHOOK_URL}"
-        NOTIFY_SECRET="${globals.NOTIFY_SECRET}"
-        DOMAIN="${env.domain}"
+        set +e
 
-        if [ -z "$WEBHOOK_URL" ]; then
-          echo "[notify] NOTIFY_WEBHOOK_URL not set, skipping"
-          exit 0
-        fi
+        CF_URL='${globals.TELEMETRY_URL}' \
+        CF_SECRET='${globals.TELEMETRY_SECRET}' \
+        CF_DOMAIN='${env.domain}' \
+        CF_EMAIL='${user.email}' \
+        CF_VERSION='${globals.SCRIPT_VERSION}' \
+        python3 - <<'PYEMIT'
+        import hashlib, hmac, json, os, urllib.request, uuid
+        from datetime import datetime, timezone
+        from pathlib import Path
 
-        curl --noproxy '*' -sS --max-time 10 \
-          -X POST "$WEBHOOK_URL" \
-          -H "Content-Type: application/json" \
-          -d "{\"domain\":\"${DOMAIN}\",\"secret\":\"${NOTIFY_SECRET}\"}" \
-          2>&1 || echo "[notify] webhook failed — non-critical"
+        url    = os.environ.get("CF_URL", "").rstrip("/")
+        secret = os.environ.get("CF_SECRET", "")
+        if not url or not secret or secret.startswith("REPLACE_"):
+            raise SystemExit("[telemetry] not configured, skipping")
+
+        # seq starts at 1 and steps by 1 within a session; the collector's gap
+        # count (MAX(seq) - COUNT(*)) is exact only because of that. The manifest
+        # emits once, so it is a session of one.
+        event = {
+            "schema_version":  1,
+            "install_id":      Path("/home/developer/.cf-install-id").read_text().strip(),
+            "session_id":      str(uuid.uuid4()),
+            "seq":             1,
+            "event":           "environment_provisioned",
+            "ts":              datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "emitter":         "manifest",
+            "emitter_version": os.environ.get("CF_VERSION", ""),
+            "props": {
+                "domain":         os.environ.get("CF_DOMAIN", ""),
+                "user_email":     os.environ.get("CF_EMAIL", ""),
+                "agent":          Path("/home/developer/.cf-coding-agent").read_text().strip() or "copilot",
+                "script_version": os.environ.get("CF_VERSION", ""),
+            },
+        }
+
+        body = json.dumps({"events": [event]}, separators=(",", ":")).encode()
+        req = urllib.request.Request(
+            url + "/v1/events",
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                # HMAC over the raw body, so the secret itself never crosses the
+                # wire. It is public (see globals), so this proves integrity, not
+                # origin.
+                "X-CF-Signature": "sha256=" + hmac.new(
+                    secret.encode(), body, hashlib.sha256).hexdigest(),
+            },
+        )
+        # One line, not a traceback: this runs during an install and the log is
+        # read by operators, not debuggers. The wrapper below turns any failure
+        # into a note and exits 0 regardless.
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                print("[telemetry]", r.status, r.read(200).decode())
+        except Exception as exc:
+            raise SystemExit("[telemetry] %s: %s" % (type(exc).__name__, exc))
+        PYEMIT
+
+        rc=$?
+        [ $rc -eq 0 ] || echo "[telemetry] emit failed (rc=$rc) — non-critical"
+        exit 0
 
 
 success: |

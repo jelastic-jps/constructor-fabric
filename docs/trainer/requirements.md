@@ -36,6 +36,10 @@ Resolved decisions (implementation review, 2026-07-09):
   empty project. Validation discipline is taught via the workflows' own
   validate-review-fix loops instead.
 - Ungated steps are marked completed once the trainee has entered and then left them.
+  Exceptions (2026-08-04): the FIRST step completes on entry (it is the sign-in meter,
+  and the funnel is built from step_entered which opening the Trainer never emitted);
+  the FINAL step completes on entry too — there is nowhere to leave to, and it has no
+  checks, so it would otherwise never complete at all.
 - These requirement/design documents live in the repo (docs/trainer/) as living
   documents and are updated together with Trainer changes.
 - CDSL is not named or taught in the Trainer (2026-07-09): trainee-facing texts say
@@ -334,6 +338,94 @@ Priorities: p1 = must have for first release, p2 = should have, p3 = nice to hav
    `.constructor-fabric.json` `"trainer": "Electron"` marker).
 2. Remove or explicitly quarantine unused VNC/LXDE-era assets (`configs/`,
    `patch-x11vnc.py`, `install-ides.sh`, `landing.html`) — final list at design time (p2).
+
+### FR-7b Journey telemetry — manifest emitter (p1)
+1. `manifest.jps` plants two files using the established file transport
+   (`writeFile[cp]` + `chown`, because `su`/`sudo` during bootstrap drops
+   container env vars): `.cf-install-id` (a UUID identifying this environment for
+   its whole life, never reused) and `.cf-telemetry` (collector URL and secret,
+   read later by the Trainer emitter).
+2. The `notify` action is **replaced** by `telemetry`, which sends exactly one
+   `environment_provisioned` event. It is the only event that ever carries an
+   address; every later event carries `install_id` alone.
+3. **MUST NOT fail the install.** Every path ends in `exit 0`; the worst outcome
+   is one environment missing from the funnel. Inherited from the rule the inert
+   `notify` action already carried.
+4. The dead notify path is deleted: `scripts/notify-install.sh`,
+   `scripts/notify-install.py`, `scripts/notify-server.py`. `NOTIFY_WEBHOOK_URL`
+   held the literal string `"XXX"` in every commit since 2026-06-25, so the
+   action always hit its empty-URL branch and exited 0. Nothing depended on it.
+
+**Resolved decision (2026-07-31): the secret is substituted at paste time, never
+committed.** This repository is public, so `manifest.jps` carries the placeholder
+`REPLACE_WITH_TELEMETRY_SECRET`. The manifest is pasted by hand into the
+platform's JPS field, and the real value is filled in during that step — so it
+never enters git history and is never indexed. The repo copy and the deployed
+copy differ on that one line by design; do not "fix" the placeholder.
+
+Two consequences of the substitution being manual: a paste that forgets it
+degrades to **silence, not breakage** (the emitter skips on the `REPLACE_`
+prefix and the install still succeeds), so missing data after a manifest update
+is the first thing to check; and the secret must match what is configured on the
+collector, or every event is rejected with 401 and the emitters have no way to
+report it.
+
+Per-environment credentials were considered and deferred — they would remove the
+residual in which a trainee can graft fabricated environments onto a guessed
+address, but need a new registration endpoint with its own abuse controls.
+
+Contract details live in the telemetry service's own specification — envelope
+shape, `seq` origin, prop allowlisting and the collector's failure semantics.
+
+### FR-7c Journey telemetry — Trainer emitter (p1)
+1. `trainer/extension/telemetry.js` emits journey events at the state
+   transitions that already exist: `ready` → `trainer_opened`; step entry →
+   `step_entered`; the `lastCheckAt` write → `step_check_run`; the
+   `completedAt` write → `step_completed`; the `skippedAt` write →
+   `step_skipped`; restart-archive → `training_restarted`. No new state
+   machinery.
+2. **The first step completes on ENTRY** (2026-08-04). It is the "someone
+   signed in and opened the Trainer" meter and the first thing the funnel
+   measures. It is also a correctness fix: `step_entered` is emitted only from
+   `setStep` and the funnel is built exclusively from `step_entered`, but
+   opening the Trainer shows step 1 without any `setStep` — so a trainee who
+   read the welcome and clicked to step 2 registered on step 2 and never on
+   step 1, leaving the first curriculum row reading lower than the second.
+3. **The final step completes on ENTRY, not on exit** (2026-08-04), and emits
+   `step_completed` followed by `training_completed`. The general rule — an
+   ungated step is completed once the trainee has entered and then left it —
+   cannot apply to the last step, because there is nowhere to navigate away to.
+   `wrapup` also carries zero checks, so the alternative path (completion via
+   `runStepChecks`) could never fire either: `training_completed` was
+   unreachable and the completion rate would have been permanently zero. Both
+   emit sites are guarded on the prior status, so completion is reported once
+   per run and a restart can legitimately produce another.
+2. **`step_check_run` carries `check_id` and the `ok` boolean only.** The
+   human-readable `summary` can contain `cfs validate` output — arbitrary text
+   derived from the trainee's own artifacts — and must never leave the
+   container.
+3. Events are appended to a spool under `.constructor-fabric-trainer/`, which is
+   in `PROTECTED_TOP`, so a training restart never archives pending events. A
+   background flusher POSTs batches and retries with exponential backoff capped
+   at 30 minutes, indefinitely — a container can regain egress at any time.
+4. **The spool is bounded** in bytes and lines. On overflow it drops oldest and
+   keeps newest: containers are destroyed precisely when a trainee gives up, so
+   the most recent events matter most, and furthest-step is a maximum. An
+   unbounded spool would fill the trainee's disk, which is itself a way for
+   telemetry to break the environment.
+5. `seq` starts at 1 per session and `session_id` is regenerated on every
+   extension host start, never persisted. Uniqueness at the collector is
+   `(install_id, session_id, seq)`, so a restarted Trainer beginning again at
+   seq 1 cannot collide with its previous run. Persisting a counter instead
+   would mean a lost or truncated counter file silently discarding a whole
+   restarted journey behind HTTP 200s.
+6. **MUST NOT fail.** Every entry point is wrapped; no telemetry failure may
+   fail an install, block the UI, or surface an error to the trainee. With no
+   collector configured the emitter stays dormant and writes nothing.
+7. Disclosure: step 1 (`welcome`) states that progress is recorded and what is
+   not recorded. `scripts/selfcheck-trainer.sh` asserts both sentences are
+   present, so a curriculum edit cannot silently turn disclosed collection into
+   silent collection.
 
 ### FR-8 Deployment integration (p1)
 1. `manifest.jps` `verify` extends to assert the new Trainer is installed, its state
