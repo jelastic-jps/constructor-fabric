@@ -16,7 +16,7 @@ curl --noproxy '*' --retry 3 --retry-delay 2 --retry-connrefused -fsSL "${ASSET_
 curl --noproxy '*' --retry 3 --retry-delay 2 --retry-connrefused -fsSL "${ASSET_BASE}/constructor-fabric-wallpaper.png?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/app/wallpaper.png" || true
 # Refresh the Trainer (extension + ui + content) from the repo; the image
 # already ships a baked copy, so failed downloads fall back to it.
-TRAINER_FILES="extension/package.json extension/extension.js ui/index.html ui/trainer.js ui/trainer.css content/curriculum.json content/brief.md"
+TRAINER_FILES="extension/package.json extension/extension.js extension/telemetry.js ui/index.html ui/trainer.js ui/trainer.css content/curriculum.json content/brief.md"
 for f in $TRAINER_FILES; do
   mkdir -p "${HOME}/constructor-fabric/trainer/$(dirname "$f")"
   curl --noproxy '*' --retry 3 --retry-delay 2 --retry-connrefused -fsSL "${TRAINER_BASE}/${f}?v=${SCRIPT_VERSION}" -o "${HOME}/constructor-fabric/trainer/${f}" || true
