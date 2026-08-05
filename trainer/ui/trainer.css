@@ -79,20 +79,7 @@ body {
   padding: 10px 0 8px; margin: -10px 0 8px;
 }
 .step-head .kicker { color: var(--accent); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; flex: none; }
-/* min-width: 0 overrides the flex default of min-width: auto, which floors
-   a flex item at its content's intrinsic width and prevents it from
-   shrinking below that no matter how little room .fab's own min-width:auto
-   leaves it. Without this, narrowing the window past that point forces
-   .step-head — position: sticky, in the document's only scrolling box —
-   wider than its .card, growing the sticky element's own layout box on
-   every resize instead of just re-wrapping text inside a fixed box. Clip
-   with ellipsis instead of wrapping so the header's height also never
-   changes with width; a sticky element resizing itself while stuck is the
-   best-supported explanation for the page going unscrollable until
-   #content got rebuilt on step switch and the browser re-laid it out from
-   scratch — see the walkthrough report for the full reasoning and its
-   confidence level. */
-.step-head h2 { margin: 0; font-size: 24px; line-height: 1.2; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.step-head h2 { margin: 0; font-size: 24px; line-height: 1.2; }
 
 .md p { margin: 0 0 10px; }
 .md h3 { font-size: 15px; margin: 16px 0 6px; }
