@@ -237,5 +237,83 @@ function runOverflowTest() {
     fs.rmSync(stateDir3, { recursive: true, force: true });
     fs.rmSync(home3, { recursive: true, force: true });
     console.log('ok — feedback spool overflow trims to budget, keeping newest');
+
+    runFlushWedgeTest();
+  });
+}
+
+/*
+ * Regression test for the try/catch flushFeedback() wraps around
+ * postFeedback(): a *synchronous* throw from the transport must not leave
+ * feedbackFlushing stuck true forever, which would silently kill feedback
+ * delivery for the life of the process (every later flushFeedback() call
+ * would hit the `if (feedbackFlushing ...) return;` guard and do nothing,
+ * forever, with no error visible anywhere).
+ *
+ * setVersion() does String(v) with no sanitising, and the result goes
+ * straight into the User-Agent header. A version string containing a
+ * control character is a concrete, reachable trigger: Node's http.request
+ * throws ERR_INVALID_CHAR synchronously, before postFeedback ever gets a
+ * chance to call back — verified directly against node:20-alpine.
+ */
+function runFlushWedgeTest() {
+  const stateDir4 = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-fb4-'));
+  const home4 = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-home4-'));
+
+  const received4 = [];
+  const server4 = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      received4.push({ url: req.url });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{"ok":true}');
+    });
+  });
+
+  server4.listen(0, '127.0.0.1', () => {
+    const port4 = server4.address().port;
+    fs.writeFileSync(path.join(home4, '.cf-telemetry'),
+      'TELEMETRY_URL=http://127.0.0.1:' + port4 + '\nTELEMETRY_SECRET=s3cret\n');
+    fs.writeFileSync(path.join(home4, '.cf-install-id'), 'inst-0000000000000004\n');
+    process.env.HOME = home4;
+    os.homedir = () => home4;
+
+    delete require.cache[require.resolve('./telemetry')];
+    const telemetry4 = require('./telemetry');
+    // Control character in the version -> invalid User-Agent header value ->
+    // http.request throws synchronously inside postFeedback.
+    telemetry4.setVersion('1.0\n0');
+    telemetry4.init(stateDir4);
+
+    telemetry4.submitFeedback({ text: 'first, wedges feedbackFlushing if unguarded',
+                                noContact: false, stepId: null });
+
+    // That first flush's catch set a real ~30s backoff clock (feedbackNextAttemptAt),
+    // which would itself block a second attempt made this soon — masking the
+    // wedge either way. Fast-forward Date.now() past it so the second
+    // submission's flush is gated only by feedbackFlushing, which is the one
+    // thing this test cares about.
+    const realNow = Date.now;
+    Date.now = () => realNow() + 60000;
+    try {
+      telemetry4.setVersion('2.0.1'); // valid again, so this flush can reach the server
+      telemetry4.submitFeedback({ text: 'second, proves the guard released the flag',
+                                  noContact: false, stepId: null });
+    } finally {
+      Date.now = realNow;
+    }
+
+    setTimeout(() => {
+      const posts = received4.filter((r) => r.url === '/v1/feedback');
+      assert.ok(posts.length >= 1,
+        'a feedback submission after a synchronous postFeedback throw must still ' +
+        'attempt a POST — feedbackFlushing must not stay wedged true forever');
+
+      server4.close();
+      fs.rmSync(stateDir4, { recursive: true, force: true });
+      fs.rmSync(home4, { recursive: true, force: true });
+      console.log('ok — a synchronous postFeedback throw does not wedge feedbackFlushing');
+    }, 400);
   });
 }
