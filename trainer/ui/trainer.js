@@ -266,7 +266,8 @@
     var html = '';
 
     html += '<div class="step-head"><div class="kicker">Step ' + (idx + 1) + ' of ' +
-      curriculum.steps.length + '</div><h2>' + esc(step.title) + '</h2></div>';
+      curriculum.steps.length + '</div><h2>' + esc(step.title) + '</h2>' +
+      '<button id="fabBtn" class="fab"' + (env.feedbackEnabled ? '' : ' hidden') + '>Feedback</button></div>';
 
     if (s.concept) html += renderMd(s.concept);
 
@@ -465,6 +466,14 @@
     if (idx < curriculum.steps.length - 1) goToStep(curriculum.steps[idx + 1].id);
   });
 
+  // The Feedback button now lives inside .step-head, which render() rebuilds
+  // on every state change — a listener attached to the button itself would
+  // leak one per render. Bind once, here, on the stable #content ancestor,
+  // and dispatch by id instead.
+  document.getElementById('content').addEventListener('click', function (ev) {
+    if (ev.target && ev.target.id === 'fabBtn') fbOpen();
+  });
+
   window.addEventListener('message', function (event) {
     var msg = event.data || {};
     switch (msg.type) {
@@ -473,7 +482,6 @@
         brief = msg.brief || '';
         state = msg.state;
         env = msg.env || {};
-        document.getElementById('fabBtn').hidden = !env.feedbackEnabled;
         render();
         break;
       case 'stateChanged':
@@ -569,7 +577,6 @@
     }, 2500);
   }
 
-  document.getElementById('fabBtn').addEventListener('click', fbOpen);
   document.getElementById('fbText').addEventListener('input', fbUpdateCount);
   document.getElementById('fbSend').addEventListener('click', fbSend);
   document.getElementById('fbCancel').addEventListener('click', function () {
