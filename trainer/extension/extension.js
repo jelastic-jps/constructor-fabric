@@ -437,7 +437,7 @@ function stepIndex(curriculum, stepId) {
   return i < 0 ? undefined : i + 1;
 }
 
-async function runStepChecks(curriculum, state, stepId) {
+async function runStepChecks(curriculum, state, stepId, { reportTelemetry } = {}) {
   const step = curriculum.steps.find((s) => s.id === stepId);
   if (!step) return [];
   const results = [];
@@ -471,8 +471,16 @@ async function runStepChecks(curriculum, state, stepId) {
   // check_id and the ok boolean ONLY. `summary` can contain cfs validate
   // output — arbitrary text derived from the trainee's own artifacts — and
   // must never leave the container.
-  for (const r of results) {
-    telemetry.emit('step_check_run', { step_id: stepId, check_id: r.id, ok: !!r.ok });
+  //
+  // Only a trainee-initiated check is telemetry. The automatic check that
+  // runs on first entering a gated step merely displays current state — it
+  // is not an attempt, and emitting it (pass or fail) would misrepresent it
+  // as one, most visibly as a phantom failure for a trainee who passes
+  // cleanly on their first real try.
+  if (reportTelemetry) {
+    for (const r of results) {
+      telemetry.emit('step_check_run', { step_id: stepId, check_id: r.id, ok: !!r.ok });
+    }
   }
 
   // Completion is the final step first reaching 'passed'. Guarded on the prior
@@ -700,7 +708,8 @@ async function handleMessage(context, msg) {
       checksRunning = true;
       post({ type: 'busy', stepId: msg.stepId });
       try {
-        const results = await runStepChecks(curriculum, state, msg.stepId);
+        const results = await runStepChecks(curriculum, state, msg.stepId,
+          { reportTelemetry: !msg.auto });
         post({ type: 'checkResults', stepId: msg.stepId, results, state });
       } finally {
         checksRunning = false;

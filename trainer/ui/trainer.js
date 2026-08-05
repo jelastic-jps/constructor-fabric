@@ -451,7 +451,7 @@
     if (!lastResults[id]) {
       busyStep = id;
       render();
-      post({ type: 'runChecks', stepId: id });
+      post({ type: 'runChecks', stepId: id, auto: true });
     }
   }
 
