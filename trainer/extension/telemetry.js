@@ -86,6 +86,8 @@ let backoffMs = 0;
 let nextAttemptAt = 0;
 let feedbackFile = null;
 let feedbackFlushing = false;
+let feedbackBackoffMs = 0;
+let feedbackNextAttemptAt = 0;
 
 // --- configuration ---------------------------------------------------------
 
@@ -356,7 +358,10 @@ function postFeedback(item, done) {
 
 function flushFeedback() {
   if (feedbackFlushing || !config || !feedbackFile) return;
-  if (Date.now() < nextAttemptAt) return;
+  // Its own clock, not the event path's nextAttemptAt: the separate spool
+  // exists so a struggling feedback endpoint cannot hold up step events (and
+  // vice versa), and sharing a backoff clock would silently recouple them.
+  if (Date.now() < feedbackNextAttemptAt) return;
 
   let lines;
   try {
@@ -380,12 +385,22 @@ function flushFeedback() {
   feedbackFlushing = true;
   postFeedback(item, (ok) => {
     feedbackFlushing = false;
-    if (!ok) return;
-    try {
-      writeLines(feedbackFile, readLines(feedbackFile).slice(1));
-    } catch (e) {
-      note('could not trim the feedback spool: ' + describe(e));
+    if (ok) {
+      feedbackBackoffMs = 0;
+      feedbackNextAttemptAt = 0;
+      try {
+        writeLines(feedbackFile, readLines(feedbackFile).slice(1));
+      } catch (e) {
+        note('could not trim the feedback spool: ' + describe(e));
+      }
+      return;
     }
+    // Retryable failure (5xx or transport error): back off exponentially,
+    // same shape as the event path, but on its own clock — see above.
+    feedbackBackoffMs = feedbackBackoffMs ? Math.min(feedbackBackoffMs * 2, BACKOFF_MAX_MS) : BACKOFF_START_MS;
+    feedbackNextAttemptAt = Date.now() + feedbackBackoffMs;
+    note('retrying feedback in ' + Math.round(feedbackBackoffMs / 1000) + 's; ' +
+         lines.length + ' feedback item(s) waiting in the spool');
   });
 }
 
@@ -412,8 +427,8 @@ function init(stateDir) {
     seq = 0;
 
     flushTimer = setInterval(() => {
-      try { flush(); } catch (e) {}
-      try { flushFeedback(); } catch (e) {}
+      try { flush(); } catch (e) { note('scheduled flush crashed: ' + describe(e)); }
+      try { flushFeedback(); } catch (e) { note('scheduled feedback flush crashed: ' + describe(e)); }
     }, FLUSH_INTERVAL_MS);
     if (flushTimer.unref) flushTimer.unref();
     note('active: sending to ' + config.url + ' as install ' + config.installId +
