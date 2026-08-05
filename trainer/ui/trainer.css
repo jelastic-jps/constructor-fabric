@@ -65,7 +65,10 @@ body {
 .nav-step.skipped .mark { background: rgba(251, 191, 36, 0.2); color: var(--warn); }
 .nav-step:not(.locked):hover .mark { background: rgba(45, 212, 191, 0.18); }
 
-.main { display: flex; flex-direction: column; min-height: 100vh; }
+/* padding-bottom reserves the corner for .fab: the footer column is
+   max-width 860px while the button is pinned to the viewport edge, so on a
+   narrow panel they would otherwise overlap. */
+.main { display: flex; flex-direction: column; min-height: 100vh; padding-bottom: 72px; }
 .card { flex: 1; padding: 26px 34px 12px; max-width: 860px; }
 .loading { color: var(--muted); }
 
@@ -187,9 +190,6 @@ details.trouble .md { margin-top: 8px; }
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
 }
 .fab:hover { filter: brightness(1.08); }
-/* The footer column is max-width 860px while the button is pinned to the
-   viewport edge, so on a narrow panel they overlap. Reserve the corner. */
-.main { padding-bottom: 72px; }
 
 .fb-dialog {
   border: 1px solid var(--border); border-radius: 14px;

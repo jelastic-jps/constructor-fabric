@@ -509,6 +509,9 @@
                             // considered piece of writing to a stray keypress
                             // would cost exactly what this feature collects
   var fbNoContactDraft = false;
+  var fbTimer = null;      // handle for the thanks-screen auto-close; cleared
+                            // on reopen so a stale timer from a prior send
+                            // can never close a dialog holding a new draft
 
   function fbDialog() { return document.getElementById('fbDialog'); }
 
@@ -522,6 +525,7 @@
   }
 
   function fbOpen() {
+    if (fbTimer) { clearTimeout(fbTimer); fbTimer = null; }
     var form = document.getElementById('fbForm');
     var thanks = document.getElementById('fbThanks');
     form.hidden = false;
@@ -531,7 +535,8 @@
     document.getElementById('fbNoContact').checked = fbNoContactDraft;
     fbUpdateCount();
     fbDialog().showModal();
-    box.focus();
+    // showModal() already autofocuses the first focusable descendant (the
+    // textarea, first in tab order) — no explicit focus() call needed.
   }
 
   function fbStash() {
@@ -555,7 +560,11 @@
     fbNoContactDraft = false;
     document.getElementById('fbForm').hidden = true;
     document.getElementById('fbThanks').hidden = false;
-    setTimeout(function () {
+    // fbOpen() clears this on reopen, so a trainee who closes the thanks
+    // screen early and reopens to write a second draft before this fires
+    // never has their new draft closed out from under them by the old timer.
+    fbTimer = setTimeout(function () {
+      fbTimer = null;
       if (fbDialog().open) fbDialog().close();
     }, 2500);
   }
