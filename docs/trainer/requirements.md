@@ -146,6 +146,15 @@ Resolved decisions (implementation review, 2026-07-09):
   choice (2026-07-23) — the previously fallback-only copilot value became a
   form option; scripts and verify already handled it, so this was a
   manifest-values-only change.
+- Trainee feedback (2026-08-05): a floating Feedback button on every step opens
+  a dialog with a 20 000-character text box (counter from 16 000), a "Do not
+  contact me back for a followup" checkbox, and Send. Acknowledgement is
+  optimistic — "Thank you — your feedback has been recorded" — because the
+  emitter spools and ships on a timer, so "sent" would be a claim the client
+  cannot support. Feedback goes to the collector's dedicated POST /v1/feedback,
+  one item per request, never batched. The button is hidden when telemetry is
+  dormant. Design: telemetry repo,
+  docs/superpowers/specs/2026-08-05-trainer-feedback-design.md.
 
 ## 1. Overview
 

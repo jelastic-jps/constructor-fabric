@@ -473,6 +473,7 @@
         brief = msg.brief || '';
         state = msg.state;
         env = msg.env || {};
+        document.getElementById('fabBtn').hidden = !env.feedbackEnabled;
         render();
         break;
       case 'stateChanged':
@@ -500,6 +501,77 @@
         break;
     }
   });
+
+  // ------------------------------------------------------------- feedback
+  var FB_MAX = 20000;
+  var FB_WARN_AT = 16000;   // 80% — user decision 2026-08-05
+  var fbDraft = '';         // survives Cancel and Esc: losing a long,
+                            // considered piece of writing to a stray keypress
+                            // would cost exactly what this feature collects
+  var fbNoContactDraft = false;
+
+  function fbDialog() { return document.getElementById('fbDialog'); }
+
+  function fbUpdateCount() {
+    var text = document.getElementById('fbText').value;
+    var count = document.getElementById('fbCount');
+    var over = text.length >= FB_WARN_AT;
+    count.hidden = !over;
+    if (over) count.textContent = text.length + ' / ' + FB_MAX;
+    document.getElementById('fbSend').disabled = text.trim() === '';
+  }
+
+  function fbOpen() {
+    var form = document.getElementById('fbForm');
+    var thanks = document.getElementById('fbThanks');
+    form.hidden = false;
+    thanks.hidden = true;
+    var box = document.getElementById('fbText');
+    box.value = fbDraft;
+    document.getElementById('fbNoContact').checked = fbNoContactDraft;
+    fbUpdateCount();
+    fbDialog().showModal();
+    box.focus();
+  }
+
+  function fbStash() {
+    fbDraft = document.getElementById('fbText').value;
+    fbNoContactDraft = document.getElementById('fbNoContact').checked;
+  }
+
+  function fbSend() {
+    var text = document.getElementById('fbText').value.trim();
+    if (!text) return;
+    post({
+      type: 'submitFeedback',
+      text: text,
+      noContact: document.getElementById('fbNoContact').checked,
+      stepId: state ? state.currentStep : null
+    });
+    // Optimistic (user decision 2026-08-05). "Recorded" rather than "sent"
+    // because nothing has yet left the container and, with no egress, never
+    // will — "recorded" is true in that case too.
+    fbDraft = '';
+    fbNoContactDraft = false;
+    document.getElementById('fbForm').hidden = true;
+    document.getElementById('fbThanks').hidden = false;
+    setTimeout(function () {
+      if (fbDialog().open) fbDialog().close();
+    }, 2500);
+  }
+
+  document.getElementById('fabBtn').addEventListener('click', fbOpen);
+  document.getElementById('fbText').addEventListener('input', fbUpdateCount);
+  document.getElementById('fbSend').addEventListener('click', fbSend);
+  document.getElementById('fbCancel').addEventListener('click', function () {
+    fbStash();
+    fbDialog().close();
+  });
+  document.getElementById('fbClose').addEventListener('click', function () {
+    fbDialog().close();
+  });
+  // Esc closes the dialog without firing our Cancel handler, so stash here too.
+  fbDialog().addEventListener('cancel', fbStash);
 
   post({ type: 'ready' });
 })();
