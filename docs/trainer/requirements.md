@@ -441,6 +441,23 @@ the Trainer emitter was unaffected — but relying on the absence of a header is
 fragile, so it now names itself too. `scripts/check-telemetry.py` reproduces
 both cases from inside a container.
 
+**Resolved decision (2026-08-05): the Trainer emitter reports its failures.**
+It previously swallowed every error, so a broken emitter was
+indistinguishable from a trainee who did nothing. Diagnostics go to the
+extension host log via `console.error` — never to the webview — so the rule
+that no telemetry failure may surface to the trainee is unchanged. Identical
+consecutive messages are suppressed, because the flusher retries on a backoff
+and an unreachable collector should produce one line rather than one every
+30 seconds.
+
+What it now reports: why it is dormant (missing config, or an un-substituted
+placeholder secret), the HTTP status of a rejected batch with the likely cause
+named (401 secret mismatch, 403 blocked upstream), transport errors, backoff
+with the spool depth, spool overflow with the number of events dropped, and
+events lost before they reached the spool. `manifest.jps` verify also now
+asserts `telemetry.js` is present in the installed extension, so a regression
+in the file list fails the deploy instead of silently disabling telemetry.
+
 ### FR-8 Deployment integration (p1)
 1. `manifest.jps` `verify` extends to assert the new Trainer is installed, its state
    mechanism works, and the workspace precondition set (FR-9) holds.

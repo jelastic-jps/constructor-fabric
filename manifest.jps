@@ -179,7 +179,7 @@ actions:
         import json
         from pathlib import Path
         ext = Path('/home/developer/.local/share/code-server/extensions/constructor-fabric.constructor-fabric-trainer-2.0.0')
-        for rel in ('package.json', 'extension.js', 'ui/index.html', 'ui/trainer.js', 'ui/trainer.css', 'content/curriculum.json', 'content/brief.md'):
+        for rel in ('package.json', 'extension.js', 'telemetry.js', 'ui/index.html', 'ui/trainer.js', 'ui/trainer.css', 'content/curriculum.json', 'content/brief.md'):
             assert (ext / rel).exists(), str(ext / rel)
         pkg = json.loads((ext / 'package.json').read_text())
         assert 'onStartupFinished' in pkg.get('activationEvents', []), pkg
