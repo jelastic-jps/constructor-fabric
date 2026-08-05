@@ -151,7 +151,91 @@ function runIndependenceTest() {
         fs.rmSync(stateDir2, { recursive: true, force: true });
         fs.rmSync(home2, { recursive: true, force: true });
         console.log('ok — feedback backoff does not block events');
+
+        runOverflowTest();
       }, 400);
     }, 400);
+  });
+}
+
+// Must match telemetry.js's FEEDBACK_SPOOL_MAX_BYTES. Not exported — the
+// constant is deliberately private — so this is asserted against the same
+// literal value described in the brief and in telemetry.js's own comment.
+const FEEDBACK_SPOOL_MAX_BYTES_EXPECTED = 1 * 1024 * 1024;
+
+/*
+ * Regression test for the overflow trim: it must cut back to under budget,
+ * not drop a single fixed-size line. A dropped line can be far smaller than
+ * an 80 KB item, so a naive "slice(1)" can net-grow the file across a burst
+ * of large submissions while offline — defeating the cap in exactly the
+ * bursty-offline case it exists for.
+ *
+ * Deliberately mixed sizes: a backlog of small items followed by one item
+ * large enough that removing just the single oldest (small) line cannot
+ * bring the file back under budget. Uniform-size items would not catch this
+ * — dropping one ~N KB line to make room for one new ~N KB line is a wash
+ * either way, so the two implementations would look identical.
+ */
+function runOverflowTest() {
+  const stateDir3 = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-fb3-'));
+  const home3 = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-home3-'));
+
+  const server3 = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{"ok":true,"stored":true}');
+    });
+  });
+
+  server3.listen(0, '127.0.0.1', () => {
+    const port3 = server3.address().port;
+    fs.writeFileSync(path.join(home3, '.cf-telemetry'),
+      'TELEMETRY_URL=http://127.0.0.1:' + port3 + '\nTELEMETRY_SECRET=s3cret\n');
+    fs.writeFileSync(path.join(home3, '.cf-install-id'), 'inst-0000000000000003\n');
+    process.env.HOME = home3;
+    os.homedir = () => home3;
+
+    delete require.cache[require.resolve('./telemetry')];
+    const telemetry3 = require('./telemetry');
+    telemetry3.setVersion('2.0.0');
+    telemetry3.init(stateDir3);
+
+    // Submitted in a tight synchronous loop so none of server3's responses
+    // land until this loop returns — the trim itself happens inline inside
+    // submitFeedback(), independent of the network.
+    const SMALL = 'x'.repeat(50000); // ~50 KB per item, well under the cap on its own
+    const SMALL_COUNT = 10;
+    for (let i = 0; i < SMALL_COUNT; i++) {
+      telemetry3.submitFeedback({ text: SMALL + '-small-' + i,
+                                  noContact: false, stepId: null });
+    }
+
+    // ~700 KB on top of ~500 KB of small items overflows the 1 MiB cap by
+    // roughly 150 KB — far more than any single ~50 KB oldest line can shed.
+    const HUGE = 'x'.repeat(700000);
+    telemetry3.submitFeedback({ text: HUGE + '-huge',
+                                noContact: false, stepId: null });
+
+    const feedbackSpool3 = path.join(stateDir3, 'feedback.jsonl');
+    const raw = fs.readFileSync(feedbackSpool3, 'utf8');
+    const byteSize = Buffer.byteLength(raw, 'utf8');
+    assert.ok(byteSize <= FEEDBACK_SPOOL_MAX_BYTES_EXPECTED,
+      'feedback spool must be trimmed back under its byte budget, not merely ' +
+      'reduced by dropping one oldest line regardless of size ' +
+      '(was ' + byteSize + ' bytes, budget ' + FEEDBACK_SPOOL_MAX_BYTES_EXPECTED + ')');
+
+    const lines = raw.trim().length ? raw.trim().split('\n') : [];
+    assert.ok(lines.length > 0 && lines.length < SMALL_COUNT + 1,
+      'trimming must have dropped more than one small item to make room for the huge one');
+    const newest = JSON.parse(lines[lines.length - 1]);
+    assert.ok(newest.text.endsWith('-huge'),
+      'drop OLDEST, keep newest — the most recently submitted item must survive');
+
+    server3.close();
+    fs.rmSync(stateDir3, { recursive: true, force: true });
+    fs.rmSync(home3, { recursive: true, force: true });
+    console.log('ok — feedback spool overflow trims to budget, keeping newest');
   });
 }

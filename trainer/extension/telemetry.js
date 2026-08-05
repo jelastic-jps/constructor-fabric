@@ -128,7 +128,7 @@ function readLines(file) {
     // ENOENT is the normal case before the first write. Anything else means a
     // spool we cannot read, which must not look identical to an empty one.
     if (!e || e.code !== 'ENOENT') {
-      note('could not read ' + path.basename(file) + ': ' + describe(e));
+      note('could not read ' + path.basename(file) + ', treating it as empty: ' + describe(e));
     }
     return [];
   }
@@ -383,25 +383,36 @@ function flushFeedback() {
   }
 
   feedbackFlushing = true;
-  postFeedback(item, (ok) => {
+  const finish = (ok) => {
     feedbackFlushing = false;
-    if (ok) {
-      feedbackBackoffMs = 0;
-      feedbackNextAttemptAt = 0;
-      try {
+    try {
+      if (ok) {
+        feedbackBackoffMs = 0;
+        feedbackNextAttemptAt = 0;
         writeLines(feedbackFile, readLines(feedbackFile).slice(1));
-      } catch (e) {
-        note('could not trim the feedback spool: ' + describe(e));
+      } else {
+        // Retryable failure (5xx or transport error): back off exponentially,
+        // same shape as the event path, but on its own clock — see above.
+        feedbackBackoffMs = feedbackBackoffMs ? Math.min(feedbackBackoffMs * 2, BACKOFF_MAX_MS) : BACKOFF_START_MS;
+        feedbackNextAttemptAt = Date.now() + feedbackBackoffMs;
+        note('retrying feedback in ' + Math.round(feedbackBackoffMs / 1000) + 's; ' +
+             lines.length + ' feedback item(s) waiting in the spool');
       }
-      return;
+    } catch (e) {
+      note('could not update the feedback spool after a flush: ' + describe(e));
     }
-    // Retryable failure (5xx or transport error): back off exponentially,
-    // same shape as the event path, but on its own clock — see above.
-    feedbackBackoffMs = feedbackBackoffMs ? Math.min(feedbackBackoffMs * 2, BACKOFF_MAX_MS) : BACKOFF_START_MS;
-    feedbackNextAttemptAt = Date.now() + feedbackBackoffMs;
-    note('retrying feedback in ' + Math.round(feedbackBackoffMs / 1000) + 's; ' +
-         lines.length + ' feedback item(s) waiting in the spool');
-  });
+  };
+
+  // Mirrors flush()'s wrap of postBatch: transport.request can throw
+  // synchronously on a malformed target, and without this the callback never
+  // runs, feedbackFlushing never resets, and every later flush attempt hits
+  // the guard above and returns silently — a permanent, invisible stall.
+  try {
+    postFeedback(item, finish);
+  } catch (e) {
+    note('feedback flush crashed: ' + describe(e));
+    finish(false);
+  }
 }
 
 // --- public API ------------------------------------------------------------
@@ -502,10 +513,22 @@ function submitFeedback(feedback) {
       stat = null;
     }
     if (stat && stat.size > FEEDBACK_SPOOL_MAX_BYTES) {
-      const lines = readLines(feedbackFile);
-      const kept = lines.slice(1);
-      note('feedback spool is full; dropped the oldest of ' + lines.length);
-      writeLines(feedbackFile, kept);
+      // Drop OLDEST, keep newest, same bias as the event spool — but trim
+      // until back under budget rather than one line: a dropped line can be
+      // far smaller than an 80 KB item, so a fixed single-line drop can net
+      // grow the file during a bursty-offline stretch of large submissions.
+      let kept = readLines(feedbackFile);
+      let dropped = 0;
+      while (kept.length > 0 &&
+             Buffer.byteLength(kept.join('\n') + '\n', 'utf8') > FEEDBACK_SPOOL_MAX_BYTES) {
+        kept = kept.slice(1);
+        dropped += 1;
+      }
+      if (dropped > 0) {
+        note('feedback spool over ' + FEEDBACK_SPOOL_MAX_BYTES + ' bytes: dropped ' +
+             dropped + ' oldest item(s)');
+        writeLines(feedbackFile, kept);
+      }
     }
     flushFeedback();
   } catch (e) {
