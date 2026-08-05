@@ -179,21 +179,36 @@ details.trouble .md { margin-top: 8px; }
    index.html) so it survives render()'s full rebuild of the nav, step
    content and footer on every state change — "appears on every step" is
    structural, not something a future step type has to remember to add.
-   Instead it's repositioned to read as part of the .step-head row:
-   .topbar is 8px padding + 28px logo + 8px padding + 1px border-bottom =
-   45px tall, which is exactly .step-head's sticky top offset, so top:50px
-   lands the (now smaller) pill centered in the header band that starts
-   right below the top bar. z-index 6 sits above .step-head (5), so the
-   button isn't drawn under the header's own background, but below
-   .topbar (10), so it can never sit on top of the nav chips — and since
-   those chips live entirely inside the top bar's 0-45px band while this
-   button starts at 50px, there's no vertical overlap with them to begin
-   with. Sized down from the old bottom-right pill (11px 18px / 13px) since
-   that size reads as too heavy inside a one-line header row. Still solid
-   accent, not the .btn.primary gradient: Next uses that gradient, so a
-   gradient pill here would read as a second Next. */
+   It's positioned to read as part of the .step-head row, on the same text
+   baseline as the kicker/h2 pair, not just floating somewhere inside the
+   band:
+
+     .step-head content top = sticky `top: 45px` + `padding-top: 10px` = 55px
+     h2 line box   = font-size 24px * line-height 1.2           = 28.8px
+     h2 half-leading = (28.8 - 24) / 2                          = 2.4px
+     h2 ascent (~0.8em — .step-head's font is `var(--vscode-font-family)`,
+       so exact metrics aren't known at build time; 0.8 is the standard
+       rule-of-thumb ascent-to-em-size ratio for a generic sans-serif)
+                   = 0.8 * 24                                    = 19.2px
+     header baseline y = 55 + 2.4 + 19.2                         = 76.6px
+
+     the pill's own line box uses line-height: 1, so its half-leading is
+     zero and its baseline is just top + padding-top + ascent:
+     pill ascent = 0.8 * 12 (same 0.8 assumption, pill font-size 12px) = 9.6px
+     pill baseline y = top + padding-top(7) + 9.6                = top + 16.6
+
+     solve top + 16.6 = 76.6  =>  top = 60px
+
+   z-index 6 sits above .step-head (5), so the button isn't drawn under the
+   header's own background, but below .topbar (10), so it can never sit on
+   top of the nav chips — and since those chips live entirely inside the top
+   bar's 0-45px band while this button starts at 60px, there's no vertical
+   overlap with them to begin with. Sized down from the old bottom-right pill
+   (11px 18px / 13px) since that size reads as too heavy inside a one-line
+   header row. Still solid accent, not the .btn.primary gradient: Next uses
+   that gradient, so a gradient pill here would read as a second Next. */
 .fab {
-  position: fixed; right: 18px; top: 50px; z-index: 6;
+  position: fixed; right: 18px; top: 60px; z-index: 6;
   border: 0; border-radius: 999px; padding: 7px 14px;
   background: var(--accent); color: #04111f;
   font-family: inherit; font-weight: 700; font-size: 12px; line-height: 1; cursor: pointer;
