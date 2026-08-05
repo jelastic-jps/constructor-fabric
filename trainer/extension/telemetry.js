@@ -41,6 +41,31 @@ const BACKOFF_MAX_MS = 30 * 60 * 1000; // capped, but retried indefinitely:
 const REQUEST_TIMEOUT_MS = 10 * 1000;
 
 let EMITTER_VERSION = '0.0.0';  // set by setVersion() from package.json
+let lastNote = '';        // suppresses repeats of an unchanged complaint
+
+// Diagnostics go to the extension host log, which the trainee never sees —
+// so this does not weaken the rule at the top of the file. It exists because
+// the manifest emitter's sibling failure (a Cloudflare 403 on a default
+// User-Agent) was only diagnosable because that emitter logged; this one was
+// silent by design and would have shown nothing at all.
+//
+// Repeats of an identical message are dropped: the flusher retries on a
+// backoff, and an unreachable collector should produce one line, not one
+// every 30 seconds.
+function note(message) {
+  try {
+    if (message === lastNote) return;
+    lastNote = message;
+    console.error('[telemetry] ' + message);
+  } catch (e) {
+    // Logging must never be the thing that breaks.
+  }
+}
+
+function describe(e) {
+  if (!e) return 'unknown error';
+  return (e.code ? e.code + ': ' : '') + (e.message || String(e));
+}
 let config = null;        // { url, secret, installId } once loaded
 let sessionId = null;     // fresh per extension host start — see nextSeq()
 let seq = 0;
@@ -63,9 +88,20 @@ function readConfig() {
   const secret = out.TELEMETRY_SECRET || '';
   // The manifest ships a placeholder that is substituted by hand at paste time.
   // An un-substituted manifest must degrade to silence, not to 401s forever.
-  if (!url || !secret || secret.indexOf('REPLACE_') === 0) return null;
+  if (!url || !secret) {
+    note('dormant: ' + CONFIG_FILE + ' has no TELEMETRY_URL/TELEMETRY_SECRET');
+    return null;
+  }
+  if (secret.indexOf('REPLACE_') === 0) {
+    note('dormant: the secret is still the manifest placeholder, so the JPS was ' +
+         'pasted without substituting it');
+    return null;
+  }
   const installId = fs.readFileSync(INSTALL_ID_FILE, 'utf8').trim();
-  if (!installId) return null;
+  if (!installId) {
+    note('dormant: ' + INSTALL_ID_FILE + ' is empty');
+    return null;
+  }
   return { url, secret, installId };
 }
 
@@ -76,6 +112,12 @@ function readSpoolLines() {
     const raw = fs.readFileSync(spoolFile, 'utf8');
     return raw.split('\n').filter((l) => l.trim() !== '');
   } catch (e) {
+    // ENOENT is the normal case before the first event. Anything else means
+    // the spool exists and cannot be read — which would otherwise look exactly
+    // like an empty spool, and flush() would conclude there is nothing to send.
+    if (e && e.code !== 'ENOENT') {
+      note('spool is unreadable, treating it as empty: ' + describe(e));
+    }
     return [];
   }
 }
@@ -91,6 +133,7 @@ function appendToSpool(line) {
   try {
     stat = fs.statSync(spoolFile);
   } catch (e) {
+    note('cannot stat the spool, so its size is unbounded: ' + describe(e));
     return;
   }
   if (stat.size <= SPOOL_MAX_BYTES) return;
@@ -101,7 +144,11 @@ function appendToSpool(line) {
   // The loss is not silent: dropped events leave seq gaps that the collector
   // surfaces as MAX(seq) - COUNT(*) within the session.
   const lines = readSpoolLines();
-  writeSpoolLines(lines.slice(Math.max(0, lines.length - SPOOL_MAX_LINES)));
+  const kept = lines.slice(Math.max(0, lines.length - SPOOL_MAX_LINES));
+  note('spool over ' + SPOOL_MAX_BYTES + ' bytes: dropped ' +
+       (lines.length - kept.length) + ' oldest event(s). They will show as seq ' +
+       'gaps at the collector.');
+  writeSpoolLines(kept);
 }
 
 // --- transport -------------------------------------------------------------
@@ -111,6 +158,7 @@ function postBatch(events, done) {
   try {
     body = Buffer.from(JSON.stringify({ events }), 'utf8');
   } catch (e) {
+    note('could not serialise a batch of ' + events.length + ': ' + describe(e));
     return done(false);
   }
 
@@ -118,6 +166,7 @@ function postBatch(events, done) {
   try {
     target = new URL(config.url + '/v1/events');
   } catch (e) {
+    note('TELEMETRY_URL is not a usable URL: ' + JSON.stringify(config.url));
     return done(false);
   }
 
@@ -146,15 +195,35 @@ function postBatch(events, done) {
     },
     (res) => {
       res.resume(); // drain, so the socket can be reused
+      const code = res.statusCode;
       // 2xx means stored. A 4xx means this batch will never become valid, so
       // discarding it is correct — retrying forever on data the collector has
       // already refused is how a spool grows without bound.
-      done(res.statusCode >= 200 && res.statusCode < 500);
+      if (code >= 400) {
+        // Name the likely cause: these three are the ones that actually happen,
+        // and they are indistinguishable from "no data" without this line.
+        const hint =
+          code === 401 ? ' — signature rejected; the secret here does not match the collector'
+          : code === 403 ? ' — refused before reaching the collector; something upstream is blocking this client'
+          : code >= 500 ? ' — collector error; will retry'
+          : '';
+        note('POST /v1/events returned ' + code + hint +
+             (code < 500 ? ' (batch of ' + events.length + ' discarded)' : ''));
+      } else {
+        note('delivering again: ' + code + ', ' + events.length + ' event(s)');
+      }
+      done(code >= 200 && code < 500);
     }
   );
 
-  req.on('timeout', () => req.destroy());
-  req.on('error', () => done(false));
+  req.on('timeout', () => {
+    note('POST /v1/events timed out after ' + REQUEST_TIMEOUT_MS + 'ms');
+    req.destroy();
+  });
+  req.on('error', (e) => {
+    note('POST /v1/events failed: ' + describe(e));
+    done(false);
+  });
   req.end(body);
 }
 
@@ -166,6 +235,7 @@ function flush() {
   try {
     lines = readSpoolLines();
   } catch (e) {
+    note('cannot read the spool at ' + spoolFile + ': ' + describe(e));
     return;
   }
   if (lines.length === 0) return;
@@ -177,6 +247,7 @@ function flush() {
       events.push(JSON.parse(line));
     } catch (e) {
       // Unparseable line: drop it rather than block the whole spool forever.
+      note('dropped an unreadable spool line');
     }
   }
 
@@ -192,9 +263,11 @@ function flush() {
       } else {
         backoffMs = backoffMs ? Math.min(backoffMs * 2, BACKOFF_MAX_MS) : BACKOFF_START_MS;
         nextAttemptAt = Date.now() + backoffMs;
+        note('retrying in ' + Math.round(backoffMs / 1000) + 's; ' +
+             lines.length + ' event(s) waiting in the spool');
       }
     } catch (e) {
-      // ignore
+      note('could not update the spool after a flush: ' + describe(e));
     }
   };
 
@@ -203,6 +276,7 @@ function flush() {
   try {
     postBatch(events, finish);
   } catch (e) {
+    note('flush crashed: ' + describe(e));
     finish(false);
   }
 }
@@ -228,10 +302,15 @@ function init(stateDir) {
     sessionId = crypto.randomUUID();
     seq = 0;
 
-    flushTimer = setInterval(() => { try { flush(); } catch (e) {} }, FLUSH_INTERVAL_MS);
+    flushTimer = setInterval(() => {
+      try { flush(); } catch (e) { note('scheduled flush crashed: ' + describe(e)); }
+    }, FLUSH_INTERVAL_MS);
     if (flushTimer.unref) flushTimer.unref();
+    note('active: sending to ' + config.url + ' as install ' + config.installId +
+         ', session ' + sessionId);
     flush();
   } catch (e) {
+    note('failed to start, so no events will be sent: ' + describe(e));
     config = null;
   }
 }
@@ -259,7 +338,10 @@ function emit(event, props) {
     }));
     flush();
   } catch (e) {
-    // Deliberately swallowed. See the rule at the top of this file.
+    // Still swallowed — see the rule at the top of this file — but no longer
+    // invisible. A failure here means the event was lost before it reached the
+    // spool, so it will not even appear as a seq gap.
+    note('dropped event ' + JSON.stringify(event) + ': ' + describe(e));
   }
 }
 
@@ -269,7 +351,7 @@ function dispose() {
     flushTimer = null;
     flush();
   } catch (e) {
-    // ignore
+    note('shutdown flush failed; unsent events remain spooled: ' + describe(e));
   }
 }
 
