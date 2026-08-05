@@ -18,7 +18,10 @@ let telemetry;
 try {
   telemetry = require('./telemetry');
 } catch (e) {
-  telemetry = { init() {}, emit() {}, dispose() {}, setVersion() {} };
+  telemetry = {
+    init() {}, emit() {}, dispose() {}, setVersion() {},
+    submitFeedback() {}, isActive() { return false; }
+  };
 }
 
 const STATE_DIRNAME = '.constructor-fabric-trainer';
@@ -615,7 +618,12 @@ async function handleMessage(context, msg) {
         state,
         env: {
           workspaceRoot: workspaceRoot(),
-          appName: curriculum.app.name
+          appName: curriculum.app.name,
+          // Drives whether the Feedback button is offered at all. An
+          // environment deployed from an unsubstituted JPS has no telemetry
+          // config, and inviting someone to write 20 000 characters into a
+          // void is worse than offering nothing (feedback design §4.5).
+          feedbackEnabled: telemetry.isActive()
         }
       });
       telemetry.emit('trainer_opened', {});
@@ -707,6 +715,22 @@ async function handleMessage(context, msg) {
       saveState(state);
       post({ type: 'stateChanged', state });
       telemetry.emit('step_skipped', { step_id: msg.stepId, step_index: stepIndex(curriculum, msg.stepId) });
+      break;
+    }
+    case 'submitFeedback': {
+      // Wrapped like every other telemetry call: no telemetry failure may
+      // throw into the message loop and take the Trainer down with it
+      // (telemetry spec §11.4). The webview has already shown its
+      // acknowledgement and expects no reply.
+      try {
+        telemetry.submitFeedback({
+          text: msg.text,
+          noContact: Boolean(msg.noContact),
+          stepId: msg.stepId
+        });
+      } catch (e) {
+        // Deliberately swallowed; submitFeedback reports its own failures.
+      }
       break;
     }
     case 'openExternal': {
