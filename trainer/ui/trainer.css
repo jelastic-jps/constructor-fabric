@@ -65,10 +65,7 @@ body {
 .nav-step.skipped .mark { background: rgba(251, 191, 36, 0.2); color: var(--warn); }
 .nav-step:not(.locked):hover .mark { background: rgba(45, 212, 191, 0.18); }
 
-/* padding-bottom reserves the corner for .fab: the footer column is
-   max-width 860px while the button is pinned to the viewport edge, so on a
-   narrow panel they would otherwise overlap. */
-.main { display: flex; flex-direction: column; min-height: 100vh; padding-bottom: 72px; }
+.main { display: flex; flex-direction: column; min-height: 100vh; }
 .card { flex: 1; padding: 26px 34px 12px; max-width: 860px; }
 .loading { color: var(--muted); }
 
@@ -178,16 +175,29 @@ details.trouble .md { margin-top: 8px; }
 }
 .foot-note { color: var(--muted); font-size: 12px; text-align: center; flex: 1; }
 
-/* Feedback. The button is solid accent, not the .btn.primary gradient: Next
-   already uses that gradient and sits at the bottom right of the footer
-   column, so a floating gradient pill in the same corner would read as a
-   second Next. */
+/* Feedback button. Stays position:fixed and outside #content (see
+   index.html) so it survives render()'s full rebuild of the nav, step
+   content and footer on every state change — "appears on every step" is
+   structural, not something a future step type has to remember to add.
+   Instead it's repositioned to read as part of the .step-head row:
+   .topbar is 8px padding + 28px logo + 8px padding + 1px border-bottom =
+   45px tall, which is exactly .step-head's sticky top offset, so top:50px
+   lands the (now smaller) pill centered in the header band that starts
+   right below the top bar. z-index 6 sits above .step-head (5), so the
+   button isn't drawn under the header's own background, but below
+   .topbar (10), so it can never sit on top of the nav chips — and since
+   those chips live entirely inside the top bar's 0-45px band while this
+   button starts at 50px, there's no vertical overlap with them to begin
+   with. Sized down from the old bottom-right pill (11px 18px / 13px) since
+   that size reads as too heavy inside a one-line header row. Still solid
+   accent, not the .btn.primary gradient: Next uses that gradient, so a
+   gradient pill here would read as a second Next. */
 .fab {
-  position: fixed; right: 18px; bottom: 18px; z-index: 50;
-  border: 0; border-radius: 999px; padding: 11px 18px;
+  position: fixed; right: 18px; top: 50px; z-index: 6;
+  border: 0; border-radius: 999px; padding: 7px 14px;
   background: var(--accent); color: #04111f;
-  font-family: inherit; font-weight: 700; font-size: 13px; cursor: pointer;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  font-family: inherit; font-weight: 700; font-size: 12px; line-height: 1; cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 }
 .fab:hover { filter: brightness(1.08); }
 
