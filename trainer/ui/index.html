@@ -28,6 +28,30 @@
       </footer>
     </main>
   </div>
+  <dialog id="fbDialog" class="fb-dialog">
+    <form method="dialog" id="fbForm">
+      <h2>Send feedback</h2>
+      <p class="fb-lede">Any feedback is welcome — this is how Constructor Fabric gets better.</p>
+      <textarea id="fbText" maxlength="20000" rows="9" aria-label="Your feedback"
+        placeholder="What worked, what didn't, ideas for improving the Trainer or Constructor Studio, anything we've missed…"></textarea>
+      <div class="fb-meta">
+        <span class="fb-caution">Please don't include personal details or code.</span>
+        <span id="fbCount" class="fb-count" hidden></span>
+      </div>
+      <label class="fb-check">
+        <input type="checkbox" id="fbNoContact">
+        Do not contact me back for a followup
+      </label>
+      <div class="fb-actions">
+        <button type="button" class="btn secondary" id="fbCancel">Cancel</button>
+        <button type="button" class="btn primary" id="fbSend" disabled>Send</button>
+      </div>
+    </form>
+    <div id="fbThanks" class="fb-thanks" hidden>
+      <p>Thank you — your feedback has been recorded</p>
+      <button type="button" class="btn secondary" id="fbClose">Close</button>
+    </div>
+  </dialog>
   <script src="%%BASE%%/trainer.js"></script>
 </body>
 </html>

@@ -266,7 +266,8 @@
     var html = '';
 
     html += '<div class="step-head"><div class="kicker">Step ' + (idx + 1) + ' of ' +
-      curriculum.steps.length + '</div><h2>' + esc(step.title) + '</h2></div>';
+      curriculum.steps.length + '</div><h2>' + esc(step.title) + '</h2>' +
+      '<button id="fabBtn" class="fab"' + (env.feedbackEnabled ? '' : ' hidden') + '>Feedback</button></div>';
 
     if (s.concept) html += renderMd(s.concept);
 
@@ -450,7 +451,7 @@
     if (!lastResults[id]) {
       busyStep = id;
       render();
-      post({ type: 'runChecks', stepId: id });
+      post({ type: 'runChecks', stepId: id, auto: true });
     }
   }
 
@@ -463,6 +464,14 @@
   document.getElementById('nextBtn').addEventListener('click', function () {
     var idx = stepIndex(state.currentStep);
     if (idx < curriculum.steps.length - 1) goToStep(curriculum.steps[idx + 1].id);
+  });
+
+  // The Feedback button now lives inside .step-head, which render() rebuilds
+  // on every state change — a listener attached to the button itself would
+  // leak one per render. Bind once, here, on the stable #content ancestor,
+  // and dispatch by id instead.
+  document.getElementById('content').addEventListener('click', function (ev) {
+    if (ev.target && ev.target.id === 'fabBtn') fbOpen();
   });
 
   window.addEventListener('message', function (event) {
@@ -500,6 +509,85 @@
         break;
     }
   });
+
+  // ------------------------------------------------------------- feedback
+  var FB_MAX = 20000;
+  var FB_WARN_AT = 16000;   // 80% — user decision 2026-08-05
+  var fbDraft = '';         // survives Cancel and Esc: losing a long,
+                            // considered piece of writing to a stray keypress
+                            // would cost exactly what this feature collects
+  var fbNoContactDraft = false;
+  var fbTimer = null;      // handle for the thanks-screen auto-close; cleared
+                            // on reopen so a stale timer from a prior send
+                            // can never close a dialog holding a new draft
+
+  function fbDialog() { return document.getElementById('fbDialog'); }
+
+  function fbUpdateCount() {
+    var text = document.getElementById('fbText').value;
+    var count = document.getElementById('fbCount');
+    var over = text.length >= FB_WARN_AT;
+    count.hidden = !over;
+    if (over) count.textContent = text.length + ' / ' + FB_MAX;
+    document.getElementById('fbSend').disabled = text.trim() === '';
+  }
+
+  function fbOpen() {
+    if (fbTimer) { clearTimeout(fbTimer); fbTimer = null; }
+    var form = document.getElementById('fbForm');
+    var thanks = document.getElementById('fbThanks');
+    form.hidden = false;
+    thanks.hidden = true;
+    var box = document.getElementById('fbText');
+    box.value = fbDraft;
+    document.getElementById('fbNoContact').checked = fbNoContactDraft;
+    fbUpdateCount();
+    fbDialog().showModal();
+    // showModal() already autofocuses the first focusable descendant (the
+    // textarea, first in tab order) — no explicit focus() call needed.
+  }
+
+  function fbStash() {
+    fbDraft = document.getElementById('fbText').value;
+    fbNoContactDraft = document.getElementById('fbNoContact').checked;
+  }
+
+  function fbSend() {
+    var text = document.getElementById('fbText').value.trim();
+    if (!text) return;
+    post({
+      type: 'submitFeedback',
+      text: text,
+      noContact: document.getElementById('fbNoContact').checked,
+      stepId: state ? state.currentStep : null
+    });
+    // Optimistic (user decision 2026-08-05). "Recorded" rather than "sent"
+    // because nothing has yet left the container and, with no egress, never
+    // will — "recorded" is true in that case too.
+    fbDraft = '';
+    fbNoContactDraft = false;
+    document.getElementById('fbForm').hidden = true;
+    document.getElementById('fbThanks').hidden = false;
+    // fbOpen() clears this on reopen, so a trainee who closes the thanks
+    // screen early and reopens to write a second draft before this fires
+    // never has their new draft closed out from under them by the old timer.
+    fbTimer = setTimeout(function () {
+      fbTimer = null;
+      if (fbDialog().open) fbDialog().close();
+    }, 2500);
+  }
+
+  document.getElementById('fbText').addEventListener('input', fbUpdateCount);
+  document.getElementById('fbSend').addEventListener('click', fbSend);
+  document.getElementById('fbCancel').addEventListener('click', function () {
+    fbStash();
+    fbDialog().close();
+  });
+  document.getElementById('fbClose').addEventListener('click', function () {
+    fbDialog().close();
+  });
+  // Esc closes the dialog without firing our Cancel handler, so stash here too.
+  fbDialog().addEventListener('cancel', fbStash);
 
   post({ type: 'ready' });
 })();

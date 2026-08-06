@@ -18,7 +18,10 @@ let telemetry;
 try {
   telemetry = require('./telemetry');
 } catch (e) {
-  telemetry = { init() {}, emit() {}, dispose() {}, setVersion() {} };
+  telemetry = {
+    init() {}, emit() {}, dispose() {}, setVersion() {},
+    submitFeedback() {}, isActive() { return false; }
+  };
 }
 
 const STATE_DIRNAME = '.constructor-fabric-trainer';
@@ -434,7 +437,7 @@ function stepIndex(curriculum, stepId) {
   return i < 0 ? undefined : i + 1;
 }
 
-async function runStepChecks(curriculum, state, stepId) {
+async function runStepChecks(curriculum, state, stepId, { reportTelemetry } = {}) {
   const step = curriculum.steps.find((s) => s.id === stepId);
   if (!step) return [];
   const results = [];
@@ -468,8 +471,16 @@ async function runStepChecks(curriculum, state, stepId) {
   // check_id and the ok boolean ONLY. `summary` can contain cfs validate
   // output — arbitrary text derived from the trainee's own artifacts — and
   // must never leave the container.
-  for (const r of results) {
-    telemetry.emit('step_check_run', { step_id: stepId, check_id: r.id, ok: !!r.ok });
+  //
+  // Only a trainee-initiated check is telemetry. The automatic check that
+  // runs on first entering a gated step merely displays current state — it
+  // is not an attempt, and emitting it (pass or fail) would misrepresent it
+  // as one, most visibly as a phantom failure for a trainee who passes
+  // cleanly on their first real try.
+  if (reportTelemetry) {
+    for (const r of results) {
+      telemetry.emit('step_check_run', { step_id: stepId, check_id: r.id, ok: !!r.ok });
+    }
   }
 
   // Completion is the final step first reaching 'passed'. Guarded on the prior
@@ -615,7 +626,12 @@ async function handleMessage(context, msg) {
         state,
         env: {
           workspaceRoot: workspaceRoot(),
-          appName: curriculum.app.name
+          appName: curriculum.app.name,
+          // Drives whether the Feedback button is offered at all. An
+          // environment deployed from an unsubstituted JPS has no telemetry
+          // config, and inviting someone to write 20 000 characters into a
+          // void is worse than offering nothing (feedback design §4.5).
+          feedbackEnabled: telemetry.isActive()
         }
       });
       telemetry.emit('trainer_opened', {});
@@ -692,7 +708,8 @@ async function handleMessage(context, msg) {
       checksRunning = true;
       post({ type: 'busy', stepId: msg.stepId });
       try {
-        const results = await runStepChecks(curriculum, state, msg.stepId);
+        const results = await runStepChecks(curriculum, state, msg.stepId,
+          { reportTelemetry: !msg.auto });
         post({ type: 'checkResults', stepId: msg.stepId, results, state });
       } finally {
         checksRunning = false;
@@ -707,6 +724,22 @@ async function handleMessage(context, msg) {
       saveState(state);
       post({ type: 'stateChanged', state });
       telemetry.emit('step_skipped', { step_id: msg.stepId, step_index: stepIndex(curriculum, msg.stepId) });
+      break;
+    }
+    case 'submitFeedback': {
+      // Wrapped like every other telemetry call: no telemetry failure may
+      // throw into the message loop and take the Trainer down with it
+      // (telemetry spec §11.4). The webview has already shown its
+      // acknowledgement and expects no reply.
+      try {
+        telemetry.submitFeedback({
+          text: msg.text,
+          noContact: Boolean(msg.noContact),
+          stepId: msg.stepId
+        });
+      } catch (e) {
+        // Deliberately swallowed; submitFeedback reports its own failures.
+      }
       break;
     }
     case 'openExternal': {

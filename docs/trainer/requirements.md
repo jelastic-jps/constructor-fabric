@@ -146,6 +146,30 @@ Resolved decisions (implementation review, 2026-07-09):
   choice (2026-07-23) — the previously fallback-only copilot value became a
   form option; scripts and verify already handled it, so this was a
   manifest-values-only change.
+- Known platform defect, NOT ours (confirmed 2026-08-05): resizing the Trainer
+  webview panel horizontally freezes vertical scrolling until something inside
+  the frame repaints. Verified against `main` (277ab2f, before the feedback
+  work) — it reproduces identically there, so it is not a regression.
+  Diagnosis: the document stays genuinely scrollable (scrollHeight > clientHeight)
+  and the frame's geometry stays self-consistent, but wheel events stop reaching
+  the document entirely — measured zero over a live repro — while clicks still
+  arrive. Clicks hit-test on the main thread against live layout; wheel scrolling
+  is routed on the compositor thread against a cached hit-test region that the
+  webview resize leaves stale. Any repaint inside the frame restores it, which is
+  why switching steps cures it — and why merely HOVERING a step chip or the
+  Feedback button is enough, since their :hover styles force a paint. The page
+  cannot react to the resize itself: zero resize events reach the frame. Two
+  speculative CSS fixes were tried and reverted; do not attempt a third without
+  new evidence.
+- Trainee feedback (2026-08-05): a floating Feedback button on every step opens
+  a dialog with a 20 000-character text box (counter from 16 000), a "Do not
+  contact me back for a followup" checkbox, and Send. Acknowledgement is
+  optimistic — "Thank you — your feedback has been recorded" — because the
+  emitter spools and ships on a timer, so "sent" would be a claim the client
+  cannot support. Feedback goes to the collector's dedicated POST /v1/feedback,
+  one item per request, never batched. The button is hidden when telemetry is
+  dormant. Design: telemetry repo,
+  docs/superpowers/specs/2026-08-05-trainer-feedback-design.md.
 
 ## 1. Overview
 
