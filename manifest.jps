@@ -222,6 +222,19 @@ actions:
             # Terminal-first sign-in for both agents: the panel stays closed
             # until the trainee opens it (Trainer step 2 teaches the flow).
             assert data.get('workbench.secondarySideBar.defaultVisibility') == 'hidden'
+        term_env = data.get('terminal.integrated.env.linux')
+        if agent == 'claude':
+            # VS Code injects BROWSER=<vscode>/bin/helpers/browser.sh into
+            # integrated terminals; with it present the Claude Code CLI takes
+            # the OAuth loopback path and pops up a localhost callback the
+            # trainee's browser can never reach. Removing it keeps the CLI on
+            # the manual-code flow Trainer step 2 teaches.
+            assert isinstance(term_env, dict) and 'BROWSER' in term_env and term_env['BROWSER'] is None, \
+                'terminal.integrated.env.linux BROWSER must be null for agent=claude, got ' + repr(term_env)
+        else:
+            # Only the claude path needs the override; codex signs in with a
+            # device code and issues no callback at all.
+            assert term_env is None, 'terminal.integrated.env.linux must be absent for agent=' + agent + ', got ' + repr(term_env)
         trainer_ext_js = (ext / 'extension.js').read_text()
         # The built-in unified Copilot handles its own sign-in; the trainer
         # must not override the chat setup sign-in command or request extra

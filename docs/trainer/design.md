@@ -205,6 +205,14 @@ step is ungated, and reaching the app is part of following the project's own doc
   in-container `node --check` of `extension.js`, and a curriculum JSON sanity parse;
   workspace HTML copy and fallback page dropped (stale copies removed, `state.json`
   preserved); `extensions.json` registration and Copilot logic untouched.
+  Agent-conditional user settings are merged here; for the **claude** path this
+  now includes `"terminal.integrated.env.linux": {"BROWSER": null}`, which
+  removes the VS Code browser shim from integrated terminals so the Claude Code
+  CLI stays on its manual-code OAuth flow instead of the loopback popup that
+  dead-ends in a web IDE (see requirements.md, decision 2026-08-06). The
+  pre-existing `pop()` of that key stays and runs first — it purges the legacy
+  API-key variant an older baked image may have written — so the claude value is
+  written after it.
 - **`scripts/bootstrap.sh`**: downloads the new 7-file trainer set (extension/ui/
   content) with baked-image fallback; places `scripts/auto-bootstrap.sh` at
   `~/studio/auto-bootstrap.sh` (download with baked-copy fallback) — the repo file
