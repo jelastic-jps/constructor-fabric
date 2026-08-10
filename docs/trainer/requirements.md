@@ -122,7 +122,10 @@ Resolved decisions (implementation review, 2026-07-09):
   environment and switches to the manual-code OAuth flow
   (redirect to platform.claude.com/oauth/code/callback, code pasted back at
   "Paste code here if prompted"), verified by TUI capture in the local
-  replay — no callback problem at all; the panel is then opened signed-in
+  replay — no callback problem at all (CORRECTED 2026-08-06: that replay ran
+  outside an integrated terminal, where BROWSER is unset, so it could not see
+  the popup the IDE terminal raises — see the 2026-08-06 decision below);
+  the panel is then opened signed-in
   (shared ~/.claude credentials). The Codex flow is terminal-first too:
   `codex login --device-auth` is a device-code flow (open
   auth.openai.com/codex/device, enter the one-time code the terminal shows;
@@ -170,6 +173,38 @@ Resolved decisions (implementation review, 2026-07-09):
   one item per request, never batched. The button is hidden when telemetry is
   dormant. Design: telemetry repo,
   docs/superpowers/specs/2026-08-05-trainer-feedback-design.md.
+
+- Claude sign-in popup removed at the source (2026-08-06, root-caused in a
+  local container replay and confirmed by user testing): trainees on the Claude
+  path were losing the sign-in journey to a popup that dead-ends. Cause: VS Code
+  injects `BROWSER=<vscode>/bin/helpers/browser.sh` into **integrated terminals**
+  (it is absent under `docker exec`, which is why earlier local replays never saw
+  it). That shim runs `code-server --openExternal`, and its mere presence makes
+  the Claude Code CLI believe a browser is reachable, so it takes the OAuth
+  *loopback* path: it binds a random ephemeral port, builds
+  `redirect_uri=http://localhost:<port>/callback`, hands that URL to the opener
+  (producing the popup) and separately prints the working manual-code URL. The
+  trainee clicks the popup — the prominent, automatic, clickable affordance —
+  authorises, and Claude redirects to `localhost:<port>` in *their own browser*,
+  i.e. their laptop rather than the container. Proven by logging the opener's
+  argv: BROWSER set → invoked with `localhost:35479/callback`; BROWSER removed →
+  never invoked, so no popup can exist. Fix: `start-services.sh` sets
+  `"terminal.integrated.env.linux": {"BROWSER": null}` for the **claude path
+  only**. Rejected: pointing BROWSER at a no-op (the CLI would still use the
+  loopback `redirect_uri` and wait on an unreachable listener) and the
+  `/proxy/<port>/callback` rewrite (the port is random per attempt, so it cannot
+  be taught or pre-provisioned). Codex needs no fix — verified: its device-code
+  flow prints a code for the trainee to paste and issues no callback at all, so
+  it is unaffected by BROWSER. Consequence for verification: any future replay of
+  a terminal-driven sign-in must run **inside an integrated terminal**, since
+  that is the only place the injected environment exists.
+- Trainer step 2, claude variant, follows the fix (2026-08-06): the
+  "close the popup" instruction is deleted (there is no longer a popup); the
+  sign-in-link step teaches the CLI's own `c` copy affordance, because the URL is
+  ~380 characters and always wraps across 4–5 terminal rows, making hand-copying
+  error-prone; and the authorization-code step ends with "Finish the setup (all
+  defaults will work fine)" to carry the trainee through the CLI's remaining
+  first-run prompts.
 
 ## 1. Overview
 

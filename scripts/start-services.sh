@@ -75,6 +75,21 @@ else:
 # Purge the legacy terminal-env key an older image's baked script may have
 # written (it used to carry API keys; the feature is removed).
 data.pop('terminal.integrated.env.linux', None)
+if agent == 'claude':
+    # VS Code injects BROWSER=<vscode>/bin/helpers/browser.sh into INTEGRATED
+    # TERMINALS (it is absent under docker exec, which is why local replays that
+    # skip the IDE terminal never saw this). That shim runs
+    # `code-server --openExternal`, and its mere presence makes the Claude Code
+    # CLI believe a browser is reachable, so it takes the OAuth *loopback* path:
+    # it binds a random ephemeral port, builds
+    # redirect_uri=http://localhost:<port>/callback, and hands that URL to the
+    # opener — which pops it up in the trainee's browser, where localhost is
+    # their own laptop rather than this container, so the callback never
+    # arrives. Removing the variable keeps the CLI on the manual-code flow
+    # (redirect_uri=platform.claude.com/oauth/code/callback) that Trainer step 2
+    # teaches. Codex is unaffected: it prints a code for the trainee to paste,
+    # with no callback at all.
+    data['terminal.integrated.env.linux'] = {'BROWSER': None}
 data.setdefault('workbench.colorTheme', 'Default Dark Modern')
 p.parent.mkdir(parents=True, exist_ok=True)
 p.write_text(json.dumps(data, indent=2) + '\n')
