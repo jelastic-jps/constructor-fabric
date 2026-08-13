@@ -206,6 +206,35 @@ Resolved decisions (implementation review, 2026-07-09):
   defaults will work fine)" to carry the trainee through the CLI's remaining
   first-run prompts.
 
+- Narrative moved from command-execution to harness-steering (2026-08-12,
+  after a full logged walk of steps 1-6 in a local container): Studio is far more
+  interactive than GREENFIELD.md implies, and it validates and routes itself.
+  Evidence from two independent runs: a zero-to-running-app session used **114 of
+  131 inputs as a bare menu number and zero `/cf validate` commands**, and the
+  post-change walk used one `/cf` prompt then 25 of 28 inputs as a number or
+  `fix all`. Each artifact workflow runs author -> validate -> review -> close on
+  its own and then names the next skill, so the trainee's job is to answer menus,
+  not to drive commands. Changes: (a) step 1 teaches the interaction model —
+  numbered menus, the `(suggested)` marker, self-validation, and that some
+  prompts want a **word** (`fix all`, `done`, a decision only the trainee can
+  make) rather than a number; (b) the PRD prompt is the only primary prompt, and
+  every later step's prompt is relabelled a backup for when Studio does not offer
+  the step; (c) all six `/cf validate X` prompts are removed — validation is a
+  phase inside each workflow, never a trainee command; (d) each gated step ends
+  by naming the skill Studio suggests next, so the trainee always knows where the
+  hand-off goes; (e) interaction mode: pick **normal**, which is also the option
+  Studio marks `(suggested)` (assistant was trialled and rejected). Verified in
+  the walk: the un-overridden path completes (PRD -> planning -> brainstorm ->
+  gen -> ci -> review), `cf-sdlc-doc-adr` is confirmed as the hand-off after
+  DESIGN, entering a step by accepting Studio's offer works with no prompt at
+  all, and the PRD/DESIGN/ADR gates all passed. Step counts, step subjects and
+  every gate are unchanged. Step 11 (traceability) deliberately untouched.
+- Known narrative gaps left open deliberately (2026-08-12, user decision — a
+  trainee can work these out): step 6 still describes a single storage-focused
+  ADR, while Studio produced two ADRs on other subjects in the walk; and the
+  hand-off names for steps 7-9 remain inferred from the earlier run rather than
+  observed.
+
 ## 1. Overview
 
 ### 1.1 Purpose
@@ -295,6 +324,9 @@ Priorities: p1 = must have for first release, p2 = should have, p3 = nice to hav
    PRD/DESIGN/ADR/DECOMPOSITION/FEATURE`, `/cf implement`),
    matching GREENFIELD.md's canonical "command + Context block" shape.
    (Amended v3.1, 2026-07-09 — was: `cf-sdlc-*` preset names.)
+   (Amended 2026-08-12: only the PRD prompt is primary. Every later step's
+   prompt is a **backup**, shown for the case where Studio does not offer that
+   step itself — see the 2026-08-12 decision.)
 4. Curriculum (draft, ~12 steps; final numbering during design):
    1. Welcome — what Constructor Studio is; the SDLC pipeline map; Studio-for-structure /
       AI-for-judgment; the validate-review-fix loop discipline.
