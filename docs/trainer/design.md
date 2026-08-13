@@ -154,8 +154,12 @@ drives restart archiving without hardcoding artifact paths.
 ## 5. Curriculum: steps, prompts, gates
 
 Chat-first throughout (FR-2.2); step 2 is a chat smoke test ("hello" + sign-in);
-all authoring via
-the kit's `/cf` conversational router in slash-command form. Example prompts
+authoring is launched through the kit's `/cf` conversational router in
+slash-command form, but from the PRD onward the trainee mostly answers Studio's
+numbered menus: each workflow validates and reviews itself and then names the
+next skill (2026-08-12). Only the PRD prompt is primary; the prompts shown on
+later steps are backups for when Studio does not offer the step itself, and the
+`/cf validate X` prompts are gone — validation is a phase inside each workflow. Example prompts
 follow GREENFIELD.md's "command + Context block" pattern; artifact placement is
 left to Studio (gates accept any registered location, no layout nudges). The PRD
 prompt embeds the brief as natural inline prose (no Context header/line breaks),
