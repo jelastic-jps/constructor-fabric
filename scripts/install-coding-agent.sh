@@ -55,3 +55,38 @@ if ! code-server --list-extensions 2>/dev/null | grep -qx "$EXT_ID"; then
   done
 fi
 echo "[coding-agent] extension ready: $EXT_ID"
+
+# Claude Code model/effort defaults. The Studio SDLC workflow is long and
+# menu-driven; a mid-class model at medium effort follows it step by step,
+# while the account default (Opus at high effort) tends to run ahead of the
+# workflow and improvise. `/model` and `/effort` are session-scoped, so the
+# choice has to live in the settings file to survive a reload.
+#
+# setdefault, not assignment: a trainee who has already picked something
+# keeps it across a re-bootstrap.
+if [ "$AGENT" = "claude" ]; then
+  python3 - "${HOME}/.claude/settings.json" <<'PYCLAUDESET'
+import json, os, sys
+path = sys.argv[1]
+os.makedirs(os.path.dirname(path), exist_ok=True)
+try:
+    with open(path) as fh:
+        data = json.load(fh)
+    if not isinstance(data, dict):
+        data = {}
+except (OSError, ValueError):
+    data = {}
+changed = False
+for key, value in (("model", "sonnet"), ("effortLevel", "medium")):
+    if key not in data:
+        data[key] = value
+        changed = True
+if changed:
+    tmp = path + ".tmp"
+    with open(tmp, "w") as fh:
+        json.dump(data, fh, indent=2)
+        fh.write("\n")
+    os.replace(tmp, path)
+print("[coding-agent] claude settings: model=%s effortLevel=%s" % (data.get("model"), data.get("effortLevel")))
+PYCLAUDESET
+fi

@@ -164,21 +164,29 @@ follow GREENFIELD.md's "command + Context block" pattern; artifact placement is
 left to Studio (gates accept any registered location, no layout nudges). The PRD
 prompt embeds the brief as natural inline prose (no Context header/line breaks),
 expanded at render time from `content/brief.md` via `{{BRIEF_INLINE}}` (single
-source; a paragraph-preserving `{{BRIEF}}` variant also exists). Gate = backend
-checks; the workflows' own validate/review loops do the validation teaching.
+source; a paragraph-preserving `{{BRIEF}}` variant also exists). Studio asks for those
+decisions through two surfaces — a numbered menu in the chat and a question card
+with buttons — and marks one option **(Recommended)**; step 1 teaches both
+(2026-08-19). The PRD opener also carries the constraints that bind later stages
+(single-command startup, small design), because Studio routinely advances past
+the DESIGN step on its own and its backup prompt is then never typed. Gate =
+backend checks; the workflows' own validate/review loops do the validation
+teaching, and step 8 additionally names the semantic review loop
+(`cf-documenting-review` -> `cf-documenting-fix`) that Studio offers beside
+implementation.
 
 | # | id | Trainee does (chat unless noted) | Gate checks |
 |---|----|----------------------------------|-------------|
 | 1 | `welcome` | Read: what Studio is, pipeline map, validate→review→fix loop | none |
 | 2 | `environment` | IDE tour (chat right, Explorer left); say "hello" in chat (GitHub sign-in if prompted); "Studio is preinstalled and preconfigured" | none |
 | 3 | `brief` | Read the TaskLite brief (rendered from `brief.md`); artifacts-vs-chat concept | none |
-| 4 | `prd` | `/cf make PRD for TaskLite. <brief inlined as prose>`, then `/cf validate PRD` (second prompt) | `artifact_registered(PRD)` |
-| 5 | `design` | `/cf make DESIGN from PRD. Imply implementation in Python 3.11. <constraints as inline prose>` (single command, as small as possible), then `/cf validate DESIGN` | `artifact_registered(DESIGN)` |
-| 6 | `adr` | `/cf make ADR for TaskLite task storage. Compare SQLite against a plain JSON file …` (inline prose), then `/cf validate ADR` | `artifact_registered(ADR)` |
-| 7 | `decomposition` | `/cf make DECOMPOSITION. Aim for 2 to 3 small features …` (inline prose), then `/cf validate DECOMPOSITION` | `artifact_registered(DECOMPOSITION)` |
-| 8 | `features` | `/cf make FEATURE for all features` (one run), then `/cf validate FEATURE for all features`; numbered behavior steps + `to_code` explained (CDSL not named — decided) | `artifact_registered(FEATURE)` |
-| 9 | `implement` | `/cf implement all features` (bare command; per-feature internally), then `/cf validate code`; `@cpt-*` markers + checkbox cascade explained | `markers_present` (tests exercised by the workflow, not gated — decided) |
-| 10 | `run` | Per README/GETTING_STARTED in a terminal, or ask the agent ("Run the app") | none (ungated — decided) |
+| 4 | `prd` | `/cf make PRD for TaskLite. <brief inlined as prose>` + single-command and small-design constraints for the stages below | `artifact_registered(PRD)` |
+| 5 | `design` | `/cf make DESIGN from PRD. Imply implementation in Python 3.11. <constraints as inline prose>` (single command, as small as possible); backup prompt — Studio normally offers this step itself | `artifact_registered(DESIGN)` |
+| 6 | `adr` | `/cf make ADR for TaskLite task storage. Compare SQLite against a plain JSON file …` (inline prose); backup prompt | `artifact_registered(ADR)` |
+| 7 | `decomposition` | `/cf make DECOMPOSITION. Aim for 2 to 3 small features …` (inline prose); backup prompt | `artifact_registered(DECOMPOSITION)` |
+| 8 | `features` | Accept `cf-sdlc-doc-feature` (backup: `/cf make FEATURE`); then run the semantic review loop before any code; numbered behavior steps + `to_code` explained (CDSL not named — decided) | `artifact_registered(FEATURE)` |
+| 9 | `implement` | Accept `cf-sdlc-implement` (backup: `/cf implement`; per-feature internally); `@cpt-*` markers + checkbox cascade explained | `markers_present` (tests exercised by the workflow, not gated — decided) |
+| 10 | `run` | Ask the agent ("Run the app"), which adds an entry point first if implementation left none; or per README/GETTING_STARTED in a terminal | none (ungated — decided) |
 | 11 | `traceability` | `/cf show the TaskLite traceability map` (bare command) | none (ungated — decided) |
 | 12 | `wrapup` | Recap; Keep-learning first (`/cf-help` prompt + guide links); restart / own-idea invitation | none (no commit — removed, deferred to future advanced training) |
 
@@ -217,6 +225,12 @@ step is ungated, and reaching the app is part of following the project's own doc
   pre-existing `pop()` of that key stays and runs first — it purges the legacy
   API-key variant an older baked image may have written — so the claude value is
   written after it.
+- **`scripts/install-coding-agent.sh`**: on the **claude** path, after the CLI and
+  extension are in place, merges `model: sonnet` and `effortLevel: medium` into
+  `~/.claude/settings.json` (2026-08-19). `/model` and `/effort` are session-only,
+  so the file is the sole durable carrier; the merge is setdefault-style and the
+  write is atomic (temp file + `os.replace`), leaving a trainee's own later choice
+  intact across a re-bootstrap. codex/copilot paths are untouched.
 - **`scripts/bootstrap.sh`**: downloads the new 7-file trainer set (extension/ui/
   content) with baked-image fallback; places `scripts/auto-bootstrap.sh` at
   `~/studio/auto-bootstrap.sh` (download with baked-copy fallback) — the repo file

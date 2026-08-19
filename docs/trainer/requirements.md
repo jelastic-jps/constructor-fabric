@@ -235,6 +235,57 @@ Resolved decisions (implementation review, 2026-07-09):
   hand-off names for steps 7-9 remain inferred from the earlier run rather than
   observed.
 
+- Curriculum corrected against a clean end-to-end walk (2026-08-19, from a
+  logged run that reached a running app and the traceability map). What the log
+  confirmed: the trainee typed **two** `/cf` commands in the whole session — the
+  PRD opener and the traceability map, both exactly as prescribed — and used
+  **no backup prompt at all**, so the harness-steering rewrite holds. What it
+  contradicted, and is now fixed: (a) Studio asks for decisions through **two**
+  surfaces, a numbered chat menu and a question card with buttons, and each
+  tags its guided option with a different word — `(suggested)` in a chat menu
+  (Studio's own router spec: "tags exactly one `(suggested)`"), **(Recommended)**
+  on a card (all 18 occurrences in the log are `AskUserQuestion`, none in a chat
+  menu). The run answered **nine** card prompts and took the tagged option every
+  single time. The curriculum described only numbered menus, so step 1 now
+  teaches both surfaces and both tags; (b) `fix all` was never typed — findings
+  arrive as a fix-scope menu whose thorough option is "all findings" — so that
+  instruction is gone from all six steps that carried it; (c) the semantic
+  review loop (`cf-documenting-review` -> `cf-documenting-fix`, run twice) is now
+  named in step 8, because it is offered as a menu option beside implementation,
+  it produced the CRITICAL findings that made the artifact set consistent, and a
+  trainee following the old text would have gone straight to code and never seen
+  it; (d) implementation produces modules and tests but not necessarily an entry
+  point — the walk had to add a CLI wrapper before the app could run — so step 10
+  says so and leads with asking the agent; (e) the step 4 opener now carries the
+  downstream constraint whose absence broke that walk ("the app must start and
+  run with a single command", plus a small-design expectation worded as a
+  product expectation to stay inside the PRD's WHAT-not-HOW rule), because
+  Studio auto-advanced past step 5 and the DESIGN backup prompt was never typed;
+  the language choice is deliberately NOT baked, since Studio asks for it at
+  implement time; (f) backup prompts shortened to `/cf make FEATURE` and
+  `/cf implement`. Step count, step subjects and all six gates unchanged.
+- Agent model and effort pinned at deploy time (2026-08-19): the environment's
+  default is Opus at high effort, which tends to run ahead of the Studio
+  workflow and improvise, while Sonnet 5 at medium effort follows it step by
+  step and produced the cleanest walk on record. `/model` and `/effort` are
+  session-scoped — verified by diffing Claude Code's own config backups after
+  running both, which changed nothing but a client cache slot — so the choice is
+  written to `~/.claude/settings.json` (`model`, `effortLevel`) by
+  `scripts/install-coding-agent.sh` on the claude path, using setdefault
+  semantics so a trainee's own later choice survives a re-bootstrap. Verified in
+  a fresh container: absent before bootstrap, still absent after a stock
+  bootstrap from main, present after the patched installer, and honoured by both
+  the CLI and the extension panel. Consequence for the curriculum: step 2 states
+  the model is already set and tells the trainee to leave it, instead of
+  teaching a command.
+- Trainer webview resets scroll on step change (2026-08-19): `goToStep` replaced
+  the step content without touching scroll position, so pressing **Next** at the
+  bottom of one step landed the trainee at the bottom of the next. The reset
+  lives in `goToStep`, not `render()` — render also runs for in-place updates
+  (check results, busy state), where holding the reader's position is correct —
+  and all three navigation entry points (Back, Next, numbered chips) already
+  funnel through it.
+
 ## 1. Overview
 
 ### 1.1 Purpose
@@ -337,27 +388,30 @@ Priorities: p1 = must have for first release, p2 = should have, p3 = nice to hav
    3. The reference app brief — hand the trainee the TaskLite product brief (the raw
       input a PM would have); explain artifacts vs. chat.
    4. Create and validate PRD — author via chat (`/cf make PRD`, Context =
-      the brief verbatim), then `/cf validate PRD` as a second prompt with
-      agent-driven fixes (per GREENFIELD.md's generate→validate rhythm); gate: a PRD
-      artifact registered in Studio's registry with its file present.
+      the brief inlined as prose, plus the single-start-command and small-design
+      constraints that bind the stages below); validation and review are phases
+      inside the workflow, not trainee commands; gate: a PRD artifact registered
+      in Studio's registry with its file present.
    5. Create and validate DESIGN — `/cf make DESIGN from PRD. …` (inline
       prose; prescribes only product-shaped constraints: single start command,
-      as small as possible — stack choice is left to the Studio workflow), then
-      `/cf validate DESIGN`; gate: DESIGN registered.
+      as small as possible — stack choice is left to the Studio workflow);
+      backup prompt only, since Studio normally offers this step itself;
+      gate: DESIGN registered.
    6. Create and validate ADR — one decision: task storage, made after DESIGN per
       the kit's quick-reference order (`/cf make ADR for TaskLite task
       storage. Compare SQLite against a plain JSON file …` — inline prose, no
-      stack givens), then `/cf validate ADR`; gate: ADR registered.
+      stack givens); backup prompt only; gate: ADR registered.
    7. Create and validate DECOMPOSITION — `/cf make DECOMPOSITION. Aim for
-      2 to 3 small features …` (inline prose), then `/cf validate
-      DECOMPOSITION`; explain ordering/dependencies; gate: DECOMPOSITION registered.
+      2 to 3 small features …` (inline prose, backup prompt only); explain
+      ordering/dependencies; gate: DECOMPOSITION registered.
    8. Create and validate FEATURE specs — all features in one workflow run
-      (`/cf make FEATURE for all features`), then `/cf validate FEATURE
-      for all features`; explain precise numbered behavior steps and `to_code`
-      IDs (CDSL itself is not named); gate: FEATURE specs registered.
-   9. Implement and validate code — `/cf implement all features` (bare
-      command, no Context; the workflow still proceeds one feature at a time, in
-      decomposition order), then `/cf validate code`; explain `@cpt-*`
+      (backup prompt `/cf make FEATURE`), then the semantic review loop
+      (`cf-documenting-review` -> `cf-documenting-fix`) over the whole artifact
+      set before any code exists; explain precise numbered behavior steps and
+      `to_code` IDs (CDSL itself is not named); gate: FEATURE specs registered.
+   9. Implement and validate code — backup prompt `/cf implement` (bare
+      command, no Context; the workflow proceeds one feature at a time, in
+      decomposition order); explain `@cpt-*`
       markers and the checkbox cascade; gate: `@cpt` markers present in code (the test suite is exercised
       by the workflow itself, not gated — decided 2026-07-09). NOTE: environment expectations (pytest, port 5000, relative URLs)
       are no longer prompted anywhere — the gates and run/troubleshooting content
