@@ -64,6 +64,56 @@ echo "[coding-agent] extension ready: $EXT_ID"
 #
 # setdefault, not assignment: a trainee who has already picked something
 # keeps it across a re-bootstrap.
+# Codex model/effort defaults, same reasoning as the claude block above:
+# GPT-5.6-Terra at medium reasoning follows the Studio workflow most closely.
+# Codex keeps these as top-level keys in ~/.codex/config.toml, which it does
+# not create until first sign-in, so the file usually does not exist yet here.
+if [ "$AGENT" = "codex" ]; then
+  python3 - "${HOME}/.codex/config.toml" <<'PYCODEXSET'
+import os, sys
+
+path = sys.argv[1]
+os.makedirs(os.path.dirname(path), exist_ok=True)
+wanted = [("model", '"gpt-5.6-terra"'), ("model_reasoning_effort", '"medium"')]
+
+try:
+    with open(path) as fh:
+        lines = fh.read().splitlines()
+except OSError:
+    lines = []
+
+# Top-level keys must precede the first [table] header, so split the file at it
+# and only ever inspect/extend the preamble.
+head = len(lines)
+for i, line in enumerate(lines):
+    if line.lstrip().startswith("["):
+        head = i
+        break
+preamble, rest = lines[:head], lines[head:]
+
+def has_key(key):
+    return any(l.split("=", 1)[0].strip() == key for l in preamble if "=" in l)
+
+added = [ "%s = %s" % (k, v) for k, v in wanted if not has_key(k) ]
+if added:
+    if rest and not (preamble and preamble[-1].strip() == ""):
+        preamble = preamble + [""]
+    preamble = added + preamble
+    tmp = path + ".tmp"
+    with open(tmp, "w") as fh:
+        fh.write("\n".join(preamble + rest).rstrip("\n") + "\n")
+    os.replace(tmp, path)
+
+report = {}
+for l in preamble:
+    if "=" in l:
+        k, v = l.split("=", 1)
+        report[k.strip()] = v.strip()
+print("[coding-agent] codex settings: model=%s model_reasoning_effort=%s"
+      % (report.get("model"), report.get("model_reasoning_effort")))
+PYCODEXSET
+fi
+
 if [ "$AGENT" = "claude" ]; then
   python3 - "${HOME}/.claude/settings.json" <<'PYCLAUDESET'
 import json, os, sys
