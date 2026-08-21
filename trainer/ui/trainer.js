@@ -433,11 +433,26 @@
       : esc(step.title) + ' — ' + (step.subtitle || '');
   }
 
+  // A step change swaps the content but leaves the window scrolled where the
+  // reader left it, so pressing Next at the bottom of one step lands at the
+  // bottom of the next. Reset on navigation only: render() also runs for
+  // in-place updates (check results, busy state), and holding position is
+  // right there. The document is the scroller — both sticky headers depend
+  // on that — but assigning scrollTop as well covers engines that report the
+  // scrolling element differently.
+  function scrollToTop() {
+    window.scrollTo(0, 0);
+    if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+  }
+
   function goToStep(id) {
     confirmingRestart = false;
     state.currentStep = id;
     post({ type: 'setStep', stepId: id });
     render();
+    scrollToTop();
     autoCheck(id);
   }
 
