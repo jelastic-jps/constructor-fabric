@@ -230,7 +230,11 @@ step is ungated, and reaching the app is part of following the project's own doc
   `~/.claude/settings.json` (2026-08-19). `/model` and `/effort` are session-only,
   so the file is the sole durable carrier; the merge is setdefault-style and the
   write is atomic (temp file + `os.replace`), leaving a trainee's own later choice
-  intact across a re-bootstrap. codex/copilot paths are untouched.
+  intact across a re-bootstrap. The **codex** path gets the same treatment in
+  `~/.codex/config.toml` (`model = "gpt-5.6-terra"`,
+  `model_reasoning_effort = "medium"`), inserted ahead of the first `[table]`
+  header so the file stays valid TOML; copilot has no equivalent knob and is
+  untouched.
 - **`scripts/bootstrap.sh`**: downloads the new 7-file trainer set (extension/ui/
   content) with baked-image fallback; places `scripts/auto-bootstrap.sh` at
   `~/studio/auto-bootstrap.sh` (download with baked-copy fallback) — the repo file

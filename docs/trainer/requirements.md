@@ -277,7 +277,15 @@ Resolved decisions (implementation review, 2026-07-09):
   bootstrap from main, present after the patched installer, and honoured by both
   the CLI and the extension panel. Consequence for the curriculum: step 2 states
   the model is already set and tells the trainee to leave it, instead of
-  teaching a command.
+  teaching a command. The **codex** path gets the same treatment
+  (2026-08-19): **GPT-5.6-Terra at medium reasoning**, chosen the same way — by
+  walking the curriculum on each candidate — written as the top-level `model`
+  and `model_reasoning_effort` keys of `~/.codex/config.toml`. Codex does not
+  create that file until first sign-in, so the deploy write usually creates it;
+  when it already exists the keys are inserted **before the first `[table]`
+  header**, since TOML requires top-level keys to precede any table, and an
+  existing value is never overwritten. copilot is untouched — it has no
+  equivalent knob at deploy time.
 - Trainer webview resets scroll on step change (2026-08-19): `goToStep` replaced
   the step content without touching scroll position, so pressing **Next** at the
   bottom of one step landed the trainee at the bottom of the next. The reset
